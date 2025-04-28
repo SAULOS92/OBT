@@ -16,10 +16,12 @@ PED_HEADERS = [
     "numero_pedido", "hora", "cliente", "nombre", "barrio", "ciudad",
     "asesor", "codigo_pro", "producto", "cantidad", "valor", "tipo", "estado"
 ]
-RUT_HEADERS = ["cliente", "dia", "codigo_ruta"]
+# Ahora sólo cliente + codigo_ruta (texto con "123-LU")
+RUT_HEADERS = ["cliente", "codigo_ruta"]
+
 DIAS_VALIDOS = {"LU", "MA", "MI", "JU", "VI", "SA", "DO"}
 
-# Mapeo de sinónimos: clave interna -> lista de posibles encabezados (incluye el actual)
+# Mapeo de sinónimos: clave interna -> lista de posibles encabezados
 COL_MAP = {
     # Pedidos
     "numero_pedido": ["numero_pedido", "Pedido"],
@@ -37,37 +39,31 @@ COL_MAP = {
     "estado":        ["estado", "Estado"],
 
     # Rutas
-    "cliente":     ["cliente", "Cod. Cliente"],
-    "dia":         ["dia", "día", "dia_semana"],
-    "codigo_ruta": ["codigo_ruta", "Ruta"]
+    "cliente":      ["cliente", "Cod. Cliente"],
+    "codigo_ruta":  ["codigo_ruta", "Ruta", "ruta"]
 }
 
 def normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
     """
-    1. Limpia nombres: lower, strip, reemplaza espacios/guiones por '_'.
+    1. Limpia nombres: lower, strip, espacios/guiones → '_'.
     2. Renombra según COL_MAP inverso.
     """
-    # Paso 1: limpieza básica
     cleaned = {
         col: col.strip().lower().replace(" ", "_").replace("-", "_")
         for col in df.columns
     }
     df = df.rename(columns=cleaned)
 
-    # Construye mapa inverso: cada alias limpio -> clave interna
     inv_map = {}
-    for internal, synonyms in COL_MAP.items():
-        for s in synonyms:
+    for internal, syns in COL_MAP.items():
+        for s in syns:
             key = s.strip().lower().replace(" ", "_").replace("-", "_")
             inv_map[key] = internal
 
-    # Paso 2: renombrar columnas encontradas en inv_map
-    to_rename = {
-        col: inv_map[col]
-        for col in df.columns
-        if col in inv_map
-    }
+    to_rename = {col: inv_map[col] for col in df.columns if col in inv_map}
     return df.rename(columns=to_rename)
+
+
 @upload_bp.route("/", methods=["GET", "POST"])
 @upload_bp.route("/cargar-pedidos", methods=["GET", "POST"])
 def upload_index():
@@ -76,7 +72,7 @@ def upload_index():
         f_rut = request.files.get("rutas")
         p_dia = request.form.get("dia", "").strip()
 
-        # 1) Validar día
+        # 1) Validar día del formulario
         if p_dia not in DIAS_VALIDOS:
             flash(f"Día inválido. Elige uno de: {', '.join(DIAS_VALIDOS)}", "error")
             return redirect(url_for("upload.upload_index"))
@@ -89,25 +85,27 @@ def upload_index():
             flash(f"Error leyendo los Excel: {e}", "error")
             return redirect(url_for("upload.upload_index"))
 
-        # 3) Normalizar nombres de columnas
+        # 3) Normalizar nombres
         df_ped = normalize_cols(df_ped)
         df_rut = normalize_cols(df_rut)
 
-        # 4) Validar que existan todas las columnas internas requeridas
+        # 4) Validar columnas de Pedidos
         falt_ped = [h for h in PED_HEADERS if h not in df_ped.columns]
         if falt_ped:
             flash(f"Faltan columnas en Pedidos: {falt_ped}", "error")
             return redirect(url_for("upload.upload_index"))
 
+        # 5) Validar columnas de Rutas (cliente + codigo_ruta)
         falt_rut = [h for h in RUT_HEADERS if h not in df_rut.columns]
         if falt_rut:
             flash(f"Faltan columnas en Rutas: {falt_rut}", "error")
             return redirect(url_for("upload.upload_index"))
 
-        # 5) Convertir a JSON y llamar al procedimiento
+        # 6) Serializar sólo las columnas que usa el SP
         pedidos = df_ped[PED_HEADERS].to_dict(orient="records")
         rutas   = df_rut[RUT_HEADERS].to_dict(orient="records")
 
+        # 7) Llamar al SP
         try:
             conn = conectar()
             cur = conn.cursor()
@@ -125,5 +123,5 @@ def upload_index():
 
         return redirect(url_for("upload.upload_index"))
 
-    # GET → mostrar formulario
     return render_template("upload.html")
+
