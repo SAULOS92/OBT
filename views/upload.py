@@ -68,7 +68,7 @@ def normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
         if col in inv_map
     }
     return df.rename(columns=to_rename)
-
+@upload_bp.route("/", methods=["GET", "POST"])
 @upload_bp.route("/cargar-pedidos", methods=["GET", "POST"])
 def upload_index():
     if request.method == "POST":
