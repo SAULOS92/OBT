@@ -1,0 +1,363 @@
+---------------------------------CONSTRUCCION BASE DE DATOS-------------------------------------------------
+CREATE TABLE inventario (
+    codigo   INTEGER PRIMARY KEY,
+    producto VARCHAR(255),
+    stock    INTEGER
+);
+
+CREATE TABLE materiales (
+    pro_codigo INTEGER PRIMARY KEY,
+    particion  INTEGER,
+    pq_x_caja  INTEGER
+);
+
+CREATE TABLE rutas (
+    codigo_ruta INTEGER,  
+    dia VARCHAR(255),  
+    codigo_cliente INTEGER    
+);
+
+CREATE TABLE pedxrutaxprod (
+  ruta         INTEGER         NOT NULL,
+  codigo_pro   INTEGER         NOT NULL,
+  producto     VARCHAR(255)    NOT NULL,
+  cantidad     INTEGER         NOT NULL,
+  pq_por_caja  INTEGER DEFAULT 1 NOT NULL,
+  particiones  INTEGER DEFAULT 1 NOT NULL,
+  inv          INTEGER DEFAULT 0 NOT NULL,  
+  pedir INTEGER GENERATED ALWAYS AS (
+    FLOOR((cantidad - inv)::NUMERIC / particiones::NUMERIC)::INTEGER
+  ) STORED,
+  ped8_pq INTEGER GENERATED ALWAYS AS (
+    (cantidad - inv)
+    - (
+        FLOOR((cantidad - inv)::NUMERIC / particiones::NUMERIC)::INTEGER
+        * particiones
+      )
+  ) STORED,  
+  equ_caja INTEGER GENERATED ALWAYS AS (
+    FLOOR(
+      FLOOR((cantidad - inv)::NUMERIC / particiones::NUMERIC)
+      / (pq_por_caja::NUMERIC / particiones::NUMERIC)
+    )::INTEGER
+  ) STORED,
+  equ_tira INTEGER GENERATED ALWAYS AS (
+    FLOOR((cantidad - inv)::NUMERIC / particiones::NUMERIC)::INTEGER
+    % FLOOR((pq_por_caja::NUMERIC / particiones::NUMERIC))::INTEGER
+  ) STORED
+);
+CREATE TABLE PEDXCLIXPROD (
+  numero_pedido VARCHAR(100),
+  hora TIME,
+  codigo_cli INTEGER,         
+  ruta INTEGER,        
+  nombre VARCHAR(100),   
+  barrio VARCHAR(100),
+  ciudad VARCHAR(100),   
+  asesor VARCHAR(100),
+  codigo_pro INTEGER,        
+  producto VARCHAR(255),   
+  cantidad INTEGER,        
+  valor NUMERIC(14,2),   
+  tip_pro VARCHAR(100),        
+  estado VARCHAR(50)   
+);
+
+ALTER TABLE PEDXRUTAXPROD
+  ADD CONSTRAINT fk_pedxrutaxprod_materiales
+    FOREIGN KEY (codigo_pro)
+    REFERENCES materiales (pro_codigo)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION;
+ALTER TABLE PEDXRUTAXPROD
+ADD CONSTRAINT fk_pedxrutaxprod_inventario
+  FOREIGN KEY (codigo_pro)
+  REFERENCES inventario (codigo)
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION;
+
+
+-----------------------PROCEDIMIENTOS----------------------- 
+CREATE OR REPLACE PROCEDURE etl_cargar_pedidos_y_rutas_masivo(
+  p_pedidos JSONB,
+  p_rutas   JSONB,
+  p_dia     TEXT
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN  
+  TRUNCATE TABLE
+    pedxclixprod,
+    rutas,
+    materiales,
+    inventario
+  CASCADE;
+  INSERT INTO pedxclixprod (
+    numero_pedido,
+    hora,
+    codigo_cli,
+    ruta,        
+    nombre,
+    barrio,
+    ciudad,
+    asesor,
+    codigo_pro,
+    producto,
+    cantidad,
+    valor,
+    tip_pro,
+    estado
+  )
+  SELECT
+    x.numero_pedido,
+    x.hora::TIME,
+    split_part(x.cliente, '-', 1)::INTEGER,
+    NULL,
+    x.nombre,
+    x.barrio,
+    x.ciudad,
+    x.asesor,
+    x.codigo_pro,
+    x.producto,
+    x.cantidad,
+    x.valor,
+    x.tipo,
+    x.estado
+  FROM jsonb_to_recordset(p_pedidos) AS x(
+    numero_pedido TEXT,
+    hora          TEXT,
+    cliente       TEXT,
+    nombre        TEXT,
+    barrio        TEXT,
+    ciudad        TEXT,
+    asesor        TEXT,
+    codigo_pro    INTEGER,
+    producto      TEXT,
+    cantidad      INTEGER,
+    valor         NUMERIC,
+    tipo          TEXT,
+    estado        TEXT
+  )
+  WHERE x.tipo   = 'Regular'
+  AND x.estado = 'Pendiente';
+  INSERT INTO rutas (
+    codigo_ruta,
+    dia,
+    codigo_cliente
+  )
+  SELECT
+    r.codigo_ruta,
+    r.dia,
+    split_part(r.cliente, '-', 1)::INTEGER
+  FROM jsonb_to_recordset(p_rutas) AS r(
+    cliente     TEXT,
+    dia         TEXT,
+    codigo_ruta INTEGER
+  );
+  UPDATE pedxclixprod p
+  SET ruta = r.codigo_ruta
+  FROM rutas r
+  WHERE p.codigo_cli   = r.codigo_cliente
+    AND r.dia           = p_dia;
+END;
+$$;
+-- VALIDACION DE PRODUCTOS BIG
+CREATE OR REPLACE FUNCTION fn_obtener_residuos(
+  p_prod_parts JSONB  
+) RETURNS JSONB
+LANGUAGE sql
+AS $$
+  SELECT COALESCE(
+    jsonb_agg(row_to_json(t)),
+    '[]'::jsonb
+  )
+  FROM (
+    SELECT
+      p.numero_pedido,
+      p.codigo_pro,
+      (p.cantidad % pr.particiones) AS residuo
+    FROM pedxclixprod p
+    JOIN jsonb_to_recordset(p_prod_parts)
+      AS pr(codigo_pro INTEGER, particiones INTEGER)
+      ON p.codigo_pro = pr.codigo_pro
+    WHERE (p.cantidad % pr.particiones) > 0
+  ) AS t;
+$$;
+
+---VALIDACION NUMERO DE PEDIDOS Y CLIENTES SIN RUTA
+CREATE OR REPLACE FUNCTION fn_obtener_resumen_pedidos()
+RETURNS JSONB
+LANGUAGE sql
+AS $$
+  SELECT COALESCE(
+    jsonb_agg(row_to_json(r)),
+    '[]'::jsonb
+  )
+  FROM (
+    SELECT
+      codigo_cli,
+      nombre,
+      barrio,
+      ciudad,
+      asesor,
+      COUNT(DISTINCT numero_pedido) AS total_pedidos
+    FROM pedxclixprod
+    GROUP BY codigo_cli, nombre, barrio, ciudad, asesor
+  ) AS r;
+$$;
+
+----PRDOCEDIMIENTO PARA GENERAR EL CONSOLIDADO DE LOS PEDIDOS
+CREATE OR REPLACE PROCEDURE sp_etl_pedxrutaxprod_json(
+  p_materiales JSONB,   
+  p_inventario JSONB    
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  r INTEGER;
+BEGIN  
+  INSERT INTO materiales (pro_codigo, particion, pq_x_caja)
+  SELECT
+    m.pro_codigo,
+    m.particion,
+    m.pq_x_caja
+  FROM jsonb_to_recordset(p_materiales) AS m(
+    pro_codigo INTEGER,
+    particion  INTEGER,
+    pq_x_caja  INTEGER
+  );
+  INSERT INTO inventario (codigo, producto, stock)
+  SELECT
+    i.codigo,
+    i.producto,
+    i.stock
+  FROM jsonb_to_recordset(p_inventario) AS i(
+    codigo   INTEGER,
+    producto TEXT,
+    stock    INTEGER
+  );
+  INSERT INTO pedxrutaxprod (ruta, codigo_pro, producto, cantidad)
+  SELECT
+    ruta,
+    codigo_pro,
+    producto,
+    SUM(cantidad) AS cantidad
+  FROM pedxclixprod
+  GROUP BY ruta, codigo_pro, producto;
+
+  UPDATE pedxrutaxprod p
+  SET
+    particiones = m.particion,
+    pq_por_caja = m.pq_x_caja
+  FROM materiales m
+  WHERE p.codigo_pro = m.pro_codigo;
+
+  FOR r IN
+    SELECT DISTINCT ruta
+    FROM pedxrutaxprod
+    ORDER BY ruta
+  LOOP
+   
+    UPDATE pedxrutaxprod p
+    SET inv = LEAST(p.cantidad, i.stock)
+    FROM inventario i
+    WHERE p.codigo_pro = i.codigo
+      AND p.ruta = r;
+    
+    UPDATE inventario i
+    SET stock = i.stock - p.inv
+    FROM pedxrutaxprod p2
+    WHERE i.codigo = p2.codigo_pro
+      AND p2.ruta = r;
+  END LOOP;
+  
+  INSERT INTO pedxrutaxprod (
+    ruta,
+    codigo_pro,
+    producto,
+    pq_por_caja,
+    particiones,
+    cantidad
+  )
+  SELECT
+    99                       AS ruta,
+    codigo_pro,
+    producto,
+    MAX(pq_por_caja)         AS pq_por_caja,
+    particiones,
+    CEIL(SUM(ped8_pq)::NUMERIC / particiones) * particiones AS cantidad
+  FROM pedxrutaxprod
+  WHERE ruta > 0
+  GROUP BY codigo_pro, producto, particiones
+  HAVING SUM(ped8_pq) > 0;
+END;
+$$;
+
+  ----OBTENER EL INFORME DE REPARTICION DE INVENTARIO
+ CREATE OR REPLACE FUNCTION fn_obtener_reparticion_inventario_json()
+RETURNS JSONB
+LANGUAGE sql
+AS $$
+  SELECT COALESCE(
+    jsonb_agg(row_to_json(r)),
+    '[]'::jsonb
+  )
+  FROM (
+    SELECT
+      ruta,
+      codigo_pro,
+      producto,
+      cantidad,
+      pedir,
+      ped8_pq,
+      inv
+    FROM pedxrutaxprod
+    WHERE ruta > 0
+      AND inv  > 0
+    ORDER BY
+      ruta ASC,
+      producto ASC
+  ) AS r;
+$$;
+---VALIDAR QUE TODOS LOS MATERIALES TENGAN SU PARTICION
+CREATE OR REPLACE FUNCTION fn_materiales_sin_definir()
+RETURNS JSONB
+LANGUAGE sql
+AS $$
+  SELECT COALESCE(
+    jsonb_agg(row_to_json(t)),
+    '[]'::jsonb
+  )
+  FROM (    
+    SELECT DISTINCT
+      p.codigo_pro,
+      p.producto
+    FROM pedxrutaxprod p
+    LEFT JOIN materiales m
+      ON p.codigo_pro = m.pro_codigo
+    WHERE m.pro_codigo IS NULL
+  ) AS t;
+$$;
+
+  ----OBTENER LA INFO DE TODOS LOS PEDIDOS
+  CREATE OR REPLACE FUNCTION fn_obtener_pedidos_con_pedir_json()
+RETURNS JSONB
+LANGUAGE sql
+AS $$
+  SELECT COALESCE(
+    jsonb_agg(row_to_json(r)),
+    '[]'::jsonb
+  )
+  FROM (
+    SELECT
+      ruta,
+      codigo_pro,
+      producto,
+      pedir
+    FROM pedxrutaxprod
+    WHERE pedir > 0
+    ORDER BY ruta ASC, producto ASC
+  ) AS r;
+$$;
+
+
