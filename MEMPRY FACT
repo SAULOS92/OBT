@@ -49,7 +49,7 @@ CREATE TABLE pedxrutaxprod (
 CREATE TABLE PEDXCLIXPROD (
   numero_pedido VARCHAR(100),
   hora TIME,
-  codigo_cli INTEGER,         
+  codigo_cli VARCHAR(100),         
   ruta INTEGER,        
   nombre VARCHAR(100),   
   barrio VARCHAR(100),
