@@ -138,7 +138,7 @@ BEGIN
     tipo_pro      TEXT,
     estado        TEXT
   )
-  WHERE x.tipo   = 'N'
+  WHERE x.tipo_pro   = 'N'
   AND x.estado = 'Sin Descargar';
   INSERT INTO rutas (
   codigo_ruta,
