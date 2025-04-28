@@ -151,7 +151,7 @@ SELECT
   split_part(r.codigo_ruta, '-', 2),
   (split_part(r.cliente, '-', 1))::INTEGER
 FROM jsonb_to_recordset(p_rutas) AS r(
-  cliente           TEXT,
+  codigo_cliente           TEXT,
   codigo_ruta  TEXT
 );
   UPDATE pedxclixprod p
