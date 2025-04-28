@@ -21,21 +21,40 @@ def export_index():
 
 @export_bp.route("/resumen", methods=["GET"])
 def export_resumen():
+    # 1) Columnas que tu SP siempre devuelve
+    cols = ["codigo_cli","nombre","barrio","ciudad","asesor","total_pedidos"]
+
     try:
+        # 2) Llamada a la función en la BD
         conn = conectar()
-        cur = conn.cursor()
+        cur  = conn.cursor()
         cur.execute("SELECT fn_obtener_resumen_pedidos();")
-        json_res = cur.fetchone()[0]
-    finally:
+        row = cur.fetchone()
         cur.close()
         conn.close()
 
-    df = pd.DataFrame(json.loads(json_res))
+        # 3) Parseo seguro del JSONB
+        if row and row[0]:
+            data = json.loads(row[0])
+        else:
+            data = []
+    except Exception as e:
+        # En caso de error, loguea y sigue con Excel en blanco
+        # print(e)  <-- si quieres ver la traza en logs
+        data = []
+
+    # 4) DataFrame con datos o vacío
+    df = pd.DataFrame(data, columns=cols)
+
+    # 5) Generar Excel en memoria
     output = BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as w:
-        df.to_excel(w, sheet_name="Resumen", index=False)
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer,
+                    sheet_name="ResumenPedidos",
+                    index=False)
     output.seek(0)
 
+    # 6) Enviar descarga
     return send_file(
         output,
         as_attachment=True,
