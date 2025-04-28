@@ -1,3 +1,5 @@
+# views/export.py
+
 import json
 from io import BytesIO
 
@@ -14,39 +16,40 @@ export_bp = Blueprint(
     template_folder="../templates"
 )
 
+
 @export_bp.route("/", methods=["GET"])
 def export_index():
+    """Muestra la página con las opciones de exportación."""
     return render_template("export.html")
 
 
 @export_bp.route("/resumen", methods=["GET"])
 def export_resumen():
-    # 1) Columnas que tu SP siempre devuelve
-    cols = ["codigo_cli","nombre","barrio","ciudad","asesor","total_pedidos"]
+    """Descarga un Excel con el resultado de fn_obtener_resumen_pedidos()."""
+    # 1) Definimos los encabezados de columna esperados
+    cols = ["codigo_cli", "nombre", "barrio", "ciudad", "asesor", "total_pedidos"]
 
+    # 2) Intentamos obtener datos de la función en la BD
     try:
-        # 2) Llamada a la función en la BD
         conn = conectar()
-        cur  = conn.cursor()
+        cur = conn.cursor()
         cur.execute("SELECT fn_obtener_resumen_pedidos();")
         row = cur.fetchone()
         cur.close()
         conn.close()
 
-        # 3) Parseo seguro del JSONB
         if row and row[0]:
             data = json.loads(row[0])
         else:
             data = []
-    except Exception as e:
-        # En caso de error, loguea y sigue con Excel en blanco
-        # print(e)  <-- si quieres ver la traza en logs
+    except Exception:
+        # En caso de error, devolvemos un Excel con sólo encabezados
         data = []
 
-    # 4) DataFrame con datos o vacío
+    # 3) Construimos DataFrame (vacío o con filas)
     df = pd.DataFrame(data, columns=cols)
 
-    # 5) Generar Excel en memoria
+    # 4) Generamos el Excel en memoria
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         df.to_excel(writer,
@@ -54,7 +57,7 @@ def export_resumen():
                     index=False)
     output.seek(0)
 
-    # 6) Enviar descarga
+    # 5) Enviamos el archivo
     return send_file(
         output,
         as_attachment=True,
@@ -65,39 +68,56 @@ def export_resumen():
 
 @export_bp.route("/residuos", methods=["POST"])
 def export_residuos():
+    """Lee un Excel de particiones, llama a fn_obtener_residuos y devuelve un Excel."""
+    # 1) Definimos los encabezados de salida
+    cols = ["numero_pedido", "codigo_pro", "residuo"]
+
+    # 2) Leemos y validamos el Excel de particiones
     f = request.files.get("particiones")
-    EXPECTED = ["codigo_pro", "particiones"]
     if not f:
         flash("Sube el Excel de particiones.", "error")
         return redirect(url_for("export.export_index"))
 
     try:
-        df = pd.read_excel(f, engine="openpyxl")
-        if list(df.columns) != EXPECTED:
+        df_parts = pd.read_excel(f, engine="openpyxl")
+        EXPECTED = ["codigo_pro", "particiones"]
+        if list(df_parts.columns) != EXPECTED:
             raise ValueError(f"Encabezados deben ser {EXPECTED}")
+        prod_parts = df_parts.to_dict(orient="records")
     except Exception as e:
-        flash(f"Error leyendo Excel: {e}", "error")
-        return redirect(url_for("export.export_index"))
+        flash(f"Error leyendo Excel de particiones: {e}", "error")
+        prod_parts = None
 
-    prod_parts = df.to_dict(orient="records")
+    # 3) Llamamos al SP y parseamos el JSON
     try:
-        conn = conectar()
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT fn_obtener_residuos(%s);",
-            (json.dumps(prod_parts),)
-        )
-        json_res = cur.fetchone()[0]
-    finally:
-        cur.close()
-        conn.close()
+        if prod_parts is not None:
+            conn = conectar()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT fn_obtener_residuos(%s);",
+                (json.dumps(prod_parts),)
+            )
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            data = json.loads(row[0]) if (row and row[0]) else []
+        else:
+            data = []
+    except Exception:
+        data = []
 
-    df_out = pd.DataFrame(json.loads(json_res))
+    # 4) Construimos DataFrame
+    df_out = pd.DataFrame(data, columns=cols)
+
+    # 5) Generamos el Excel en memoria
     output = BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as w:
-        df_out.to_excel(w, sheet_name="Residuos", index=False)
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df_out.to_excel(writer,
+                        sheet_name="Residuos",
+                        index=False)
     output.seek(0)
 
+    # 6) Enviamos el archivo
     return send_file(
         output,
         as_attachment=True,
