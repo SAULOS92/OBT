@@ -11,10 +11,12 @@ upload_bp = Blueprint(
     template_folder="../templates"
 )
 
-# Columnas internas que espera el SP
+# Columnas internas que espera el SP; reemplazamos "tipo" por "tipo_pro"
 PED_HEADERS = [
     "numero_pedido", "hora", "cliente", "nombre", "barrio", "ciudad",
-    "asesor", "codigo_pro", "producto", "cantidad", "valor", "tipo", "estado"
+    "asesor", "codigo_pro", "producto", "cantidad", "valor",
+    "tipo_pro",    # antes "tipo"
+    "estado"
 ]
 # Ahora sólo cliente + codigo_ruta (texto con "123-LU")
 RUT_HEADERS = ["cliente", "codigo_ruta"]
@@ -36,7 +38,7 @@ COL_MAP = {
     "producto":      ["producto", "Producto"],
     "cantidad":      ["cantidad", "Cantidad"],
     "valor":         ["valor", "Total"],
-    "tipo":          ["tipo", "Tip Pro"],
+    "tipo_pro":      ["tipo_pro", "Tip Pro"],  # cambiado
     "estado":        ["estado", "Estado"],
 
     # Rutas
@@ -47,24 +49,25 @@ COL_MAP = {
 
 def normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
     """
-    1. Limpia nombres: lower, strip, espacios/guiones → '_'.
+    1. Convierte todos los nombres de columna a minúsculas,
+       sin espacios ni guiones (reemplazados por '_').
     2. Renombra según COL_MAP inverso.
     """
-    # Paso 1: limpieza básica de columnas
+    # Limpieza básica
     cleaned = {
         col: col.strip().lower().replace(" ", "_").replace("-", "_")
         for col in df.columns
     }
     df = df.rename(columns=cleaned)
 
-    # Paso 2: construye mapa inverso de alias → nombre interno
+    # Construir mapa inverso alias → nombre interno
     inv_map = {}
     for internal, synonyms in COL_MAP.items():
         for s in synonyms:
             key = s.strip().lower().replace(" ", "_").replace("-", "_")
             inv_map[key] = internal
 
-    # Paso 3: renombra columnas que coincidan con el mapa inverso
+    # Renombrar columnas que coincidan
     to_rename = {col: inv_map[col] for col in df.columns if col in inv_map}
     return df.rename(columns=to_rename)
 
@@ -73,17 +76,17 @@ def normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
 @upload_bp.route("/cargar-pedidos", methods=["GET", "POST"])
 def upload_index():
     if request.method == "POST":
-        # Obtener archivos y día
+        # 1) Recoger archivos y día
         f_ped = request.files.get("pedidos")
         f_rut = request.files.get("rutas")
         p_dia = request.form.get("dia", "").strip()
 
-        # Validar día
+        # 2) Validar día
         if p_dia not in DIAS_VALIDOS:
             flash(f"Día inválido. Elige uno de: {', '.join(DIAS_VALIDOS)}", "error")
             return redirect(url_for("upload.upload_index"))
 
-        # Leer los Excel
+        # 3) Leer los Excel
         try:
             df_ped = pd.read_excel(f_ped, engine="openpyxl")
             df_rut = pd.read_excel(f_rut, engine="openpyxl")
@@ -91,42 +94,41 @@ def upload_index():
             flash(f"Error leyendo los Excel: {e}", "error")
             return redirect(url_for("upload.upload_index"))
 
-        # Normalizar nombres de columnas
+        # 4) Normalizar nombres de columnas
         df_ped = normalize_cols(df_ped)
         df_rut = normalize_cols(df_rut)
 
-        # Detectar columnas duplicadas
+        # 5) Detectar columnas duplicadas
         dupes_p = df_ped.columns[df_ped.columns.duplicated()].unique().tolist()
         if dupes_p:
             flash(f"Columnas duplicadas en Pedidos: {dupes_p}", "error")
             return redirect(url_for("upload.upload_index"))
-
         dupes_r = df_rut.columns[df_rut.columns.duplicated()].unique().tolist()
         if dupes_r:
             flash(f"Columnas duplicadas en Rutas: {dupes_r}", "error")
             return redirect(url_for("upload.upload_index"))
 
-        # Reemplazar NaN por None para serializar correctamente
+        # 6) Reemplazar NaN por None para serializar correctamente
         df_ped = df_ped.replace({np.nan: None})
         df_rut = df_rut.replace({np.nan: None})
 
-        # Validar encabezados de Pedidos
+        # 7) Validar columnas de Pedidos
         falt_ped = [h for h in PED_HEADERS if h not in df_ped.columns]
         if falt_ped:
             flash(f"Faltan columnas en Pedidos: {falt_ped}", "error")
             return redirect(url_for("upload.upload_index"))
 
-        # Validar encabezados de Rutas
+        # 8) Validar columnas de Rutas
         falt_rut = [h for h in RUT_HEADERS if h not in df_rut.columns]
         if falt_rut:
             flash(f"Faltan columnas en Rutas: {falt_rut}", "error")
             return redirect(url_for("upload.upload_index"))
 
-        # Serializar sólo las columnas que usa el SP
+        # 9) Serializar los datos
         pedidos = df_ped[PED_HEADERS].to_dict(orient="records")
         rutas   = df_rut[RUT_HEADERS].to_dict(orient="records")
 
-        # Llamar al procedimiento almacenado
+        # 10) Llamar al SP
         try:
             conn = conectar()
             cur = conn.cursor()
@@ -144,7 +146,8 @@ def upload_index():
 
         return redirect(url_for("upload.upload_index"))
 
-    # GET → muestra el formulario
+    # GET → mostrar formulario
     return render_template("upload.html")
+
 
 
