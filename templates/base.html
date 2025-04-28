@@ -8,10 +8,12 @@
 </head>
 <body class="bg-gray-50 text-gray-800">
 
-  <!-- Aquí va tu menú, definido una sola vez -->
+  <!-- Menú principal -->
   <nav class="bg-white shadow-md">
     <div class="max-w-7xl mx-auto px-4">
       <ul class="flex space-x-6">
+
+        <!-- VALIDACIONES con submenú -->
         <li class="relative">
           <details class="group">
             <summary class="flex items-center py-4 px-2 cursor-pointer text-gray-700 hover:text-blue-600 transition">
@@ -25,33 +27,53 @@
             </summary>
             <ul class="absolute left-0 mt-1 w-48 bg-white border rounded-lg shadow-lg
                        opacity-0 group-open:opacity-100 invisible group-open:visible transition-all">
-              <li><a href="{{ url_for('upload.upload_index') }}"
-                     class="block px-4 py-2 text-gray-600 hover:bg-gray-100">Cargar Informes</a></li>
-              <li><a href="{{ url_for('export.export_index') }}"
-                     class="block px-4 py-2 text-gray-600 hover:bg-gray-100">Exportar Informes</a></li>
+              <li>
+                <a href="{{ url_for('upload.upload_index') }}"
+                   class="block px-4 py-2 text-gray-600 hover:bg-gray-100">
+                  Cargar Informes
+                </a>
+              </li>
+              <li>
+                <a href="{{ url_for('export.export_index') }}"
+                   class="block px-4 py-2 text-gray-600 hover:bg-gray-100">
+                  Exportar Informes
+                </a>
+              </li>
             </ul>
           </details>
         </li>
+
+        <!-- GENERAR PEDIDOS (deshabilitado) -->
         <li>
-          <a href="{{ url_for('generar_pedidos') }}"
-             class="flex items-center py-4 px-2 text-gray-700 hover:text-blue-600 transition">
+          <span
+            class="flex items-center py-4 px-2 text-gray-400 cursor-not-allowed transition">
             Generar Pedidos
-          </a>
+            <span class="ml-2 bg-yellow-200 text-yellow-800 text-xs font-semibold px-2 py-1 rounded-full">
+              Próximamente
+            </span>
+          </span>
         </li>
+
+        <!-- CONSOLIDAR COMPRAS (deshabilitado) -->
         <li>
-          <a href="{{ url_for('consolidar_compras') }}"
-             class="flex items-center py-4 px-2 text-gray-700 hover:text-blue-600 transition">
+          <span
+            class="flex items-center py-4 px-2 text-gray-400 cursor-not-allowed transition">
             Consolidar Compras
-          </a>
+            <span class="ml-2 bg-yellow-200 text-yellow-800 text-xs font-semibold px-2 py-1 rounded-full">
+              Próximamente
+            </span>
+          </span>
         </li>
+
       </ul>
     </div>
   </nav>
 
-  <!-- Aquí irá el contenido específico de cada página -->
+  <!-- Contenido de cada página -->
   <main class="p-4">
     {% block content %}{% endblock %}
   </main>
 
 </body>
 </html>
+
