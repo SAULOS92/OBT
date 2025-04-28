@@ -42,8 +42,8 @@ COL_MAP = {
     "estado":        ["estado", "Estado"],
 
     # Rutas
-    "codigo_cliente": ["Cod. Cliente", "cliente", "Cliente", "cliente_id"],
-    "codigo_ruta":    ["Ruta", "ruta", "codigo_ruta"]
+    "codigo_cliente": ["Cod. Cliente"],
+    "codigo_ruta":    ["Ruta"]
 }
 
 def normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
