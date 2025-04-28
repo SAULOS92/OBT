@@ -22,24 +22,24 @@ DIAS_VALIDOS = {"LU", "MA", "MI", "JU", "VI", "SA", "DO"}
 # Mapeo de sinónimos: clave interna -> lista de posibles encabezados (incluye el actual)
 COL_MAP = {
     # Pedidos
-    "numero_pedido": ["numero_pedido", "numero pedido", "num_pedido", "pedido id", "pedido-numero"],
-    "hora":          ["hora", "tiempo", "time"],
-    "cliente":       ["cliente", "cliente id", "id_cliente"],
-    "nombre":        ["nombre", "cliente nombre"],
-    "barrio":        ["barrio"],
-    "ciudad":        ["ciudad"],
-    "asesor":        ["asesor", "vendedor"],
-    "codigo_pro":    ["codigo_pro", "codigo producto", "cod_pro", "producto_id"],
-    "producto":      ["producto", "desc_producto"],
-    "cantidad":      ["cantidad", "qty"],
-    "valor":         ["valor", "precio", "monto"],
-    "tipo":          ["tipo", "tipo_pedido"],
-    "estado":        ["estado", "status"],
+    "numero_pedido": ["numero_pedido", "Pedido"],
+    "hora":          ["hora", "Hora"],
+    "cliente":       ["cliente", "Cliente"],
+    "nombre":        ["nombre", "R. Social"],
+    "barrio":        ["barrio", "Barrio"],
+    "ciudad":        ["ciudad", "Ciudad"],
+    "asesor":        ["asesor", "Asesor"],
+    "codigo_pro":    ["codigo_pro", "Cod.Prod"],
+    "producto":      ["producto", "Producto"],
+    "cantidad":      ["cantidad", "Cantidad"],
+    "valor":         ["valor", "Total"],
+    "tipo":          ["tipo", "Tip Pro"],
+    "estado":        ["estado", "Estado"],
 
     # Rutas
-    "cliente":     ["cliente", "cliente id", "id_cliente"],
+    "cliente":     ["cliente", "Cod. Cliente"],
     "dia":         ["dia", "día", "dia_semana"],
-    "codigo_ruta": ["codigo_ruta", "codigo ruta", "cod_ruta", "ruta_id"]
+    "codigo_ruta": ["codigo_ruta", "Ruta"]
 }
 
 def normalize_cols(df: pd.DataFrame) -> pd.DataFrame:

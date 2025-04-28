@@ -138,8 +138,8 @@ BEGIN
     tipo          TEXT,
     estado        TEXT
   )
-  WHERE x.tipo   = 'Regular'
-  AND x.estado = 'Pendiente';
+  WHERE x.tipo   = 'N'
+  AND x.estado = 'Sin Descargar';
   INSERT INTO rutas (
     codigo_ruta,
     dia,
