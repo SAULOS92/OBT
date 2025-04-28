@@ -38,7 +38,7 @@ COL_MAP = {
     "producto":      ["producto", "Producto"],
     "cantidad":      ["cantidad", "Cantidad"],
     "valor":         ["valor", "Total"],
-    "tipo_pro":      ["tipo_pro", "Tipo", "Tip Pro"],
+    "tipo_pro":      ["tipo_pro", "Tip Pro"],
     "estado":        ["estado", "Estado"],
 
     # Rutas
