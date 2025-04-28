@@ -121,7 +121,7 @@ BEGIN
     x.producto,
     x.cantidad,
     x.valor,
-    x.tipo,
+    x.tipo_pro,
     x.estado
   FROM jsonb_to_recordset(p_pedidos) AS x(
     numero_pedido TEXT,
@@ -135,7 +135,7 @@ BEGIN
     producto      TEXT,
     cantidad      INTEGER,
     valor         NUMERIC,
-    tipo          TEXT,
+    tipo_pro      TEXT,
     estado        TEXT
   )
   WHERE x.tipo   = 'N'
