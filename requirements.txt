@@ -1,18 +1,23 @@
 # Core web framework
-Flask==2.3.2
-numpy==1.24.4
+Flask==3.1.0                           # Latest stable Flask release :contentReference[oaicite:0]{index=0}
 
-# Excel handling
-pandas==2.0.3
-openpyxl==3.1.2
+# Numerical & data handling
+numpy==2.2.5                          # Fundamental array package :contentReference[oaicite:1]{index=1}
+pandas==2.2.3                         # Dataframe library :contentReference[oaicite:2]{index=2}
 
-# Database and ORM
-SQLAlchemy==2.0.5
-psycopg2-binary==2.9.9
+# Excel I/O
+openpyxl==3.1.5                      # Read/write xlsx files :contentReference[oaicite:3]{index=3}
+xlrd==2.0.1                          # Read legacy .xls files :contentReference[oaicite:4]{index=4}
+
+# Database & ORM
+SQLAlchemy==2.0.40                   # Core ORM toolkit :contentReference[oaicite:5]{index=5}
+Flask-SQLAlchemy==3.1.1              # Flask integration for SQLAlchemy :contentReference[oaicite:6]{index=6}
+psycopg2-binary==2.9.10              # PostgreSQL driver (binary wheel) :contentReference[oaicite:7]{index=7}
 
 # WSGI server
-gunicorn==20.1.0
+gunicorn==23.0.0                     # Production WSGI server :contentReference[oaicite:8]{index=8}
 
-# Utilities (si las necesitas)
-python-dotenv==1.0.0          # para cargar .env con variables de entorno
+# Environment variable helpers
+python-dotenv==1.1.0                 # load .env files into env vars :contentReference[oaicite:9]{index=9}
+
 
