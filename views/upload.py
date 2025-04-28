@@ -34,12 +34,12 @@ COL_MAP = {
     "producto":      ["producto", "Producto"],
     "cantidad":      ["cantidad", "Cantidad"],
     "valor":         ["valor", "Total"],
-    "tipo_pro":      ["tipo_pro", "Tipo", "Tip Pro"],
+    "tipo_pro":      ["Tip Pro"],
     "estado":        ["estado", "Estado"],
 
     # Rutas
-    "codigo_cliente": ["cliente", "Cod. Cliente", "cliente_id"],
-    "codigo_ruta":    ["codigo_ruta", "Ruta", "ruta"]
+    "codigo_cliente": ["Cod. Cliente"],
+    "codigo_ruta":    ["Ruta"]
 }
 
 def normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
