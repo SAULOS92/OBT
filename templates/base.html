@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Mi App{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+  <!-- Aquí va tu menú, definido una sola vez -->
+  <nav class="bg-white shadow-md">
+    <div class="max-w-7xl mx-auto px-4">
+      <ul class="flex space-x-6">
+        <li class="relative">
+          <details class="group">
+            <summary class="flex items-center py-4 px-2 cursor-pointer text-gray-700 hover:text-blue-600 transition">
+              Validaciones
+              <svg xmlns="http://www.w3.org/2000/svg"
+                   class="ml-1 h-4 w-4 transform group-open:rotate-180 transition-transform"
+                   fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M19 9l-7 7-7-7" />
+              </svg>
+            </summary>
+            <ul class="absolute left-0 mt-1 w-48 bg-white border rounded-lg shadow-lg
+                       opacity-0 group-open:opacity-100 invisible group-open:visible transition-all">
+              <li><a href="{{ url_for('upload.upload_index') }}"
+                     class="block px-4 py-2 text-gray-600 hover:bg-gray-100">Cargar Informes</a></li>
+              <li><a href="{{ url_for('export.export_index') }}"
+                     class="block px-4 py-2 text-gray-600 hover:bg-gray-100">Exportar Informes</a></li>
+            </ul>
+          </details>
+        </li>
+        <li>
+          <a href="{{ url_for('generar_pedidos') }}"
+             class="flex items-center py-4 px-2 text-gray-700 hover:text-blue-600 transition">
+            Generar Pedidos
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('consolidar_compras') }}"
+             class="flex items-center py-4 px-2 text-gray-700 hover:text-blue-600 transition">
+            Consolidar Compras
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Aquí irá el contenido específico de cada página -->
+  <main class="p-4">
+    {% block content %}{% endblock %}
+  </main>
+
+</body>
+</html>
