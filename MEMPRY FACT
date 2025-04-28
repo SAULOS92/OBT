@@ -200,9 +200,10 @@ AS $$
       barrio,
       ciudad,
       asesor,
-      COUNT(DISTINCT numero_pedido) AS total_pedidos
+      COUNT(DISTINCT numero_pedido) AS total_pedidos,
+      ruta
     FROM pedxclixprod
-    GROUP BY codigo_cli, nombre, barrio, ciudad, asesor
+    GROUP BY barrio, ruta, codigo_cli, nombre, ciudad, asesor
   ) AS r;
 $$;
 

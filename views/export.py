@@ -25,9 +25,20 @@ def export_index():
 
 @export_bp.route("/resumen", methods=["GET"])
 def export_resumen():
-    """Descarga un Excel con el resultado de fn_obtener_resumen_pedidos()."""
-    # 1) Definimos los encabezados de columna esperados
-    cols = ["codigo_cli", "nombre", "barrio", "ciudad", "asesor", "total_pedidos"]
+    """
+    Descarga un Excel con el resultado de fn_obtener_resumen_pedidos(),
+    ahora incluyendo la columna 'ruta'.
+    """
+    # 1) Definimos los encabezados que devuelve la función
+    cols = [
+        "codigo_cli",
+        "nombre",
+        "barrio",
+        "ciudad",
+        "asesor",
+        "total_pedidos",
+        "ruta"
+    ]
 
     # 2) Intentamos obtener datos de la función en la BD
     try:
@@ -43,7 +54,7 @@ def export_resumen():
         else:
             data = []
     except Exception:
-        # En caso de error, devolvemos un Excel con sólo encabezados
+        # Si hay error, devolvemos un Excel solo con encabezados
         data = []
 
     # 3) Construimos DataFrame (vacío o con filas)
@@ -52,9 +63,11 @@ def export_resumen():
     # 4) Generamos el Excel en memoria
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df.to_excel(writer,
-                    sheet_name="ResumenPedidos",
-                    index=False)
+        df.to_excel(
+            writer,
+            sheet_name="ResumenPedidos",
+            index=False
+        )
     output.seek(0)
 
     # 5) Enviamos el archivo
@@ -68,11 +81,13 @@ def export_resumen():
 
 @export_bp.route("/residuos", methods=["POST"])
 def export_residuos():
-    """Lee un Excel de particiones, llama a fn_obtener_residuos y devuelve un Excel."""
-    # 1) Definimos los encabezados de salida
+    """
+    Lee un Excel de particiones, llama a fn_obtener_residuos
+    y devuelve un Excel (sin cambios respecto a antes).
+    """
     cols = ["numero_pedido", "codigo_pro", "residuo"]
 
-    # 2) Leemos y validamos el Excel de particiones
+    # Lectura y validación del Excel de particiones
     f = request.files.get("particiones")
     if not f:
         flash("Sube el Excel de particiones.", "error")
@@ -88,7 +103,7 @@ def export_residuos():
         flash(f"Error leyendo Excel de particiones: {e}", "error")
         prod_parts = None
 
-    # 3) Llamamos al SP y parseamos el JSON
+    # Llamada al SP y parseo del JSON
     try:
         if prod_parts is not None:
             conn = conectar()
@@ -106,18 +121,17 @@ def export_residuos():
     except Exception:
         data = []
 
-    # 4) Construimos DataFrame
+    # Construcción del DataFrame y generación del Excel
     df_out = pd.DataFrame(data, columns=cols)
-
-    # 5) Generamos el Excel en memoria
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df_out.to_excel(writer,
-                        sheet_name="Residuos",
-                        index=False)
+        df_out.to_excel(
+            writer,
+            sheet_name="Residuos",
+            index=False
+        )
     output.seek(0)
 
-    # 6) Enviamos el archivo
     return send_file(
         output,
         as_attachment=True,
