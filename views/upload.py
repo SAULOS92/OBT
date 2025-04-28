@@ -89,6 +89,10 @@ def upload_index():
         df_ped = normalize_cols(df_ped)
         df_rut = normalize_cols(df_rut)
 
+        # 3.1) Reemplaza NaN por None
+        df_ped = df_ped.where(pd.notnull(df_ped), None)
+        df_rut = df_rut.where(pd.notnull(df_rut), None)
+
         # 4) Validar columnas de Pedidos
         falt_ped = [h for h in PED_HEADERS if h not in df_ped.columns]
         if falt_ped:
