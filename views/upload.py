@@ -1,13 +1,13 @@
 # views/upload.py
 
 import json
-import numpy as np
 import pandas as pd
 from flask import Blueprint, render_template, request, flash, redirect, url_for
 from db import conectar
 
 upload_bp = Blueprint("upload", __name__, template_folder="../templates")
 
+# Columnas internas esperadas por el SP
 PED_HEADERS = [
     "numero_pedido","hora","cliente","nombre","barrio","ciudad",
     "asesor","codigo_pro","producto","cantidad","valor",
@@ -35,84 +35,109 @@ COL_MAP = {
 }
 
 def normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
-    cleaned = {col: col.strip().lower().replace(" ", "_").replace("-", "_")
-               for col in df.columns}
+    # 1) limpieza de nombres
+    cleaned = {
+        col: col.strip().lower().replace(" ", "_").replace("-", "_")
+        for col in df.columns
+    }
     df = df.rename(columns=cleaned)
-    inv_map = {}
+    # 2) construye mapa inverso
+    inv = {}
     for internal, syns in COL_MAP.items():
         for s in syns:
             key = s.strip().lower().replace(" ", "_").replace("-", "_")
-            inv_map[key] = internal
-    to_rename = {col: inv_map[col] for col in df.columns if col in inv_map}
-    return df.rename(columns=to_rename)
+            inv[key] = internal
+    # 3) renombra
+    return df.rename(columns={c: inv[c] for c in df.columns if c in inv})
 
 @upload_bp.route("/", methods=["GET","POST"])
 @upload_bp.route("/cargar-pedidos", methods=["GET","POST"])
 def upload_index():
     if request.method == "POST":
+        # archivos y día
         f_ped = request.files.get("pedidos")
         f_rut = request.files.get("rutas")
         p_dia = request.form.get("dia","").strip()
+
         if p_dia not in DIAS_VALIDOS:
             flash(f"Día inválido. Elige uno de: {', '.join(DIAS_VALIDOS)}","error")
             return redirect(url_for("upload.upload_index"))
+
+        # leer Excel
         try:
             df_ped = pd.read_excel(f_ped, engine="openpyxl")
             df_rut = pd.read_excel(f_rut, engine="openpyxl")
         except Exception as e:
-            flash(f"Error leyendo los Excel: {e}","error")
+            flash(f"Error leyendo Excel: {e}","error")
             return redirect(url_for("upload.upload_index"))
+
+        # normalizar nombres
         df_ped = normalize_cols(df_ped)
         df_rut = normalize_cols(df_rut)
-        dupes_p = df_ped.columns[df_ped.columns.duplicated()].unique().tolist()
-        if dupes_p:
-            flash(f"Columnas duplicadas en Pedidos: {dupes_p}","error")
+
+        # detectar duplicados
+        dup_p = df_ped.columns[df_ped.columns.duplicated()].unique().tolist()
+        if dup_p:
+            flash(f"Duplicados en Pedidos: {dup_p}","error")
             return redirect(url_for("upload.upload_index"))
-        dupes_r = df_rut.columns[df_rut.columns.duplicated()].unique().tolist()
-        if dupes_r:
-            flash(f"Columnas duplicadas en Rutas: {dupes_r}","error")
+        dup_r = df_rut.columns[df_rut.columns.duplicated()].unique().tolist()
+        if dup_r:
+            flash(f"Duplicados en Rutas: {dup_r}","error")
             return redirect(url_for("upload.upload_index"))
 
-        # ---------- Cambios aquí ----------
-        # 6) Evitar NaN y convertir a None
-        df_ped = df_ped.astype(object).where(pd.notnull(df_ped), None)
-        df_rut = df_rut.astype(object).where(pd.notnull(df_rut), None)
+        # ————— Aquí: eliminación de NaN y conversión de tipos —————
+        # reemplaza nan/pd.NA por None
+        df_ped = df_ped.where(pd.notnull(df_ped), None)
+        df_rut = df_rut.where(pd.notnull(df_rut), None)
 
-        # 6.1) Forzar enteros en codigo_pro, cantidad y valor
+        # convierte a str los campos TEXT
+        df_ped["numero_pedido"] = df_ped["numero_pedido"].apply(
+            lambda x: str(x) if x is not None else None
+        )
+        df_ped["cliente"] = df_ped["cliente"].apply(
+            lambda x: str(x) if x is not None else None
+        )
+        df_rut["codigo_cliente"] = df_rut["codigo_cliente"].apply(
+            lambda x: str(x) if x is not None else None
+        )
+
+        # convierte a int las columnas numéricas
         for col in ("codigo_pro","cantidad","valor"):
             if col in df_ped.columns:
-                df_ped[col] = df_ped[col].map(lambda v: int(v) if v is not None else None)
-        # ----------------------------------
+                df_ped[col] = df_ped[col].apply(
+                    lambda x: int(x) if x is not None else None
+                )
+        # ————————————————————————————————————————————————————————
 
-        falt_ped = [h for h in PED_HEADERS if h not in df_ped.columns]
-        if falt_ped:
-            flash(f"Faltan columnas en Pedidos: {falt_ped}","error")
+        # validar encabezados
+        falt = [h for h in PED_HEADERS if h not in df_ped.columns]
+        if falt:
+            flash(f"Faltan columnas en Pedidos: {falt}","error")
             return redirect(url_for("upload.upload_index"))
-        falt_rut = [h for h in RUT_HEADERS if h not in df_rut.columns]
-        if falt_rut:
-            flash(f"Faltan columnas en Rutas: {falt_rut}","error")
+        falt = [h for h in RUT_HEADERS if h not in df_rut.columns]
+        if falt:
+            flash(f"Faltan columnas en Rutas: {falt}","error")
             return redirect(url_for("upload.upload_index"))
 
+        # serializar
         pedidos = df_ped[PED_HEADERS].to_dict(orient="records")
         rutas   = df_rut[RUT_HEADERS].to_dict(orient="records")
+
         try:
-            conn = conectar(); cur = conn.cursor()
+            conn = conectar()
+            cur = conn.cursor()
             cur.execute(
                 "CALL etl_cargar_pedidos_y_rutas_masivo(%s,%s,%s);",
                 (json.dumps(pedidos),json.dumps(rutas),p_dia)
             )
-            conn.commit(); flash("¡Carga masiva exitosa!","success")
+            conn.commit()
+            flash("¡Carga masiva exitosa!","success")
         except Exception as e:
             flash(f"Error en ETL: {e}","error")
         finally:
-            cur.close(); conn.close()
+            cur.close()
+            conn.close()
 
         return redirect(url_for("upload.upload_index"))
 
     return render_template("upload.html")
-
-
-
-
-
-
