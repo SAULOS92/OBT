@@ -116,7 +116,7 @@ BEGIN
     x.nombre,
     x.barrio,
     x.ciudad,
-    x.asesor,
+    split_part(x.asesor, '-', 1),
     x.codigo_pro,
     x.producto,
     x.cantidad,
@@ -202,7 +202,7 @@ AS $$
       asesor,
       COUNT(DISTINCT numero_pedido) AS total_pedidos,
       ruta
-    FROM pedxclixprod
+    FROM pedxclixprod    
     GROUP BY barrio, ruta, codigo_cli, nombre, ciudad, asesor
   ) AS r;
 $$;

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Generar Pedidos{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto bg-white p-8 rounded-3xl shadow-xl">
+  <h1 class="text-3xl font-extrabold mb-6 text-center">🚀 Generar Pedidos</h1>
+
+  <!-- Flash messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="space-y-2 mb-6">
+        {% for category, msg in messages %}
+          <div class="px-4 py-2 rounded-lg
+            {% if category=='success' %}bg-green-100 text-green-700
+            {% else %}bg-red-100 text-red-700{% endif %}">
+            {{ msg }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <form method="post" enctype="multipart/form-data" class="space-y-4">
+    <div>
+      <label class="block mb-1 font-medium">📦 Excel Materiales</label>
+      <input type="file" name="materiales" accept=".xlsx"
+             class="block w-full text-sm text-gray-600
+                    file:py-2 file:px-4 file:border-0
+                    file:rounded-xl file:bg-blue-50 file:text-blue-700
+                    hover:file:bg-blue-100" required>
+    </div>
+    <div>
+      <label class="block mb-1 font-medium">📦 Excel Inventario</label>
+      <input type="file" name="inventario" accept=".xlsx"
+             class="block w-full text-sm text-gray-600
+                    file:py-2 file:px-4 file:border-0
+                    file:rounded-xl file:bg-green-50 file:text-green-700
+                    hover:file:bg-green-100" required>
+    </div>
+    <button type="submit"
+            class="w-full py-3 font-semibold rounded-xl
+                   bg-indigo-600 text-white hover:bg-indigo-700
+                   transition">
+      Generar Pedidos
+    </button>
+  </form>
+</div>
+{% endblock %}

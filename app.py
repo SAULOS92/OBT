@@ -7,6 +7,7 @@ app = Flask(__name__, static_folder="static")
 app.secret_key = os.getenv("SECRET_KEY", "cámbiala")
 app.register_blueprint(upload_bp)
 app.register_blueprint(export_bp)
+app.register_blueprint(generar_pedidos_bp)
 
 if __name__ == "__main__":
     app.run(
