@@ -19,20 +19,14 @@ export_bp = Blueprint(
 
 @export_bp.route("/", methods=["GET"])
 def export_index():
-    """Muestra la página con las opciones de exportación."""
     return render_template("export.html")
 
 
 @export_bp.route("/resumen", methods=["GET"])
 def export_resumen():
-    """
-    Descarga un Excel con el resultado de fn_obtener_resumen_pedidos(),
-    incluyendo la columna 'ruta'. En caso de error, muestra un flash y
-    redirige a la página de exportación.
-    """
     cols = ["codigo_cli", "nombre", "barrio", "ciudad", "asesor", "total_pedidos", "ruta"]
 
-    # Obtener datos de la BD
+    # 1) Llamada a la BD
     try:
         conn = conectar()
         cur = conn.cursor()
@@ -44,17 +38,23 @@ def export_resumen():
         flash(f"Error al consultar el resumen en la base de datos: {e}", "error")
         return redirect(url_for("export.export_index"))
 
-    # Parsear JSON
-    try:
-        data = json.loads(row[0]) if row and row[0] else []
-    except Exception as e:
-        flash(f"Error al parsear los datos del resumen: {e}", "error")
-        return redirect(url_for("export.export_index"))
+    # 2) Interpretar resultado
+    raw = row[0] if row else None
+    if isinstance(raw, str):
+        try:
+            data = json.loads(raw)
+        except Exception as e:
+            flash(f"Error al parsear los datos del resumen: {e}", "error")
+            return redirect(url_for("export.export_index"))
+    elif isinstance(raw, (list, dict)):
+        data = raw
+    else:
+        data = []
 
-    # Construir DataFrame
+    # 3) DataFrame
     df = pd.DataFrame(data, columns=cols)
 
-    # Generar Excel
+    # 4) Generar Excel
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         df.to_excel(writer, sheet_name="ResumenPedidos", index=False)
@@ -70,10 +70,6 @@ def export_resumen():
 
 @export_bp.route("/residuos", methods=["POST"])
 def export_residuos():
-    """
-    Lee un Excel de particiones, llama a fn_obtener_residuos
-    y devuelve un Excel. En caso de error, muestra un flash y redirige.
-    """
     cols = ["numero_pedido", "codigo_pro", "residuo"]
 
     f = request.files.get("particiones")
@@ -94,6 +90,7 @@ def export_residuos():
 
     prod_parts = df_parts.to_dict(orient="records")
 
+    # 1) Llamada a la BD
     try:
         conn = conectar()
         cur = conn.cursor()
@@ -105,13 +102,23 @@ def export_residuos():
         flash(f"Error al consultar los residuos en la base de datos: {e}", "error")
         return redirect(url_for("export.export_index"))
 
-    try:
-        data = json.loads(row[0]) if row and row[0] else []
-    except Exception as e:
-        flash(f"Error al parsear los datos de residuos: {e}", "error")
-        return redirect(url_for("export.export_index"))
+    # 2) Interpretar resultado
+    raw = row[0] if row else None
+    if isinstance(raw, str):
+        try:
+            data = json.loads(raw)
+        except Exception as e:
+            flash(f"Error al parsear los datos de residuos: {e}", "error")
+            return redirect(url_for("export.export_index"))
+    elif isinstance(raw, (list, dict)):
+        data = raw
+    else:
+        data = []
 
+    # 3) DataFrame
     df_out = pd.DataFrame(data, columns=cols)
+
+    # 4) Generar Excel
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         df_out.to_excel(writer, sheet_name="Residuos", index=False)
