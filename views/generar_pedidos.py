@@ -1,3 +1,5 @@
+# views/generar_pedidos.py
+
 import json
 from io import BytesIO
 
@@ -59,7 +61,6 @@ def generar_pedidos_index():
         # 2) Recoger archivos
         f_mat = request.files.get("materiales")
         f_inv = request.files.get("inventario")
-
         if not f_mat or not f_inv:
             flash("Debes subir ambos archivos: Materiales e Inventario.", "error")
             return redirect(url_for("generar_pedidos.generar_pedidos_index"))
@@ -96,25 +97,31 @@ def generar_pedidos_index():
             flash(f"Faltan columnas en Inventario: {falt_inv}", "error")
             return redirect(url_for("generar_pedidos.generar_pedidos_index"))
 
-        # 7) Rellenar vacíos con cero y convertir tipos
+        # 7) Rellenar vacíos con cero
         df_mat = df_mat.fillna(0)
         df_inv = df_inv.fillna(0)
 
-        for col in ("pro_codigo", "particion", "pq_x_caja"):
-            df_mat[col] = df_mat[col].astype(int)
-        df_inv["codigo"] = df_inv["codigo"].astype(int)
-        df_inv["stock"]  = df_inv["stock"].astype(int)
-        # producto queda string
+        # 8) Forzar tipos numéricos con captura de errores
+        try:
+            df_mat["pro_codigo"] = df_mat["pro_codigo"].apply(lambda x: int(x))
+            df_mat["particion"]  = df_mat["particion"].apply(lambda x: int(x))
+            df_mat["pq_x_caja"]  = df_mat["pq_x_caja"].apply(lambda x: int(x))
 
-        # 8) Serializar a JSONB
+            df_inv["codigo"] = df_inv["codigo"].apply(lambda x: int(x))
+            df_inv["stock"]  = df_inv["stock"].apply(lambda x: int(x))
+        except ValueError as e:
+            flash(f"Error de formato numérico en tus datos: {e}", "error")
+            return redirect(url_for("generar_pedidos.generar_pedidos_index"))
+
+        # 9) Serializar a JSONB
         mat_json = df_mat[GEN_HEADERS["materiales"]].to_dict(orient="records")
         inv_json = df_inv[GEN_HEADERS["inventario"]].to_dict(orient="records")
 
-        # 9) Llamar al procedimiento almacenado
+        # 10) Llamar al procedimiento almacenado
         try:
             conn = conectar()
             cur  = conn.cursor()
-            # procedimiento: sp_etl_pedxrutaxprod_json(p_materiales JSONB, p_inventario JSONB)
+            # Aquí ejecuta tu SP sp_etl_pedxrutaxprod_json(p_materiales, p_inventario)
             cur.execute(
                 "CALL sp_etl_pedxrutaxprod_json(%s, %s);",
                 (json.dumps(mat_json), json.dumps(inv_json))
@@ -129,21 +136,19 @@ def generar_pedidos_index():
             cur.close()
             conn.close()
 
-        # 10) Llamar a la función que devuelve el informe
+        # 11) Llamar a la función que devuelve el informe
         try:
             conn = conectar()
             cur  = conn.cursor()
             cur.execute("SELECT fn_obtener_reparticion_inventario_json();")
             raw = cur.fetchone()[0]
-        except Exception as e:
-            flash(f"Error al obtener el informe: {e}", "error")
             cur.close()
             conn.close()
+        except Exception as e:
+            flash(f"Error al obtener el informe: {e}", "error")
             return redirect(url_for("generar_pedidos.generar_pedidos_index"))
-        cur.close()
-        conn.close()
 
-        # 11) Parsear el JSONB
+        # 12) Parsear el JSONB
         if isinstance(raw, str):
             data = json.loads(raw)
         elif isinstance(raw, (list, dict)):
@@ -151,7 +156,7 @@ def generar_pedidos_index():
         else:
             data = []
 
-        # 12) Generar DataFrame y Excel
+        # 13) Generar DataFrame y Excel
         cols = ["ruta", "codigo_pro", "producto", "cantidad", "pedir", "ped8_pq", "inv"]
         df_out = pd.DataFrame(data, columns=cols)
 
