@@ -1,5 +1,7 @@
 # views/generar_pedidos.py
 
+# views/generar_pedidos.py
+
 import json
 from io import BytesIO
 
@@ -24,15 +26,16 @@ GEN_HEADERS = {
 GEN_COL_MAP = {
     "materiales": {
         "pro_codigo": ["pro_codigo", "Codigo SAP"],
-        "particion":  ["particion",  "Particion"],
-        "pq_x_caja":  ["pq_x_caja",  "Unidades x caja"]
+        "particion":  ["particion", "Particion"],
+        "pq_x_caja":  ["pq_x_caja", "Unidades x caja"]
     },
     "inventario": {
-        "codigo":    ["codigo",    "Codigo articulo"],
-        "producto":  ["producto",  "Nombre articulo"],
-        "stock":     ["stock",     "Unidades"]
+        "codigo":   ["codigo", "Codigo articulo"],
+        "producto": ["producto", "Nombre articulo"],
+        "stock":    ["stock", "Unidades"]
     }
 }
+
 
 def normalize_cols(df: pd.DataFrame, col_map: dict) -> pd.DataFrame:
     """
@@ -103,12 +106,9 @@ def generar_pedidos_index():
 
         # 8) Forzar tipos numéricos con captura de errores
         try:
-            df_mat["pro_codigo"] = df_mat["pro_codigo"].apply(lambda x: int(x))
-            df_mat["particion"]  = df_mat["particion"].apply(lambda x: int(x))
-            df_mat["pq_x_caja"]  = df_mat["pq_x_caja"].apply(lambda x: int(x))
-
-            df_inv["codigo"] = df_inv["codigo"].apply(lambda x: int(x))
-            df_inv["stock"]  = df_inv["stock"].apply(lambda x: int(x))
+            df_mat["particion"] = df_mat["particion"].apply(int)
+            df_mat["pq_x_caja"] = df_mat["pq_x_caja"].apply(int)
+            df_inv["stock"]     = df_inv["stock"].apply(int)
         except ValueError as e:
             flash(f"Error de formato numérico en tus datos: {e}", "error")
             return redirect(url_for("generar_pedidos.generar_pedidos_index"))
@@ -121,7 +121,6 @@ def generar_pedidos_index():
         try:
             conn = conectar()
             cur  = conn.cursor()
-            # Aquí ejecuta tu SP sp_etl_pedxrutaxprod_json(p_materiales, p_inventario)
             cur.execute(
                 "CALL sp_etl_pedxrutaxprod_json(%s, %s);",
                 (json.dumps(mat_json), json.dumps(inv_json))
@@ -129,49 +128,73 @@ def generar_pedidos_index():
             conn.commit()
         except Exception as e:
             flash(f"Error al ejecutar el SP: {e}", "error")
-            cur.close()
-            conn.close()
+            cur.close(); conn.close()
             return redirect(url_for("generar_pedidos.generar_pedidos_index"))
         finally:
-            cur.close()
-            conn.close()
+            cur.close(); conn.close()
 
-        # 11) Llamar a la función que devuelve el informe
+        # 11) Validar materiales sin definir
+        try:
+            conn = conectar()
+            cur  = conn.cursor()
+            cur.execute("SELECT fn_materiales_sin_definir();")
+            raw_mis = cur.fetchone()[0]
+            cur.close(); conn.close()
+        except Exception as e:
+            flash(f"Error al validar materiales: {e}", "error")
+            return redirect(url_for("generar_pedidos.generar_pedidos_index"))
+
+        if isinstance(raw_mis, str):
+            mis = json.loads(raw_mis)
+        elif isinstance(raw_mis, (list, dict)):
+            mis = raw_mis
+        else:
+            mis = []
+
+        if mis:
+            detalles = ", ".join(f"{m['codigo_pro']}:{m['producto']}" for m in mis)
+            flash(f"Materiales sin definir: {detalles}", "error")
+            return redirect(url_for("generar_pedidos.generar_pedidos_index"))
+
+        # 12) Llamar a los reportes
         try:
             conn = conectar()
             cur  = conn.cursor()
             cur.execute("SELECT fn_obtener_reparticion_inventario_json();")
-            raw = cur.fetchone()[0]
-            cur.close()
-            conn.close()
+            raw_rep = cur.fetchone()[0]
+            cur.execute("SELECT fn_obtener_pedidos_con_pedir_json();")
+            raw_ped = cur.fetchone()[0]
+            cur.close(); conn.close()
         except Exception as e:
-            flash(f"Error al obtener el informe: {e}", "error")
+            flash(f"Error al obtener los informes: {e}", "error")
             return redirect(url_for("generar_pedidos.generar_pedidos_index"))
 
-        # 12) Parsear el JSONB
-        if isinstance(raw, str):
-            data = json.loads(raw)
-        elif isinstance(raw, (list, dict)):
-            data = raw
-        else:
-            data = []
+        # 13) Parsear JSONs
+        data_rep = json.loads(raw_rep) if isinstance(raw_rep, str) else (raw_rep or [])
+        data_ped = json.loads(raw_ped) if isinstance(raw_ped, str) else (raw_ped or [])
 
-        # 13) Generar DataFrame y Excel
-        cols = ["ruta", "codigo_pro", "producto", "cantidad", "pedir", "ped8_pq", "inv"]
-        df_out = pd.DataFrame(data, columns=cols)
-
+        # 14) Generar un solo Excel con dos hojas
         output = BytesIO()
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            df_out.to_excel(writer, sheet_name="Reparticion", index=False)
+            pd.DataFrame(data_rep).to_excel(
+                writer, sheet_name="Reparticion", index=False
+            )
+            pd.DataFrame(data_ped).to_excel(
+                writer, sheet_name="PedidosPorPedir", index=False
+            )
         output.seek(0)
 
         return send_file(
             output,
             as_attachment=True,
-            download_name="reparticion_inventario.xlsx",
-            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            download_name="reportes_generados.xlsx",
+            mimetype=(
+                "application/vnd.openxmlformats-officedocument"
+                "-spreadsheetml.sheet"
+            )
         )
 
     # GET → render form
     return render_template("generar_pedidos.html")
+
 

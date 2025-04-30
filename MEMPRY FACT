@@ -1,12 +1,12 @@
 ---------------------------------CONSTRUCCION BASE DE DATOS-------------------------------------------------
 CREATE TABLE inventario (
-    codigo   INTEGER PRIMARY KEY,
+    codigo   VARCHAR(100),
     producto VARCHAR(255),
     stock    INTEGER
 );
 
 CREATE TABLE materiales (
-    pro_codigo INTEGER PRIMARY KEY,
+    pro_codigo VARCHAR(100),
     particion  INTEGER,
     pq_x_caja  INTEGER
 );
@@ -18,32 +18,41 @@ CREATE TABLE rutas (
 );
 
 CREATE TABLE pedxrutaxprod (
-  ruta         INTEGER         NOT NULL,
-  codigo_pro   INTEGER         NOT NULL,
-  producto     VARCHAR(255)    NOT NULL,
-  cantidad     INTEGER         NOT NULL,
+  ruta         INTEGER           NOT NULL,
+  codigo_pro   VARCHAR(100)      NOT NULL,
+  producto     VARCHAR(255)      NOT NULL,
+  cantidad     INTEGER           NOT NULL,
   pq_por_caja  INTEGER DEFAULT 1 NOT NULL,
   particiones  INTEGER DEFAULT 1 NOT NULL,
-  inv          INTEGER DEFAULT 0 NOT NULL,  
-  pedir INTEGER GENERATED ALWAYS AS (
+  inv          INTEGER DEFAULT 0 NOT NULL,
+  pedir        INTEGER GENERATED ALWAYS AS (
     FLOOR((cantidad - inv)::NUMERIC / particiones::NUMERIC)::INTEGER
   ) STORED,
-  ped8_pq INTEGER GENERATED ALWAYS AS (
+  ped8_pq      INTEGER GENERATED ALWAYS AS (
     (cantidad - inv)
     - (
         FLOOR((cantidad - inv)::NUMERIC / particiones::NUMERIC)::INTEGER
         * particiones
       )
-  ) STORED,  
-  equ_caja INTEGER GENERATED ALWAYS AS (
-    FLOOR(
-      FLOOR((cantidad - inv)::NUMERIC / particiones::NUMERIC)
-      / (pq_por_caja::NUMERIC / particiones::NUMERIC)
-    )::INTEGER
   ) STORED,
-  equ_tira INTEGER GENERATED ALWAYS AS (
-    FLOOR((cantidad - inv)::NUMERIC / particiones::NUMERIC)::INTEGER
-    % FLOOR((pq_por_caja::NUMERIC / particiones::NUMERIC))::INTEGER
+  equ_caja     INTEGER GENERATED ALWAYS AS (
+    CASE
+      WHEN (pq_por_caja::NUMERIC / particiones::NUMERIC) = 0 THEN 0
+      ELSE
+        FLOOR(
+          FLOOR((cantidad - inv)::NUMERIC / particiones::NUMERIC)
+          /
+          (pq_por_caja::NUMERIC / particiones::NUMERIC)
+        )::INTEGER
+    END
+  ) STORED,
+  equ_tira     INTEGER GENERATED ALWAYS AS (
+    CASE
+      WHEN FLOOR((pq_por_caja::NUMERIC / particiones::NUMERIC))::INTEGER = 0 THEN 0
+      ELSE
+        FLOOR((cantidad - inv)::NUMERIC / particiones::NUMERIC)::INTEGER
+        % FLOOR((pq_por_caja::NUMERIC / particiones::NUMERIC))::INTEGER
+    END
   ) STORED
 );
 CREATE TABLE PEDXCLIXPROD (
@@ -55,26 +64,13 @@ CREATE TABLE PEDXCLIXPROD (
   barrio VARCHAR(100),
   ciudad VARCHAR(100),   
   asesor VARCHAR(100),
-  codigo_pro INTEGER,        
+  codigo_pro VARCHAR(100),        
   producto VARCHAR(255),   
   cantidad INTEGER,        
   valor NUMERIC(14,2),   
   tip_pro VARCHAR(100),        
   estado VARCHAR(50)   
 );
-
-ALTER TABLE PEDXRUTAXPROD
-  ADD CONSTRAINT fk_pedxrutaxprod_materiales
-    FOREIGN KEY (codigo_pro)
-    REFERENCES materiales (pro_codigo)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION;
-ALTER TABLE PEDXRUTAXPROD
-ADD CONSTRAINT fk_pedxrutaxprod_inventario
-  FOREIGN KEY (codigo_pro)
-  REFERENCES inventario (codigo)
-  ON DELETE NO ACTION
-  ON UPDATE NO ACTION;
 
 
 -----------------------PROCEDIMIENTOS----------------------- 
@@ -209,69 +205,95 @@ $$;
 
 ----PRDOCEDIMIENTO PARA GENERAR EL CONSOLIDADO DE LOS PEDIDOS
 CREATE OR REPLACE PROCEDURE sp_etl_pedxrutaxprod_json(
-  p_materiales JSONB,   
-  p_inventario JSONB    
+  p_materiales JSONB,
+  p_inventario JSONB
 )
 LANGUAGE plpgsql
 AS $$
 DECLARE
+  r_materiales  INTEGER;
+  r_inventario  INTEGER;
+  r_inicial     INTEGER;
   r INTEGER;
-BEGIN  
+BEGIN
+  -- 1) Limpiar tablas
+  TRUNCATE TABLE materiales, inventario, pedxrutaxprod CASCADE;
+
+  -- 2) Insertar materiales
   INSERT INTO materiales (pro_codigo, particion, pq_x_caja)
   SELECT
     m.pro_codigo,
     m.particion,
     m.pq_x_caja
   FROM jsonb_to_recordset(p_materiales) AS m(
-    pro_codigo INTEGER,
+    pro_codigo TEXT,
     particion  INTEGER,
     pq_x_caja  INTEGER
   );
+  GET DIAGNOSTICS r_materiales = ROW_COUNT;
+
+  -- 3) Insertar inventario
   INSERT INTO inventario (codigo, producto, stock)
   SELECT
     i.codigo,
     i.producto,
     i.stock
   FROM jsonb_to_recordset(p_inventario) AS i(
-    codigo   INTEGER,
+    codigo   TEXT,
     producto TEXT,
     stock    INTEGER
   );
+  GET DIAGNOSTICS r_inventario = ROW_COUNT;
+
+  -- 4) Insertar consolidado inicial
   INSERT INTO pedxrutaxprod (ruta, codigo_pro, producto, cantidad)
   SELECT
     ruta,
     codigo_pro,
     producto,
-    SUM(cantidad) AS cantidad
+    SUM(cantidad)
   FROM pedxclixprod
+  WHERE ruta IS NOT NULL
   GROUP BY ruta, codigo_pro, producto;
+  GET DIAGNOSTICS r_inicial = ROW_COUNT;
 
+  -- 5) Si alguno de los INSERT no añadió filas, salir sin ejecutar el resto
+  IF r_materiales = 0 OR r_inventario = 0 OR r_inicial = 0 THEN
+    RETURN;
+  END IF;
+
+  -- 6) Actualizar particiones (solo m.particion <> 0)
   UPDATE pedxrutaxprod p
   SET
     particiones = m.particion,
     pq_por_caja = m.pq_x_caja
   FROM materiales m
-  WHERE p.codigo_pro = m.pro_codigo;
+  WHERE p.codigo_pro = m.pro_codigo
+    AND m.particion <> 0;
 
+  -- 7) Ajustar inventario por ruta
   FOR r IN
-    SELECT DISTINCT ruta
-    FROM pedxrutaxprod
-    ORDER BY ruta
-  LOOP
-   
-    UPDATE pedxrutaxprod p
-    SET inv = LEAST(p.cantidad, i.stock)
-    FROM inventario i
-    WHERE p.codigo_pro = i.codigo
-      AND p.ruta = r;
-    
-    UPDATE inventario i
-    SET stock = i.stock - p.inv
-    FROM pedxrutaxprod p2
-    WHERE i.codigo = p2.codigo_pro
-      AND p2.ruta = r;
-  END LOOP;
-  
+  SELECT DISTINCT ruta
+  FROM pedxrutaxprod
+  ORDER BY ruta
+LOOP
+  -- primero actualizas inv sobre pedxrutaxprod p
+  UPDATE pedxrutaxprod p
+  SET inv = LEAST(p.cantidad, i.stock)
+  FROM inventario i
+  WHERE p.codigo_pro = i.codigo
+    AND p.ruta       = r;
+
+  -- luego ajustas inventario usando p2.inv, no p.inv
+  UPDATE inventario i
+  SET stock = i.stock - p2.inv
+  FROM pedxrutaxprod p2
+  WHERE i.codigo    = p2.codigo_pro
+    AND p2.ruta     = r;
+END LOOP;
+
+
+  -- 8) Insertar consolidado ruta 99, evitando división por cero
   INSERT INTO pedxrutaxprod (
     ruta,
     codigo_pro,
@@ -281,18 +303,23 @@ BEGIN
     cantidad
   )
   SELECT
-    99                       AS ruta,
+    99 AS ruta,
     codigo_pro,
     producto,
-    MAX(pq_por_caja)         AS pq_por_caja,
+    MAX(pq_por_caja) AS pq_por_caja,
     particiones,
-    CEIL(SUM(ped8_pq)::NUMERIC / particiones) * particiones AS cantidad
+    CEIL(
+      SUM(ped8_pq)::NUMERIC
+      /
+      NULLIF(particiones, 0)
+    ) * particiones AS cantidad
   FROM pedxrutaxprod
-  WHERE ruta > 0
-  GROUP BY codigo_pro, producto, particiones
-  HAVING SUM(ped8_pq) > 0;
+  WHERE ped8_pq > 0
+  GROUP BY codigo_pro, producto, particiones;
+
 END;
 $$;
+
 
   ----OBTENER EL INFORME DE REPARTICION DE INVENTARIO
  CREATE OR REPLACE FUNCTION fn_obtener_reparticion_inventario_json()
@@ -313,8 +340,7 @@ AS $$
       ped8_pq,
       inv
     FROM pedxrutaxprod
-    WHERE ruta > 0
-      AND inv  > 0
+    WHERE inv  > 0
     ORDER BY
       ruta ASC,
       producto ASC
