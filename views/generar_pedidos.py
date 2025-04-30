@@ -174,3 +174,4 @@ def generar_pedidos_index():
 
     # GET → render form
     return render_template("generar_pedidos.html")
+
