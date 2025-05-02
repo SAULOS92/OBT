@@ -159,7 +159,7 @@ def descargar_reportes():
             subset = [ d for d in data_ped if d["ruta"] == ruta ]
             df = pd.DataFrame(subset, columns=["codigo_pro","producto","pedir"])
             # Agregar la columna estática "UN"
-            df["UN"] = "UN"
+            df.insert(2, "UN", "UN")
 
             buf = BytesIO()
             # startrow=3 coloca los datos a partir de la fila 4
