@@ -73,25 +73,29 @@
         Cargar Masivo
       </button>
     </form>
+    <iframe name="download_frame" id="download_frame" style="display:none;"></iframe>
   </div>
 </div>
 
 <!-- Script para mostrar el overlay al enviar el formulario -->
 <script>
   document.addEventListener('DOMContentLoaded', () => {
-    const form = document.querySelector('form');
+    const form    = document.getElementById('upload-form');
     const overlay = document.getElementById('loading-overlay');
+    const iframe  = document.getElementById('download_frame');
+
+    // 1) Mostrar spinner al submit
     form.addEventListener('submit', () => {
       overlay.classList.remove('hidden');
     });
+
+    // 2) Ocultar spinner cuando el iframe reciba la respuesta del servidor
+    iframe.addEventListener('load', () => {
+      overlay.classList.add('hidden');
+    });
   });
 </script>
-<script>
-  window.addEventListener('load', () => {
-    const overlay = document.getElementById('loading-overlay');
-    if (overlay) overlay.classList.add('hidden');
-  });
-</script>
+
 {% endblock %}
 
 
