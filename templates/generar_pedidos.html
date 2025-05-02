@@ -19,20 +19,48 @@
     </svg>
   </div>
 
-  <div class="max-w-lg mx-auto bg-white p-8 rounded-3xl shadow-xl">
-    <h1 class="text-3xl font-extrabold mb-6 text-center">🚀 Generar Pedidos</h1>
+  <div class="max-w-lg mx-auto bg-white p-8 rounded-3xl shadow-xl space-y-6">
+
+    <h1 class="text-3xl font-extrabold text-center">🚀 Generar Pedidos</h1>
+
+    <!-- Instrucciones -->
+    <div class="bg-indigo-50 border-l-4 border-indigo-400 p-4 rounded-lg space-y-4">
+      <h2 class="font-semibold text-indigo-700">📥 Cargar aquí los archivos:</h2>
+
+      <div>
+        <h3 class="flex items-center text-lg font-medium">
+          <span class="mr-2 text-indigo-600">📦</span>
+          <span class="underline">ECOM</span>
+        </h3>
+        <ol class="list-decimal list-inside text-gray-700 ml-6 space-y-1">
+          <li>Inventario → Materiales</li>
+          <li>Inventario → Consl. Inventario</li>
+        </ol>
+      </div>
+
+      <div>
+        <h3 class="flex items-center text-lg font-medium">
+          <span class="mr-2 text-purple-600">📦</span>
+          <span class="underline">CELUWEB</span>
+        </h3>
+        <ol class="list-decimal list-inside text-gray-700 ml-6 space-y-1">
+          <li>Maestras → Materiales → Buscar → Exportar</li>
+          <li>Inventario → Informes → Inventario sin venta → Exportar</li>
+        </ol>
+      </div>
+
+      <p class="mt-2 text-red-600 font-semibold">
+        ⚠️ <span class="font-medium">IMPORTANTE:</span> Antes de este paso, en validaciones todos los clientes deben tener ruta asignada.
+      </p>
+    </div>
 
     <!-- Flash messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
-        <div class="space-y-2 mb-6">
-          {% for cat,msg in messages %}
+        <div class="space-y-2">
+          {% for cat, msg in messages %}
             <div class="px-4 py-2 rounded-lg
-                        {% if cat=='success' %}
-                          bg-green-100 text-green-700
-                        {% else %}
-                          bg-red-100 text-red-700
-                        {% endif %}">
+                        {% if cat=='success' %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %}">
               {{ msg }}
             </div>
           {% endfor %}
@@ -91,11 +119,12 @@
       overlay.classList.remove('hidden');
     });
 
-    // Ocultar spinner cuando la página termine de cargar
+    // Ocultar spinner tras recarga
     window.addEventListener('load', () => {
       overlay.classList.add('hidden');
     });
   });
 </script>
 {% endblock %}
+
 
