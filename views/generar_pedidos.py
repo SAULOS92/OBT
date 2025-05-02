@@ -131,7 +131,7 @@ def generar_pedidos_index():
 
 @generar_pedidos_bp.route("/generar-pedidos/descargar", methods=["GET"])
 def descargar_reportes():
-    # Repartición y pedidos por pedir
+    # 1) Traer los JSON desde la BD
     conn = conectar(); cur = conn.cursor()
     cur.execute("SELECT fn_obtener_reparticion_inventario_json();")
     raw_rep = cur.fetchone()[0]
@@ -142,18 +142,36 @@ def descargar_reportes():
     data_rep = json.loads(raw_rep) if isinstance(raw_rep, str) else (raw_rep or [])
     data_ped = json.loads(raw_ped) if isinstance(raw_ped, str) else (raw_ped or [])
 
+    # 2) Crear ZIP en memoria
     zip_buf = BytesIO()
     with zipfile.ZipFile(zip_buf, "w") as zf:
-        # Hoja 1
-        b1 = BytesIO()
-        pd.DataFrame(data_rep).to_excel(b1, sheet_name="Reparticion", index=False, engine="openpyxl")
-        b1.seek(0)
-        zf.writestr("reparticion_inventario.xlsx", b1.read())
-        # Hoja 2
-        b2 = BytesIO()
-        pd.DataFrame(data_ped).to_excel(b2, sheet_name="PedidosPorPedir", index=False, engine="openpyxl")
-        b2.seek(0)
-        zf.writestr("pedidos_por_pedir.xlsx", b2.read())
+
+        # 2a) Hoja de repartición (única)
+        b_rep = BytesIO()
+        pd.DataFrame(data_rep)\
+          .to_excel(b_rep, sheet_name="Reparticion", index=False, engine="openpyxl")
+        b_rep.seek(0)
+        zf.writestr("reparticion_inventario.xlsx", b_rep.read())
+
+        # 2b) Un archivo por cada ruta distinta en data_ped
+        rutas = sorted({ item["ruta"] for item in data_ped })
+        for ruta in rutas:
+            subset = [ d for d in data_ped if d["ruta"] == ruta ]
+            df = pd.DataFrame(subset, columns=["codigo_pro","producto","pedir"])
+            # Agregar la columna estática "UN"
+            df["UN"] = "UN"
+
+            buf = BytesIO()
+            # startrow=3 coloca los datos a partir de la fila 4
+            with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+                df.to_excel(
+                    writer,
+                    sheet_name=f"Ruta_{ruta}",
+                    index=False,
+                    startrow=3
+                )
+            buf.seek(0)
+            zf.writestr(f"pedidos_ruta_{ruta}.xlsx", buf.read())
 
     zip_buf.seek(0)
     return send_file(
@@ -162,6 +180,7 @@ def descargar_reportes():
         download_name="reportes_generados.zip",
         mimetype="application/zip"
     )
+
 
 
 
