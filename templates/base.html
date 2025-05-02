@@ -33,13 +33,10 @@
 
         <!-- CONSOLIDAR COMPRAS (deshabilitado) -->
         <li>
-          <span
-            class="flex items-center py-4 px-2 text-gray-400 cursor-not-allowed transition">
-            Consolidar Compras
-            <span class="ml-2 bg-yellow-200 text-yellow-800 text-xs font-semibold px-2 py-1 rounded-full">
-              Próximamente
-            </span>
-          </span>
+          <a href="{{ url_for('generar_pedidos.generar_pedidos_index') }}"
+             class="flex items-center py-4 px-2 text-gray-700 hover:text-blue-600 transition">
+            Consolidar compras
+          </a>
         </li>
 
       </ul>

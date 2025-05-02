@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Consolidar Compras{% endblock %}
+
+{% block content %}
+<div class="relative">
+
+  <!-- Spinner -->
+  <div id="loading-overlay"
+       class="hidden absolute inset-0 bg-white bg-opacity-75
+              flex items-center justify-center z-50">
+    <svg class="h-12 w-12 animate-spin text-purple-600" …></svg>
+  </div>
+
+  <div class="max-w-lg mx-auto bg-white p-8 rounded-3xl shadow-xl">
+    <h1 class="text-3xl font-extrabold mb-6 text-center">🧮 Consolidar Compras</h1>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="space-y-2 mb-6">
+          {% for cat,msg in messages %}
+            <div class="px-4 py-2 rounded-lg
+                        {% if cat=='success' %}bg-green-100 text-green-700
+                        {% else %}bg-red-100 text-red-700{% endif %}">
+              {{ msg }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <form id="cons-form" method="POST" enctype="multipart/form-data" class="space-y-4">
+      <div>
+        <label class="block mb-1 font-medium">📦 Excel de Compras</label>
+        <input type="file" name="archivo" accept=".xlsx" required
+               class="block w-full …">
+      </div>
+
+      <!-- Dos botones, uno para cada formato -->
+      <button type="submit" name="format" value="celluweb"
+              class="w-full py-3 font-semibold rounded-xl
+                     bg-purple-600 text-white hover:bg-purple-700 transition">
+        Formato Celluweb
+      </button>
+      <button type="submit" name="format" value="ecom"
+              class="w-full py-3 font-semibold rounded-xl
+                     bg-green-600 text-white hover:bg-green-700 transition">
+        Formato Ecom
+      </button>
+    </form>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded',()=>{
+    const f=document.getElementById('cons-form'),
+          ov=document.getElementById('loading-overlay');
+    f.addEventListener('submit',()=>ov.classList.remove('hidden'));
+    window.addEventListener('load',()=>ov.classList.add('hidden'));
+  });
+</script>
+{% endblock %}
