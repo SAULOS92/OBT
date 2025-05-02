@@ -1,6 +1,8 @@
 import json
 from io import BytesIO
 import zipfile
+from datetime import datetime
+
 
 import pandas as pd
 from flask import (
@@ -174,10 +176,12 @@ def descargar_reportes():
             zf.writestr(f"pedidos_ruta_{ruta}.xlsx", buf.read())
 
     zip_buf.seek(0)
+    hoy = datetime.now().strftime("%Y%m%d")
+    nombre_zip = f"reportes_{hoy}.zip"
     return send_file(
         zip_buf,
         as_attachment=True,
-        download_name="reportes_generados.zip",
+        download_name=nombre_zip,
         mimetype="application/zip"
     )
 
