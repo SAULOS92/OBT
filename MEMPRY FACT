@@ -127,7 +127,7 @@ BEGIN
     barrio        TEXT,
     ciudad        TEXT,
     asesor        TEXT,
-    codigo_pro    INTEGER,
+    codigo_pro    TEXT,
     producto      TEXT,
     cantidad      INTEGER,
     valor         NUMERIC,
