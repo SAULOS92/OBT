@@ -34,7 +34,8 @@
     {% endwith %}
 
     <!-- Formulario de carga -->
-    <form method="POST" enctype="multipart/form-data" class="space-y-4">
+    <form id="upload-form" method="POST" target="download_frame"
++          enctype="multipart/form-data" class="space-y-4">
       <div>
         <label class="block mb-1 font-medium">📄 Excel Pedidos</label>
         <input type="file" name="pedidos" accept=".xlsx"
@@ -84,17 +85,18 @@
     const overlay = document.getElementById('loading-overlay');
     const iframe  = document.getElementById('download_frame');
 
-    // 1) Mostrar spinner al submit
+    // Mostrar spinner al enviar
     form.addEventListener('submit', () => {
       overlay.classList.remove('hidden');
     });
 
-    // 2) Ocultar spinner cuando el iframe reciba la respuesta del servidor
+    // Ocultar spinner cuando termine la descarga en el iframe
     iframe.addEventListener('load', () => {
       overlay.classList.add('hidden');
     });
   });
 </script>
+
 
 {% endblock %}
 
