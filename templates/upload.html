@@ -1,22 +1,18 @@
-<script>
-  // Si esto se carga dentro del iframe (por un error),
-  // sobrescribo la ventana principal para que muestre los flashes.
-  if (window.self !== window.top) {
-    window.top.location.href = window.location.href;
-  }
-</script>
 {% extends "base.html" %}
 {% block title %}Cargar Pedidos & Rutas{% endblock %}
 
 {% block content %}
-<div class="relative">  <!-- contenedor para el overlay -->
+<div class="relative">
 
-  <!-- Overlay de carga -->
+  <!-- Spinner -->
   <div id="loading-overlay"
-       class="hidden absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50">
-    <svg class="h-12 w-12 animate-spin text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none"
+       class="hidden absolute inset-0 bg-white bg-opacity-75
+              flex items-center justify-center z-50">
+    <svg class="h-12 w-12 animate-spin text-blue-600"
+         xmlns="http://www.w3.org/2000/svg" fill="none"
          viewBox="0 0 24 24">
-      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+      <circle class="opacity-25" cx="12" cy="12" r="10"
+              stroke="currentColor" stroke-width="4"></circle>
       <path class="opacity-75" fill="currentColor"
             d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z">
       </path>
@@ -24,15 +20,17 @@
   </div>
 
   <div class="max-w-lg mx-auto bg-white p-8 rounded-3xl shadow-xl">
-    <h1 class="text-3xl font-extrabold mb-6 text-center">📤 Cargar Pedidos & Rutas</h1>
+    <h1 class="text-3xl font-extrabold mb-6 text-center">
+      📤 Cargar Pedidos & Rutas
+    </h1>
 
-    <!-- Mensajes Flash -->
+    <!-- Flash messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         <div class="space-y-2 mb-6">
-          {% for category, msg in messages %}
-            <div class="px-4 py-2 rounded-lg 
-                        {% if category=='success' %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %}">
+          {% for cat,msg in messages %}
+            <div class="px-4 py-2 rounded-lg
+                        {% if cat=='success' %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %}">
               {{ msg }}
             </div>
           {% endfor %}
@@ -40,16 +38,19 @@
       {% endif %}
     {% endwith %}
 
-    <!-- Formulario de carga -->
-    <form id="upload-form" method="POST" target="download_frame"
-+          enctype="multipart/form-data" class="space-y-4">
+    <!-- Upload form -->
+    <form id="upload-form"
+          method="POST"
+          enctype="multipart/form-data"
+          class="space-y-4">
       <div>
         <label class="block mb-1 font-medium">📄 Excel Pedidos</label>
         <input type="file" name="pedidos" accept=".xlsx"
                class="block w-full text-sm text-gray-600
                       file:py-2 file:px-4 file:border-0
                       file:rounded-xl file:bg-blue-50 file:text-blue-700
-                      hover:file:bg-blue-100" required>
+                      hover:file:bg-blue-100"
+               required>
       </div>
       <div>
         <label class="block mb-1 font-medium">🚚 Excel Rutas</label>
@@ -57,7 +58,8 @@
                class="block w-full text-sm text-gray-600
                       file:py-2 file:px-4 file:border-0
                       file:rounded-xl file:bg-blue-50 file:text-blue-700
-                      hover:file:bg-blue-100" required>
+                      hover:file:bg-blue-100"
+               required>
       </div>
       <div>
         <label class="block mb-1 font-medium">📆 Día de la semana</label>
@@ -76,36 +78,41 @@
       </div>
       <button type="submit"
               class="w-full py-3 font-semibold rounded-xl
-                     bg-blue-600 text-white hover:bg-blue-700
-                     transition">
+                     bg-blue-600 text-white hover:bg-blue-700 transition">
         Cargar Masivo
       </button>
     </form>
-    <iframe name="download_frame" id="download_frame" style="display:none;"></iframe>
+
+    <!-- Botón de descarga tras éxito -->
+    {% if mostrar_descarga %}
+      <div class="mt-6 text-center">
+        <a href="{{ url_for('upload.descargar_resumen') }}"
+           class="inline-block px-6 py-3 bg-green-600 text-white font-semibold rounded-xl
+                  hover:bg-green-700 transition">
+          Descargar Resumen
+        </a>
+      </div>
+    {% endif %}
   </div>
 </div>
 
-<!-- Script para mostrar el overlay al enviar el formulario -->
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     const form    = document.getElementById('upload-form');
     const overlay = document.getElementById('loading-overlay');
-    const iframe  = document.getElementById('download_frame');
 
-    // Mostrar spinner al enviar
     form.addEventListener('submit', () => {
       overlay.classList.remove('hidden');
     });
 
-    // Ocultar spinner cuando termine la descarga en el iframe
-    iframe.addEventListener('load', () => {
+    window.addEventListener('load', () => {
       overlay.classList.add('hidden');
     });
   });
 </script>
-
-
 {% endblock %}
+
+
 
 
 
