@@ -1,3 +1,10 @@
+<script>
+  // Si esto se carga dentro del iframe (por un error),
+  // sobrescribo la ventana principal para que muestre los flashes.
+  if (window.self !== window.top) {
+    window.top.location.href = window.location.href;
+  }
+</script>
 {% extends "base.html" %}
 {% block title %}Cargar Pedidos & Rutas{% endblock %}
 
