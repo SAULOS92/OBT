@@ -14,40 +14,13 @@
       <ul class="flex space-x-6">
 
         <!-- VALIDACIONES con submenú -->
-        <li class="relative">
-          <details class="group">
-            <summary
-              class="flex items-center py-4 px-2 cursor-pointer text-gray-700 hover:text-blue-600 transition">
-              Validaciones
-              <svg xmlns="http://www.w3.org/2000/svg"
-                   class="ml-1 h-4 w-4 transform group-open:rotate-180 transition-transform"
-                   fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M19 9l-7 7-7-7" />
-              </svg>
-            </summary>
-        
-            <ul
-              class="absolute left-0 mt-1 w-48 bg-white border rounded-lg shadow-lg
-                     transition-opacity duration-200 ease-in-out
-                     opacity-0 group-open:opacity-100
-                     pointer-events-none group-open:pointer-events-auto
-                     z-50">
-              <li>
-                <a href="{{ url_for('upload.upload_index') }}"
-                   class="block px-4 py-2 text-gray-600 hover:bg-gray-100">
-                  Cargar Informes
-                </a>
-              </li>
-              <li>
-                <a href="{{ url_for('export.export_index') }}"
-                   class="block px-4 py-2 text-gray-600 hover:bg-gray-100">
-                  Exportar Informes
-                </a>
-              </li>
-            </ul>
-          </details>
+        <li>
+          <a href="{{ url_for('upload.upload_index') }}"
+             class="flex items-center py-4 px-2 text-gray-700 hover:text-blue-600 transition">
+            Validaciones
+          </a>
         </li>
+   
 
         <!-- GENERAR PEDIDOS (deshabilitado) -->
         <li>
