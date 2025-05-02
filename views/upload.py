@@ -20,23 +20,23 @@ RUT_HEADERS   = ["codigo_cliente","codigo_ruta"]
 DIAS_VALIDOS  = {"LU","MA","MI","JU","VI","SA","DO"}
 
 PED_COL_MAP = {
-    "numero_pedido": ["numero_pedido","Pedido"],
-    "hora":          ["hora","Hora"],
-    "cliente":       ["cliente","Cliente"],
-    "nombre":        ["nombre","R. Social"],
-    "barrio":        ["barrio","Barrio"],
-    "ciudad":        ["ciudad","Ciudad"],
-    "asesor":        ["asesor","Asesor"],
-    "codigo_pro":    ["codigo_pro","Cod.Prod"],
-    "producto":      ["producto","Producto"],
-    "cantidad":      ["cantidad","Cantidad"],
-    "valor":         ["valor","Total"],
-    "tipo_pro":      ["tipo_pro","Tip Pro"],
-    "estado":        ["estado","Estado"]
+    "numero_pedido": ["Pedido"],
+    "hora":          ["Hora"],
+    "cliente":       ["Cliente"],
+    "nombre":        ["R. Social"],
+    "barrio":        ["Barrio"],
+    "ciudad":        ["Ciudad"],
+    "asesor":        ["Asesor"],
+    "codigo_pro":    ["Cod.Prod"],
+    "producto":      ["Producto"],
+    "cantidad":      ["Cantidad"],
+    "valor":         ["Total"],
+    "tipo_pro":      ["Tip Pro"],
+    "estado":        ["Estado"]
 }
 RUT_COL_MAP = {
-    "codigo_cliente": ["Cod. Cliente"],
-    "codigo_ruta":    ["Ruta"]
+    "codigo_cliente": ["Cod. Cliente", "Código CW"],
+    "codigo_ruta":    ["Ruta", "Descripción Ruta"]
 }
 
 def normalize_cols(df: pd.DataFrame, col_map: dict) -> pd.DataFrame:

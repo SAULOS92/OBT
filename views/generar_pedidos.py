@@ -23,14 +23,14 @@ GEN_HEADERS = {
 }
 GEN_COL_MAP = {
     "materiales": {
-        "pro_codigo": ["pro_codigo", "Codigo SAP"],
-        "particion":  ["particion",  "Particion"],
-        "pq_x_caja":  ["pq_x_caja",  "Unidades x caja"]
+        "pro_codigo": ["Codigo SAP", "Código"],
+        "particion":  ["Particion", "Partición"],
+        "pq_x_caja":  ["Unidades x caja", "Unidad por Caja"]
     },
     "inventario": {
-        "codigo":   ["codigo", "Codigo articulo"],
-        "producto": ["producto", "Nombre articulo"],
-        "stock":    ["stock", "Unidades"]
+        "codigo":   ["Codigo articulo", "Cod Producto"],
+        "producto": ["Nombre articulo", "Nombre Producto"],
+        "stock":    ["Unidades", "Unidades Disponibles"]
     }
 }
 
