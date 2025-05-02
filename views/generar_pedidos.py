@@ -14,7 +14,7 @@ generar_pedidos_bp = Blueprint(
     template_folder="../templates"
 )
 
-# 1) Constantes de validación (idénticas)
+# 1) Constantes de validación
 GEN_HEADERS = {
     "materiales": ["pro_codigo", "particion", "pq_x_caja"],
     "inventario": ["codigo", "producto", "stock"]
@@ -44,16 +44,14 @@ def normalize_cols(df: pd.DataFrame, col_map: dict) -> pd.DataFrame:
     }
     return df.rename(columns=to_rename)
 
-
 @generar_pedidos_bp.route("/generar-pedidos", methods=["GET", "POST"])
 def generar_pedidos_index():
-    # 1) ¿Mostramos botón de descarga?
+    # ¿Mostramos botón de descarga tras POST exitoso?
     descarga = request.args.get("descarga", default=0, type=int)
     mostrar_descarga = bool(descarga)
 
     if request.method == "POST":
         try:
-            # ——————————————————————————————————————
             # 2) Recoger y validar archivos
             f_mat = request.files.get("materiales")
             f_inv = request.files.get("inventario")
@@ -97,7 +95,6 @@ def generar_pedidos_index():
             # 8) Serializar y llamar al SP
             mat_json = df_mat[GEN_HEADERS["materiales"]].to_dict(orient="records")
             inv_json = df_inv[GEN_HEADERS["inventario"]].to_dict(orient="records")
-
             conn = conectar(); cur = conn.cursor()
             cur.execute(
                 "CALL sp_etl_pedxrutaxprod_json(%s, %s);",
@@ -106,24 +103,35 @@ def generar_pedidos_index():
             conn.commit()
             cur.close(); conn.close()
 
+            # 9) Validar materiales sin definir
+            conn = conectar(); cur = conn.cursor()
+            cur.execute("SELECT fn_materiales_sin_definir();")
+            raw_mis = cur.fetchone()[0]
+            cur.close(); conn.close()
+
+            mis = json.loads(raw_mis) if isinstance(raw_mis, str) else (raw_mis or [])
+            if mis:
+                detalles = ", ".join(f"{m['codigo_pro']}:{m['producto']}" for m in mis)
+                flash(f"Materiales sin definir: {detalles}", "error")
+                return redirect(url_for("generar_pedidos.generar_pedidos_index"))
+
             flash("Pedidos generados con éxito.", "success")
-            # — redirect indicando que luego mostramos descarga
+            # redirect con descarga=1 para mostrar botón
             return redirect(url_for("generar_pedidos.generar_pedidos_index", descarga=1))
 
         except Exception as e:
             flash(f"Error al generar pedidos: {e}", "error")
             return redirect(url_for("generar_pedidos.generar_pedidos_index"))
 
-    # GET → render con flag de descarga
+    # GET → renderizar formulario + flag descarga
     return render_template(
         "generar_pedidos.html",
         mostrar_descarga=mostrar_descarga
     )
 
-
 @generar_pedidos_bp.route("/generar-pedidos/descargar", methods=["GET"])
 def descargar_reportes():
-    # 9) Llamar a los informes y crear ZIP
+    # Repartición y pedidos por pedir
     conn = conectar(); cur = conn.cursor()
     cur.execute("SELECT fn_obtener_reparticion_inventario_json();")
     raw_rep = cur.fetchone()[0]
@@ -137,15 +145,13 @@ def descargar_reportes():
     zip_buf = BytesIO()
     with zipfile.ZipFile(zip_buf, "w") as zf:
         # Hoja 1
-        df1 = pd.DataFrame(data_rep)
         b1 = BytesIO()
-        df1.to_excel(b1, sheet_name="Reparticion", index=False, engine="openpyxl")
+        pd.DataFrame(data_rep).to_excel(b1, sheet_name="Reparticion", index=False, engine="openpyxl")
         b1.seek(0)
         zf.writestr("reparticion_inventario.xlsx", b1.read())
         # Hoja 2
-        df2 = pd.DataFrame(data_ped)
         b2 = BytesIO()
-        df2.to_excel(b2, sheet_name="PedidosPorPedir", index=False, engine="openpyxl")
+        pd.DataFrame(data_ped).to_excel(b2, sheet_name="PedidosPorPedir", index=False, engine="openpyxl")
         b2.seek(0)
         zf.writestr("pedidos_por_pedir.xlsx", b2.read())
 
@@ -156,6 +162,7 @@ def descargar_reportes():
         download_name="reportes_generados.zip",
         mimetype="application/zip"
     )
+
 
 
 
