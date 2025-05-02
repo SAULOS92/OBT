@@ -3,6 +3,7 @@
 import json
 import numpy as np
 import pandas as pd
+from io import BytesIO   
 from flask import Blueprint, render_template, request, flash, redirect, url_for, send_file
 from db import conectar
 
