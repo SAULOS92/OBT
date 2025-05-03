@@ -6,7 +6,7 @@
 <div class="min-h-screen flex items-center justify-center bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
   <div class="max-w-md w-full bg-white p-8 rounded-2xl shadow-lg space-y-6">
     
-    <!-- Flash messages -->
+    
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         <div class="space-y-4">
@@ -25,13 +25,11 @@
       Iniciar sesión
     </h2>
 
-    <!-- Formulario -->
-    <form class="mt-8 space-y-6" method="POST" action="{{ url_for('auth.login') }}">
-      <!-- Si usas CSRF, incluirlo aquí -->
-      <!-- <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> -->
+    
+    <form class="mt-8 space-y-6" method="POST" action="{{ url_for('auth.login') }}">   
+      
 
-      <div class="rounded-md shadow-sm -space-y-px">
-        <!-- Email -->
+      <div class="rounded-md shadow-sm -space-y-px">        
         <div>
           <label for="email" class="sr-only">Correo</label>
           <input
