@@ -1,27 +1,78 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <title>Login</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-50 flex items-center justify-center h-screen">
-  <form method="post" class="bg-white p-6 rounded shadow-md w-80">
-    <h2 class="text-xl mb-4">Iniciar sesión</h2>
-    <label class="block mb-2">
-      <span class="text-gray-700">Correo</span>
-      <input type="email" name="email" required
-             class="mt-1 block w-full border rounded px-2 py-1">
-    </label>
-    <label class="block mb-4">
-      <span class="text-gray-700">Contraseña</span>
-      <input type="password" name="password" required
-             class="mt-1 block w-full border rounded px-2 py-1">
-    </label>
-    <button type="submit"
-            class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
-      Entrar
-    </button>
-  </form>
-</body>
-</html>
+{% extends "base.html" %}
+
+{% block title %}Iniciar sesión{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
+  <div class="max-w-md w-full bg-white p-8 rounded-2xl shadow-lg space-y-6">
+    
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="space-y-4">
+          {% for category, message in messages %}
+            <div
+              class="border-l-4 p-4 {{ 'border-red-500 bg-red-50 text-red-700' if category=='error' else 'border-green-500 bg-green-50 text-green-700' }}">
+              <p class="text-sm">{{ message }}</p>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <!-- Título -->
+    <h2 class="text-center text-3xl font-extrabold text-gray-900">
+      Iniciar sesión
+    </h2>
+
+    <!-- Formulario -->
+    <form class="mt-8 space-y-6" method="POST" action="{{ url_for('auth.login') }}">
+      <!-- Si usas CSRF, incluirlo aquí -->
+      <!-- <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> -->
+
+      <div class="rounded-md shadow-sm -space-y-px">
+        <!-- Email -->
+        <div>
+          <label for="email" class="sr-only">Correo</label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            autocomplete="email"
+            required
+            placeholder="Correo electrónico"
+            class="appearance-none rounded-t-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 
+                   text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+          />
+        </div>
+        <!-- Password -->
+        <div>
+          <label for="password" class="sr-only">Contraseña</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            required
+            placeholder="Contraseña"
+            class="appearance-none rounded-b-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 
+                   text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+          />
+        </div>
+      </div>
+
+      <div>
+        <button
+          type="submit"
+          class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium 
+                 rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 
+                 focus:ring-offset-2 focus:ring-blue-500"
+        >
+          Entrar
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
