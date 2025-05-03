@@ -5,7 +5,7 @@ from datetime import datetime
 from flask import (
     Blueprint, render_template, request,
     flash, redirect, url_for, send_file,
-    current_app
+    current_app, session
 )
 from views.auth import login_required
 
@@ -165,6 +165,7 @@ def consolidar_compras_index():
 
 
 @consolidar_bp.route("/consolidar-compras/download/<filename>")
+@login_required  
 def descargar_archivo_file(filename):
     tmp_dir = os.path.join(current_app.root_path, "tmp")
     path    = os.path.join(tmp_dir, filename)
