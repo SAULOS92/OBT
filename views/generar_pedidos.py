@@ -8,7 +8,7 @@ from views.auth import login_required
 import pandas as pd
 from flask import (
     Blueprint, render_template, request,
-    flash, redirect, url_for, send_file
+    flash, redirect, url_for, send_file, session
 )
 from db import conectar
 
@@ -48,7 +48,9 @@ def normalize_cols(df: pd.DataFrame, col_map: dict) -> pd.DataFrame:
     return df.rename(columns=to_rename)
 
 @generar_pedidos_bp.route("/generar-pedidos", methods=["GET", "POST"])
+@login_required 
 def generar_pedidos_index():
+    empresa = session.get('empresa')
     # ¿Mostramos botón de descarga tras POST exitoso?
     descarga = request.args.get("descarga", default=0, type=int)
     mostrar_descarga = bool(descarga)

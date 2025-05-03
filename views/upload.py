@@ -4,9 +4,10 @@ import pandas as pd
 from io import BytesIO
 from flask import (
     Blueprint, render_template, request,
-    flash, redirect, url_for, send_file
+    flash, redirect, url_for, send_file, session
 )
 from db import conectar
+from views.auth import login_required
 
 upload_bp = Blueprint("upload", __name__, template_folder="../templates")
 
@@ -53,6 +54,7 @@ def normalize_cols(df: pd.DataFrame, col_map: dict) -> pd.DataFrame:
 
 @upload_bp.route("/", methods=["GET","POST"])
 @upload_bp.route("/cargar-pedidos", methods=["GET","POST"])
+@login_required 
 def upload_index():
     descargar_flag = request.args.get("descarga", default=0, type=int)
     mostrar_descarga = bool(descargar_flag)
@@ -132,7 +134,9 @@ def upload_index():
     )
 
 @upload_bp.route("/cargar-pedidos/descargar-resumen", methods=["GET"])
+@login_required 
 def descargar_resumen():
+    empresa = session.get('empresa')
     conn = conectar(); cur = conn.cursor()
     cur.execute("SELECT fn_obtener_resumen_pedidos();")
     raw = cur.fetchone()[0]

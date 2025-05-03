@@ -3,13 +3,29 @@
 {% block title %}Iniciar sesión{% endblock %}
 
 {% block content %}
-<div class="min-h-screen flex items-center justify-center bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
-  <div class="max-w-md w-full bg-white p-8 rounded-2xl shadow-lg space-y-6">
-    
-    
+<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-200 via-blue-100 to-blue-50 p-4">
+  <div class="max-w-md w-full bg-white p-8 rounded-2xl shadow-2xl transform transition duration-500 hover:scale-105">
+
+    <!-- Icono de candado -->
+    <div class="flex justify-center mb-6">
+      <div class="bg-blue-100 p-4 rounded-full">
+        <svg xmlns="http://www.w3.org/2000/svg"
+             class="h-12 w-12 text-blue-600"
+             fill="none"
+             viewBox="0 0 24 24"
+             stroke="currentColor">
+          <path stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 11V7a4 4 0 10-8 0v4m8 0a2 2 0 00-4 0m4 0v8m-4 0h16"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Flash messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
-        <div class="space-y-4">
+        <div class="space-y-4 mb-4">
           {% for category, message in messages %}
             <div
               class="border-l-4 p-4 {{ 'border-red-500 bg-red-50 text-red-700' if category=='error' else 'border-green-500 bg-green-50 text-green-700' }}">
@@ -20,16 +36,13 @@
       {% endif %}
     {% endwith %}
 
-    <!-- Título -->
-    <h2 class="text-center text-3xl font-extrabold text-gray-900">
-      Iniciar sesión
+    <h2 class="text-center text-3xl font-extrabold text-gray-900 mb-6">
+      Bienvenido
     </h2>
 
-    
-    <form class="mt-8 space-y-6" method="POST" action="{{ url_for('auth.login') }}">   
-      
-
-      <div class="rounded-md shadow-sm -space-y-px">        
+    <form method="POST" action="{{ url_for('auth.login') }}" class="space-y-6">
+      <div class="rounded-md shadow-sm -space-y-px">
+        <!-- Email -->
         <div>
           <label for="email" class="sr-only">Correo</label>
           <input
@@ -39,38 +52,7 @@
             autocomplete="email"
             required
             placeholder="Correo electrónico"
-            class="appearance-none rounded-t-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 
-                   text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-          />
-        </div>
-        <!-- Password -->
-        <div>
-          <label for="password" class="sr-only">Contraseña</label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autocomplete="current-password"
-            required
-            placeholder="Contraseña"
-            class="appearance-none rounded-b-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 
-                   text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-          />
-        </div>
-      </div>
+            class="appearance-none rounded-t-md block w-full px-3 py-2 border border-gray-300 placeholder-gray-500
+                   text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue
 
-      <div>
-        <button
-          type="submit"
-          class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium 
-                 rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 
-                 focus:ring-offset-2 focus:ring-blue-500"
-        >
-          Entrar
-        </button>
-      </div>
-    </form>
-  </div>
-</div>
-{% endblock %}
 
