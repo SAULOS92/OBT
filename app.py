@@ -3,7 +3,7 @@ from flask import Flask
 from views.upload import upload_bp
 from views.generar_pedidos import generar_pedidos_bp
 from views.consolidar_compras import consolidar_bp
-from views.auth import login_required
+from views.auth import auth_bp
 
 app = Flask(__name__, static_folder="static")
 app.secret_key = os.getenv("SECRET_KEY", "cámbiala")
