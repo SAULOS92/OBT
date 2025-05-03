@@ -87,11 +87,17 @@
       overlay.classList.remove('hidden');
     });
 
-    // Ocultar spinner tras recarga
+    // Ocultar spinner tras recargar la página (error o flash)
     window.addEventListener('load', () => {
+      overlay.classList.add('hidden');
+    });
+
+    // Ocultar spinner cuando la ventana recupera el foco (después de iniciar descarga)
+    window.addEventListener('focus', () => {
       overlay.classList.add('hidden');
     });
   });
 </script>
 {% endblock %}
+
 
