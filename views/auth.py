@@ -39,5 +39,13 @@ def login():
         else:
             flash('Email o contraseña inválidos.', 'error')
 
+
     return render_template('login.html')
+
+@auth_bp.route('/logout')
+def logout():
+    """Limpia la sesión y redirige al login."""
+    session.clear()
+    flash('Has cerrado sesión.', 'success')
+    return redirect(url_for('auth.login'))
 
