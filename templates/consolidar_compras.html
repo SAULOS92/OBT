@@ -8,30 +8,11 @@
   <div id="loading-overlay"
        class="hidden absolute inset-0 bg-white bg-opacity-75
               flex items-center justify-center z-50">
-    <svg class="h-12 w-12 animate-spin text-purple-600"
-         xmlns="http://www.w3.org/2000/svg" fill="none"
-         viewBox="0 0 24 24">
-      <circle class="opacity-25" cx="12" cy="12" r="10"
-              stroke="currentColor" stroke-width="4"></circle>
-      <path class="opacity-75" fill="currentColor"
-            d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z">
-      </path>
-    </svg>
+    <svg class="h-12 w-12 animate-spin text-purple-600" …>…</svg>
   </div>
 
   <div class="max-w-lg mx-auto bg-white p-8 rounded-3xl shadow-xl space-y-6">
-
     <h1 class="text-3xl font-extrabold text-center">🧮 Consolidar Compras</h1>
-
-    <!-- Instrucciones -->
-    <div class="bg-purple-50 border-l-4 border-purple-400 p-4 rounded-lg space-y-2">
-      <h2 class="font-semibold text-purple-700">📄 Archivo de Entrada</h2>
-      <p class="text-gray-700 ml-4">
-        El sistema procesa el archivo recibido por correo
-        <span class="font-medium">&ldquo;Informe entrega en preparación&rdquo;</span>
-        para consolidarlo y generar una única entrada de inventario.
-      </p>
-    </div>
 
     <!-- Flash messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -39,8 +20,7 @@
         <div class="space-y-2">
           {% for cat,msg in messages %}
             <div class="px-4 py-2 rounded-lg
-                        {% if cat=='success' %}bg-green-100 text-green-700
-                        {% else %}bg-red-100 text-red-700{% endif %}">
+                        {{ 'bg-green-100 text-green-700' if cat=='success' else 'bg-red-100 text-red-700' }}">
               {{ msg }}
             </div>
           {% endfor %}
@@ -48,30 +28,26 @@
       {% endif %}
     {% endwith %}
 
-    <!-- Formulario de consolidación -->
-    <form id="cons-form"
-          method="POST"
-          enctype="multipart/form-data"
-          class="space-y-4">
+    <form id="cons-form" method="POST" enctype="multipart/form-data" class="space-y-4">
       <div>
         <label class="block mb-1 font-medium">📦 Excel de Compras</label>
         <input type="file" name="archivo" accept=".xlsx" required
-               class="block w-full text-sm text-gray-600
-                      file:py-2 file:px-4 file:border-0
-                      file:rounded-xl file:bg-purple-50 file:text-purple-700
-                      hover:file:bg-purple-100">
+               class="block w-full file:py-2 file:px-4 file:rounded-xl file:bg-purple-50 file:text-purple-700">
+      </div>
+      <div>
+        <label class="block mb-1 font-medium">🔀 Formato</label>
+        <select name="format" required
+                class="block w-full px-3 py-2 border rounded-lg">
+          <option value="">-- Elige formato --</option>
+          <option value="celluweb">Celuweb</option>
+          <option value="ecom">Ecom</option>
+        </select>
       </div>
 
-      <!-- Dos botones, uno para cada formato -->
-      <button type="submit" name="format" value="celluweb"
+      <button type="submit"
               class="w-full py-3 font-semibold rounded-xl
-                     bg-purple-600 text-white hover:bg-purple-700 transition">
-        Formato Celuweb
-      </button>
-      <button type="submit" name="format" value="ecom"
-              class="w-full py-3 font-semibold rounded-xl
-                     bg-green-600 text-white hover:bg-green-700 transition">
-        Formato Ecom
+                     bg-purple-600 text-white hover:bg-purple-700">
+        Procesar y Generar
       </button>
     </form>
   </div>
@@ -81,23 +57,12 @@
   document.addEventListener('DOMContentLoaded', () => {
     const form    = document.getElementById('cons-form');
     const overlay = document.getElementById('loading-overlay');
-
-    // Mostrar spinner al enviar
-    form.addEventListener('submit', () => {
-      overlay.classList.remove('hidden');
-    });
-
-    // Ocultar spinner tras recargar la página (error o flash)
-    window.addEventListener('load', () => {
-      overlay.classList.add('hidden');
-    });
-
-    // Ocultar spinner cuando la ventana recupera el foco (después de iniciar descarga)
-    window.addEventListener('focus', () => {
-      overlay.classList.add('hidden');
-    });
+    form.addEventListener('submit', () => overlay.classList.remove('hidden'));
+    window.addEventListener('load', ()   => overlay.classList.add('hidden'));
+    window.addEventListener('focus', ()  => overlay.classList.add('hidden'));
   });
 </script>
 {% endblock %}
+
 
 
