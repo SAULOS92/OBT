@@ -11,33 +11,46 @@
   <!-- Menú principal -->
   <nav class="bg-white shadow-md">
     <div class="max-w-7xl mx-auto px-4">
-      <ul class="flex space-x-6">
+      <ul class="flex items-center space-x-6">
 
-        <!-- VALIDACIONES con submenú -->
-        <li>
-          <a href="{{ url_for('upload.upload_index') }}"
-             class="flex items-center py-4 px-2 text-gray-700 hover:text-blue-600 transition">
-            Validaciones
-          </a>
-        </li>
-   
+        {% if session.user_id %}
+          <!-- Secciones protegidas -->
+          <li>
+            <a href="{{ url_for('upload.upload_index') }}"
+               class="flex items-center py-4 px-2 border-b-2 {{ 'border-blue-600 text-blue-600' if request.endpoint=='upload.upload_index' else 'border-transparent text-gray-700 hover:text-blue-600 hover:border-blue-600' }}">
+              Validaciones
+            </a>
+          </li>
+          <li>
+            <a href="{{ url_for('generar_pedidos.generar_pedidos_index') }}"
+               class="flex items-center py-4 px-2 border-b-2 {{ 'border-blue-600 text-blue-600' if request.endpoint=='generar_pedidos.generar_pedidos_index' else 'border-transparent text-gray-700 hover:text-blue-600 hover:border-blue-600' }}">
+              Generar Pedidos
+            </a>
+          </li>
+          <li>
+            <a href="{{ url_for('consolidar_compras.consolidar_compras_index') }}"
+               class="flex items-center py-4 px-2 border-b-2 {{ 'border-blue-600 text-blue-600' if request.endpoint=='consolidar_compras.consolidar_compras_index' else 'border-transparent text-gray-700 hover:text-blue-600 hover:border-blue-600' }}">
+              Consolidar compras
+            </a>
+          </li>
 
-        <!-- GENERAR PEDIDOS (deshabilitado) -->
-        <li>
-          <a href="{{ url_for('generar_pedidos.generar_pedidos_index') }}"
-             class="flex items-center py-4 px-2 text-gray-700 hover:text-blue-600 transition">
-            Generar Pedidos
-          </a>
-        </li>
-        
+          <!-- Spacer y botón de logout -->
+          <li class="ml-auto">
+            <a href="{{ url_for('auth.logout') }}"
+               class="flex items-center py-4 px-2 text-red-600 hover:text-red-800">
+              Cerrar sesión
+            </a>
+          </li>
 
-        <!-- CONSOLIDAR COMPRAS (deshabilitado) -->
-        <li>
-          <a href="{{ url_for('consolidar_compras.consolidar_compras_index') }}"
-             class="flex items-center py-4 px-2 text-gray-700 hover:text-blue-600 transition">
-            Consolidar compras
-          </a>
-        </li>
+        {% else %}
+          <!-- Sin login: solo Login -->
+          <li>
+            <a href="{{ url_for('auth.login') }}"
+               class="flex items-center py-4 px-2 border-b-2 {{ 'border-blue-600 text-blue-600' if request.endpoint=='auth.login' else 'border-transparent text-gray-700 hover:text-blue-600 hover:border-blue-600' }}">
+              Iniciar sesión
+            </a>
+          </li>
+        {% endif %}
 
       </ul>
     </div>
@@ -50,4 +63,5 @@
 
 </body>
 </html>
+
 
