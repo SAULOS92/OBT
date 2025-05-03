@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from functools import wraps
-from conectar import conectar  # tu función para obtener conexión
+from db import conectar   # ← así, importando desde db.py
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -31,9 +31,7 @@ def login():
         conn.close()
 
         if fila:
-            # Extraer 'nombre_de_empresa' de facturacion@empresa.com
             empresa = email.split('@')[1].split('.')[0]
-
             session.clear()
             session['user_id'] = fila[0]
             session['empresa'] = empresa
