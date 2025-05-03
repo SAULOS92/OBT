@@ -2,6 +2,7 @@ import json
 from io import BytesIO
 import zipfile
 from datetime import datetime
+from views.auth import login_required
 
 
 import pandas as pd
@@ -132,7 +133,9 @@ def generar_pedidos_index():
     )
 
 @generar_pedidos_bp.route("/generar-pedidos/descargar", methods=["GET"])
+@login_required
 def descargar_reportes():
+    empresa = session.get('empresa')
     # 1) Traer los JSON desde la BD
     conn = conectar(); cur = conn.cursor()
     cur.execute("SELECT fn_obtener_reparticion_inventario_json();")

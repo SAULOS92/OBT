@@ -387,4 +387,21 @@ AS $$
   ) AS r;
 $$;
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  membership_start DATE NOT NULL DEFAULT CURRENT_DATE,
+  membership_end   DATE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+INSERT INTO users (email, password_hash, membership_start, membership_end)
+VALUES (
+  'facturacion@miempresa.com',
+  crypt('MiPasswordSeguro123', gen_salt('bf')),
+  '2025-05-01',
+  '2026-05-01'
+);
+
 

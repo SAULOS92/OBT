@@ -7,6 +7,7 @@ from flask import (
     flash, redirect, url_for, send_file,
     current_app
 )
+from views.auth import login_required
 
 consolidar_bp = Blueprint(
     "consolidar_compras", __name__,
@@ -75,7 +76,9 @@ ECOM_COLUMNS = list(ECOM_COLUMN_SPEC.keys())
 
 
 @consolidar_bp.route("/consolidar-compras", methods=["GET", "POST"])
+@login_required
 def consolidar_compras_index():
+    empresa = session.get('empresa')
     download_filename = None
 
     if request.method == "POST":
