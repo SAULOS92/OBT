@@ -100,6 +100,7 @@
     {% if mostrar_descarga %}
       <div class="mt-6 text-center">
         <a href="{{ url_for('generar_pedidos.descargar_reportes') }}"
+        onclick="document.getElementById('download-section').style.display = 'none';"
            class="inline-block px-6 py-3 bg-green-600 text-white font-semibold rounded-xl
                   hover:bg-green-700 transition">
           Descargar Reportes
