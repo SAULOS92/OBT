@@ -116,7 +116,7 @@ def upload_index():
             rutas   = df_rut[RUT_HEADERS].to_dict(orient="records")
             conn = conectar(); cur = conn.cursor()
             cur.execute(
-                "CALL etl_cargar_pedidos_y_rutas_masivo(%s,%s,%s);",
+                "CALL etl_cargar_pedidos_y_rutas_masivo(%s,%s,%s,%s);",
                 (json.dumps(pedidos), json.dumps(rutas), p_dia, empresa)
             )
             conn.commit(); cur.close(); conn.close()
