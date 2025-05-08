@@ -146,7 +146,8 @@ def descargar_reportes():
     "SELECT fn_obtener_reparticion_inventario_json(%s);",
     (empresa,))
     raw_rep = cur.fetchone()[0]
-    cur.execute("SELECT fn_obtener_pedidos_con_pedir_json(%s);",
+    cur.execute(
+    "SELECT fn_obtener_pedidos_con_pedir_json(%s);",
     (empresa,))
     raw_ped = cur.fetchone()[0]
     cur.close(); conn.close()
