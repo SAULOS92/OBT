@@ -29,8 +29,7 @@ GEN_COL_MAP = {
         "pq_x_caja":  ["Unidades x caja", "Unidad por Caja"]
     },
     "inventario": {
-        "codigo":   ["Codigo articulo", "Cod Producto"],
-        "producto": ["Nombre articulo", "Nombre Producto"],
+        "codigo":   ["Codigo articulo", "Cod Producto"],        
         "stock":    ["Unidades", "Unidades Disponibles"]
     }
 }
