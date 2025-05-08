@@ -56,6 +56,7 @@ def normalize_cols(df: pd.DataFrame, col_map: dict) -> pd.DataFrame:
 @upload_bp.route("/cargar-pedidos", methods=["GET","POST"])
 @login_required 
 def upload_index():
+    empresa = session.get('empresa')
     descargar_flag = request.args.get("descarga", default=0, type=int)
     mostrar_descarga = bool(descargar_flag)
 
@@ -116,7 +117,7 @@ def upload_index():
             conn = conectar(); cur = conn.cursor()
             cur.execute(
                 "CALL etl_cargar_pedidos_y_rutas_masivo(%s,%s,%s);",
-                (json.dumps(pedidos), json.dumps(rutas), p_dia)
+                (json.dumps(pedidos), json.dumps(rutas), p_dia, empresa)
             )
             conn.commit(); cur.close(); conn.close()
 

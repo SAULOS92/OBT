@@ -1,23 +1,26 @@
 ---------------------------------CONSTRUCCION BASE DE DATOS-------------------------------------------------
 CREATE TABLE inventario (
+    bd VARCHAR(100),
     codigo   VARCHAR(100),
-    producto VARCHAR(255),
     stock    INTEGER
 );
 
 CREATE TABLE materiales (
+    bd VARCHAR(100),
     pro_codigo VARCHAR(100),
     particion  INTEGER,
     pq_x_caja  INTEGER
 );
 
 CREATE TABLE rutas (
+    bd VARCHAR(100),
     codigo_ruta INTEGER,  
     dia VARCHAR(20),  
     codigo_cliente VARCHAR(100)    
 );
 
 CREATE TABLE pedxrutaxprod (
+  bd VARCHAR(100),
   ruta         INTEGER           NOT NULL,
   codigo_pro   VARCHAR(100)      NOT NULL,
   producto     VARCHAR(255)      NOT NULL,
@@ -56,6 +59,7 @@ CREATE TABLE pedxrutaxprod (
   ) STORED
 );
 CREATE TABLE PEDXCLIXPROD (
+  bd VARCHAR(100),
   numero_pedido VARCHAR(100),
   hora TIME,
   codigo_cli VARCHAR(100),         
@@ -72,12 +76,23 @@ CREATE TABLE PEDXCLIXPROD (
   estado VARCHAR(50)   
 );
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  membership_start DATE NOT NULL DEFAULT CURRENT_DATE,
+  membership_end   DATE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 
 -----------------------PROCEDIMIENTOS----------------------- 
 CREATE OR REPLACE PROCEDURE etl_cargar_pedidos_y_rutas_masivo(
   p_pedidos JSONB,
   p_rutas   JSONB,
-  p_dia     TEXT
+  p_dia     TEXT,
+  p_bd      TEXT
 )
 LANGUAGE plpgsql
 AS $$
@@ -89,6 +104,7 @@ BEGIN
     inventario
   CASCADE;
   INSERT INTO pedxclixprod (
+    bd,
     numero_pedido,
     hora,
     codigo_cli,
@@ -105,6 +121,7 @@ BEGIN
     estado
   )
   SELECT
+    p_bd,
     x.numero_pedido,
     x.hora::TIME,
     split_part(x.cliente, '-', 1),
@@ -137,12 +154,13 @@ BEGIN
   WHERE x.tipo_pro   = 'N'
   AND x.estado = 'Sin Descargar';
   INSERT INTO rutas (
+  bd,  
   codigo_ruta,
   dia,
   codigo_cliente
 )
 SELECT
-  
+  p_bd,
   (split_part(r.codigo_ruta, '-', 1))::INTEGER,  
   split_part(r.codigo_ruta, '-', 2),
   (split_part(r.codigo_cliente, '-', 1))
@@ -387,15 +405,7 @@ AS $$
   ) AS r;
 $$;
 
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-CREATE TABLE users (
-  id SERIAL PRIMARY KEY,
-  email VARCHAR(255) NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
-  membership_start DATE NOT NULL DEFAULT CURRENT_DATE,
-  membership_end   DATE,
-  created_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
+
 INSERT INTO users (email, password_hash, membership_start, membership_end)
 VALUES (
   'facturacion@miempresa.com',
