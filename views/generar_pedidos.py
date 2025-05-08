@@ -20,7 +20,7 @@ generar_pedidos_bp = Blueprint(
 # 1) Constantes de validación
 GEN_HEADERS = {
     "materiales": ["pro_codigo", "particion", "pq_x_caja"],
-    "inventario": ["codigo", "producto", "stock"]
+    "inventario": ["codigo", "stock"]
 }
 GEN_COL_MAP = {
     "materiales": {
