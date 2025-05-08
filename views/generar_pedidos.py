@@ -109,8 +109,10 @@ def generar_pedidos_index():
 
             # 9) Validar materiales sin definir
             conn = conectar(); cur = conn.cursor()
-            cur.execute("SELECT fn_materiales_sin_definir(%s);",
-    (empresa,))
+            cur.execute(
+    "SELECT fn_materiales_sin_definir(%s);",
+    (empresa,)
+)
             raw_mis = cur.fetchone()[0]
             cur.close(); conn.close()
 
