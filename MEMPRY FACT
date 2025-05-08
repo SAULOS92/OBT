@@ -177,7 +177,8 @@ END;
 $$;
 -- VALIDACION DE PRODUCTOS BIG
 CREATE OR REPLACE FUNCTION fn_obtener_residuos(
-  p_prod_parts JSONB  
+  p_prod_parts JSONB,
+  p_empresa TEXT  
 ) RETURNS JSONB
 LANGUAGE sql
 AS $$
@@ -194,7 +195,7 @@ AS $$
     JOIN jsonb_to_recordset(p_prod_parts)
       AS pr(codigo_pro INTEGER, particiones INTEGER)
       ON p.codigo_pro = pr.codigo_pro
-    WHERE (p.cantidad % pr.particiones) > 0
+    WHERE (p.cantidad % pr.particiones) > 0 AND p.bd = p_empresa
   ) AS t;
 $$;
 
@@ -234,7 +235,8 @@ $$;
 ----PRDOCEDIMIENTO PARA GENERAR EL CONSOLIDADO DE LOS PEDIDOS
 CREATE OR REPLACE PROCEDURE sp_etl_pedxrutaxprod_json(
   p_materiales JSONB,
-  p_inventario JSONB
+  p_inventario JSONB,
+  p_empresa TEXT
 )
 LANGUAGE plpgsql
 AS $$
@@ -248,8 +250,9 @@ BEGIN
   TRUNCATE TABLE materiales, inventario, pedxrutaxprod CASCADE;
 
   -- 2) Insertar materiales
-  INSERT INTO materiales (pro_codigo, particion, pq_x_caja)
+  INSERT INTO materiales (bd, pro_codigo, particion, pq_x_caja)
   SELECT
+    p_empresa,
     m.pro_codigo,
     m.particion,
     m.pq_x_caja
@@ -261,10 +264,10 @@ BEGIN
   GET DIAGNOSTICS r_materiales = ROW_COUNT;
 
   -- 3) Insertar inventario
-  INSERT INTO inventario (codigo, producto, stock)
+  INSERT INTO inventario (bd, codigo, stock)
   SELECT
+    p_empresa,
     i.codigo,
-    i.producto,
     i.stock
   FROM jsonb_to_recordset(p_inventario) AS i(
     codigo   TEXT,
@@ -274,14 +277,15 @@ BEGIN
   GET DIAGNOSTICS r_inventario = ROW_COUNT;
 
   -- 4) Insertar consolidado inicial
-  INSERT INTO pedxrutaxprod (ruta, codigo_pro, producto, cantidad)
+  INSERT INTO pedxrutaxprod (bd, ruta, codigo_pro, producto, cantidad)
   SELECT
+    bd,
     ruta,
     codigo_pro,
     producto,
     SUM(cantidad)
   FROM pedxclixprod
-  WHERE ruta IS NOT NULL
+  WHERE ruta IS NOT NULL AND bd=p_empresa 
   GROUP BY ruta, codigo_pro, producto;
   GET DIAGNOSTICS r_inicial = ROW_COUNT;
 
@@ -297,7 +301,7 @@ BEGIN
     pq_por_caja = m.pq_x_caja
   FROM materiales m
   WHERE p.codigo_pro = m.pro_codigo
-    AND m.particion <> 0;
+    AND m.particion <> 0 AND p.bd=p_empresa AND m.bd=p_empresa;
 
   -- 7) Ajustar inventario por ruta
   FOR r IN
@@ -310,19 +314,20 @@ LOOP
   SET inv = LEAST(p.cantidad, i.stock)
   FROM inventario i
   WHERE p.codigo_pro = i.codigo
-    AND p.ruta       = r;
+    AND p.ruta       = r AND p.bd=p_empresa AND i.bd=p_empresa;
 
   -- luego ajustas inventario usando p2.inv, no p.inv
   UPDATE inventario i
   SET stock = i.stock - p2.inv
   FROM pedxrutaxprod p2
   WHERE i.codigo    = p2.codigo_pro
-    AND p2.ruta     = r;
+    AND p2.ruta     = r AND p2.bd=p_empresa AND i.bd=p_empresa;
 END LOOP;
 
 
   -- 8) Insertar consolidado ruta 99, evitando división por cero
   INSERT INTO pedxrutaxprod (
+    bd,
     ruta,
     codigo_pro,
     producto,
@@ -331,6 +336,7 @@ END LOOP;
     cantidad
   )
   SELECT
+    bd,
     99 AS ruta,
     codigo_pro,
     producto,
@@ -342,7 +348,7 @@ END LOOP;
       NULLIF(particiones, 0)
     ) * particiones AS cantidad
   FROM pedxrutaxprod
-  WHERE ped8_pq > 0
+  WHERE ped8_pq > 0 AND bd=p_empresa
   GROUP BY codigo_pro, producto, particiones;
 
 END;

@@ -102,8 +102,8 @@ def generar_pedidos_index():
             inv_json = df_inv[GEN_HEADERS["inventario"]].to_dict(orient="records")
             conn = conectar(); cur = conn.cursor()
             cur.execute(
-                "CALL sp_etl_pedxrutaxprod_json(%s, %s);",
-                (json.dumps(mat_json), json.dumps(inv_json))
+                "CALL sp_etl_pedxrutaxprod_json(%s, %s, %s);",
+                (json.dumps(mat_json), json.dumps(inv_json), empresa)
             )
             conn.commit()
             cur.close(); conn.close()
