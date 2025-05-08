@@ -199,7 +199,9 @@ AS $$
 $$;
 
 ---VALIDACION NUMERO DE PEDIDOS Y CLIENTES SIN RUTA
-CREATE OR REPLACE FUNCTION fn_obtener_resumen_pedidos()
+CREATE OR REPLACE FUNCTION fn_obtener_resumen_pedidos(
+  p_empresa TEXT
+)
 RETURNS JSONB
 LANGUAGE sql
 AS $$
@@ -209,6 +211,7 @@ AS $$
   )
   FROM (
     SELECT
+      bd,
       codigo_cli,
       nombre,
       barrio,
@@ -216,11 +219,18 @@ AS $$
       asesor,
       COUNT(DISTINCT numero_pedido) AS total_pedidos,
       ruta
-    FROM pedxclixprod    
-    GROUP BY barrio, ruta, codigo_cli, nombre, ciudad, asesor
+    FROM pedxclixprod
+    WHERE bd = p_empresa
+    GROUP BY
+      bd,
+      codigo_cli,
+      nombre,
+      barrio,
+      ciudad,
+      asesor,
+      ruta
   ) AS r;
 $$;
-
 ----PRDOCEDIMIENTO PARA GENERAR EL CONSOLIDADO DE LOS PEDIDOS
 CREATE OR REPLACE PROCEDURE sp_etl_pedxrutaxprod_json(
   p_materiales JSONB,

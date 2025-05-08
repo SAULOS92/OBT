@@ -139,7 +139,7 @@ def upload_index():
 def descargar_resumen():
     empresa = session.get('empresa')
     conn = conectar(); cur = conn.cursor()
-    cur.execute("SELECT fn_obtener_resumen_pedidos();")
+    cur.execute("SELECT fn_obtener_resumen_pedidos(%s);", (empresa,))
     raw = cur.fetchone()[0]
     cur.close(); conn.close()
     data = json.loads(raw) if isinstance(raw,str) else (raw or [])
