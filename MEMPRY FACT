@@ -286,7 +286,7 @@ BEGIN
     SUM(cantidad)
   FROM pedxclixprod
   WHERE ruta IS NOT NULL AND bd=p_empresa 
-  GROUP BY ruta, codigo_pro, producto;
+  GROUP BY bd, ruta, codigo_pro, producto;
   GET DIAGNOSTICS r_inicial = ROW_COUNT;
 
   -- 5) Si alguno de los INSERT no añadió filas, salir sin ejecutar el resto
@@ -349,14 +349,14 @@ END LOOP;
     ) * particiones AS cantidad
   FROM pedxrutaxprod
   WHERE ped8_pq > 0 AND bd=p_empresa
-  GROUP BY codigo_pro, producto, particiones;
+  GROUP BY bd, codigo_pro, producto, particiones;
 
 END;
 $$;
 
 
   ----OBTENER EL INFORME DE REPARTICION DE INVENTARIO
- CREATE OR REPLACE FUNCTION fn_obtener_reparticion_inventario_json()
+ CREATE OR REPLACE FUNCTION fn_obtener_reparticion_inventario_json(p_empresa TEXT)
 RETURNS JSONB
 LANGUAGE sql
 AS $$
@@ -366,6 +366,7 @@ AS $$
   )
   FROM (
     SELECT
+      bd,
       ruta,
       codigo_pro,
       producto,
@@ -374,14 +375,14 @@ AS $$
       ped8_pq,
       inv
     FROM pedxrutaxprod
-    WHERE inv  > 0
+    WHERE inv  > 0 AND bd=p_empresa
     ORDER BY
       ruta ASC,
       producto ASC
   ) AS r;
 $$;
 ---VALIDAR QUE TODOS LOS MATERIALES TENGAN SU PARTICION
-CREATE OR REPLACE FUNCTION fn_materiales_sin_definir()
+CREATE OR REPLACE FUNCTION fn_materiales_sin_definir(p_empresa TEXT)
 RETURNS JSONB
 LANGUAGE sql
 AS $$
@@ -396,12 +397,12 @@ AS $$
     FROM pedxrutaxprod p
     LEFT JOIN materiales m
       ON p.codigo_pro = m.pro_codigo
-    WHERE m.pro_codigo IS NULL
+    WHERE m.pro_codigo IS NULL AND p.bd=p_empresa AND m.bd=p_empresa
   ) AS t;
 $$;
 
   ----OBTENER LA INFO DE TODOS LOS PEDIDOS
-  CREATE OR REPLACE FUNCTION fn_obtener_pedidos_con_pedir_json()
+  CREATE OR REPLACE FUNCTION fn_obtener_pedidos_con_pedir_json(p_empresa TEXT)
 RETURNS JSONB
 LANGUAGE sql
 AS $$
@@ -416,7 +417,7 @@ AS $$
       producto,
       pedir
     FROM pedxrutaxprod
-    WHERE pedir > 0
+    WHERE pedir > 0 AND bd=p_empresa
     ORDER BY ruta ASC, producto ASC
   ) AS r;
 $$;

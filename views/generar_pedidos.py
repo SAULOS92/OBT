@@ -109,7 +109,8 @@ def generar_pedidos_index():
 
             # 9) Validar materiales sin definir
             conn = conectar(); cur = conn.cursor()
-            cur.execute("SELECT fn_materiales_sin_definir();")
+            cur.execute("SELECT fn_materiales_sin_definir(%s);",
+    (empresa,))
             raw_mis = cur.fetchone()[0]
             cur.close(); conn.close()
 
@@ -139,9 +140,12 @@ def descargar_reportes():
     empresa = session.get('empresa')
     # 1) Traer los JSON desde la BD
     conn = conectar(); cur = conn.cursor()
-    cur.execute("SELECT fn_obtener_reparticion_inventario_json();")
+    cur.execute(
+    "SELECT fn_obtener_reparticion_inventario_json(%s);",
+    (empresa,))
     raw_rep = cur.fetchone()[0]
-    cur.execute("SELECT fn_obtener_pedidos_con_pedir_json();")
+    cur.execute("SELECT fn_obtener_pedidos_con_pedir_json(%s);",
+    (empresa,))
     raw_ped = cur.fetchone()[0]
     cur.close(); conn.close()
 
