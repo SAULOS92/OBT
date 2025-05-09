@@ -33,7 +33,7 @@
           <span class="underline">ECOM</span>
         </h3>
         <ol class="list-decimal list-inside text-gray-700 ml-6 space-y-1">
-          <li>Inventario → Materiales</li>
+          {% if negocio != "nutresa" %}<li>Inventario → Materiales</li>{% endif %}
           <li>Inventario → Consol. Inventario</li>
         </ol>
       </div>
@@ -44,7 +44,7 @@
           <span class="underline">CELUWEB</span>
         </h3>
         <ol class="list-decimal list-inside text-gray-700 ml-6 space-y-1">
-          <li>Maestras → Materiales → Materiales → Buscar → Exportar</li>
+          {% if negocio != "nutresa" %}<li>Maestras → Materiales → Materiales → Buscar → Exportar</li>{% endif %}
           <li>Inventarios → Informe inventarios → Inventario Total →  Mostrar inventario → Exportar</li>
         </ol>
       </div>
@@ -73,6 +73,7 @@
           method="POST"
           enctype="multipart/form-data"
           class="space-y-4">
+      {% if negocio != "nutresa" %}
       <div>
         <label class="block mb-1 font-medium">📦 Excel Materiales</label>
         <input type="file" name="materiales" accept=".xlsx" required
@@ -81,6 +82,7 @@
                       file:rounded-xl file:bg-blue-50 file:text-blue-700
                       hover:file:bg-blue-100">
       </div>
+      {% endif %}
       <div>
         <label class="block mb-1 font-medium">📦 Excel Inventario</label>
         <input type="file" name="inventario" accept=".xlsx" required

@@ -21,7 +21,7 @@ def login():
         conn = conectar()
         cur  = conn.cursor()
         cur.execute("""
-            SELECT id, email
+            SELECT id, email, negocio
             FROM users
             WHERE email = %s
               AND password_hash = crypt(%s, password_hash)
@@ -35,6 +35,7 @@ def login():
             session.clear()
             session['user_id'] = fila[0]
             session['empresa'] = empresa
+            session['negocio'] = fila[2]
             return redirect(url_for('upload.upload_index'))
         else:
             flash('Email o contraseña inválidos.', 'error')

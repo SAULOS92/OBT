@@ -50,101 +50,90 @@ def normalize_cols(df: pd.DataFrame, col_map: dict) -> pd.DataFrame:
 @login_required 
 def generar_pedidos_index():
     empresa = session.get('empresa')
-    # ¿Mostramos botón de descarga tras POST exitoso?
+    negocio = session.get('negocio')  # ← variable correcta
+
     descarga = request.args.get("descarga", default=0, type=int)
     mostrar_descarga = bool(descarga)
 
     if request.method == "POST":
         try:
-            # 2) Recoger y validar archivos
             f_mat = request.files.get("materiales")
             f_inv = request.files.get("inventario")
-            if not f_mat or not f_inv:
-                flash("Debes subir ambos archivos: Materiales e Inventario.", "error")
-                return redirect(url_for("generar_pedidos.generar_pedidos_index"))
 
-            # 3) Leer todo como texto y rellenar ""
-            df_mat = pd.read_excel(f_mat, engine="openpyxl", dtype=str).fillna("")
+            if negocio != "nutresa":
+                if not f_mat or not f_inv:
+                    flash("Debes subir ambos archivos: Materiales e Inventario.", "error")
+                    return redirect(url_for("generar_pedidos.generar_pedidos_index"))
+            else:
+                if not f_inv:
+                    flash("Debes subir el archivo de Inventario.", "error")
+                    return redirect(url_for("generar_pedidos.generar_pedidos_index"))
+
             df_inv = pd.read_excel(f_inv, engine="openpyxl", dtype=str).fillna("")
-
-            # 4) Normalizar columnas
-            df_mat = normalize_cols(df_mat, GEN_COL_MAP["materiales"])
             df_inv = normalize_cols(df_inv, GEN_COL_MAP["inventario"])
 
-            # 5) Validar encabezados faltantes
-            falt = [h for h in GEN_HEADERS["materiales"] if h not in df_mat.columns]
-            if falt:
-                flash(f"Faltan columnas en Materiales: {falt}", "error")
-                return redirect(url_for("generar_pedidos.generar_pedidos_index"))
             falt = [h for h in GEN_HEADERS["inventario"] if h not in df_inv.columns]
             if falt:
                 flash(f"Faltan columnas en Inventario: {falt}", "error")
                 return redirect(url_for("generar_pedidos.generar_pedidos_index"))
 
-            # 6) Detectar duplicados
-            dup = df_mat.columns[df_mat.columns.duplicated()].unique().tolist()
-            if dup:
-                flash(f"Columnas duplicadas en Materiales: {dup}", "error")
-                return redirect(url_for("generar_pedidos.generar_pedidos_index"))
             dup = df_inv.columns[df_inv.columns.duplicated()].unique().tolist()
             if dup:
                 flash(f"Columnas duplicadas en Inventario: {dup}", "error")
                 return redirect(url_for("generar_pedidos.generar_pedidos_index"))
 
-            # 7) Forzar numeric + 0
-            df_mat["particion"] = df_mat["particion"].replace("", "0").astype(int)
-            df_mat["pq_x_caja"] = df_mat["pq_x_caja"].replace("", "0").astype(int)
-            df_inv["stock"]     = df_inv["stock"].replace("", "0").astype(int)
+            df_inv["stock"] = df_inv["stock"].replace("", "0").astype(int)
 
-            # 8) Serializar y llamar al SP
-            mat_json = df_mat[GEN_HEADERS["materiales"]].to_dict(orient="records")
+            conn = conectar(); cur = conn.cursor()
+
+            if negocio != "nutresa":
+                df_mat = pd.read_excel(f_mat, engine="openpyxl", dtype=str).fillna("")
+                df_mat = normalize_cols(df_mat, GEN_COL_MAP["materiales"])
+
+                falt = [h for h in GEN_HEADERS["materiales"] if h not in df_mat.columns]
+                if falt:
+                    flash(f"Faltan columnas en Materiales: {falt}", "error")
+                    return redirect(url_for("generar_pedidos.generar_pedidos_index"))
+
+                dup = df_mat.columns[df_mat.columns.duplicated()].unique().tolist()
+                if dup:
+                    flash(f"Columnas duplicadas en Materiales: {dup}", "error")
+                    return redirect(url_for("generar_pedidos.generar_pedidos_index"))
+
+                df_mat["particion"] = df_mat["particion"].replace("", "0").astype(int)
+                df_mat["pq_x_caja"] = df_mat["pq_x_caja"].replace("", "0").astype(int)
+
+                mat_json = df_mat[GEN_HEADERS["materiales"]].to_dict(orient="records")
+                cur.execute("CALL sp_cargar_materiales(%s, %s);", (json.dumps(mat_json), empresa))
+                conn.commit()
+
             inv_json = df_inv[GEN_HEADERS["inventario"]].to_dict(orient="records")
-            conn = conectar(); cur = conn.cursor()
-            cur.execute(
-"CALL sp_cargar_materiales(%s, %s);",
-    (json.dumps(mat_json), empresa)
-)
-
-# Luego llamar al procedimiento que genera pedidos
-
-            conn.commit()
-            cur.close(); conn.close()
-            conn = conectar(); cur = conn.cursor()
-            cur.execute(
-    "CALL sp_etl_pedxrutaxprod_json(%s, %s);",
-    (json.dumps(inv_json), empresa)
-)
+            cur.execute("CALL sp_etl_pedxrutaxprod_json(%s, %s);", (json.dumps(inv_json), empresa))
             conn.commit()
             cur.close(); conn.close()
 
-            # 9) Validar materiales sin definir
-            conn = conectar(); cur = conn.cursor()
-            cur.execute(
-    "SELECT fn_materiales_sin_definir(%s);",
-    (empresa,)
-)
-            raw_mis = cur.fetchone()[0]
-            cur.close(); conn.close()
+            # Validar materiales solo si no es nutresa
+            if negocio != "nutresa":
+                conn = conectar(); cur = conn.cursor()
+                cur.execute("SELECT fn_materiales_sin_definir(%s);", (empresa,))
+                raw_mis = cur.fetchone()[0]
+                cur.close(); conn.close()
 
-            mis = json.loads(raw_mis) if isinstance(raw_mis, str) else (raw_mis or [])
-            if mis:
-                detalles = ", ".join(f"{m['codigo_pro']}:{m['producto']}" for m in mis)
-                flash(f"Materiales sin definir: {detalles}", "error")
-                return redirect(url_for("generar_pedidos.generar_pedidos_index"))
+                mis = json.loads(raw_mis) if isinstance(raw_mis, str) else (raw_mis or [])
+                if mis:
+                    detalles = ", ".join(f"{m['codigo_pro']}:{m['producto']}" for m in mis)
+                    flash(f"Materiales sin definir: {detalles}", "error")
+                    return redirect(url_for("generar_pedidos.generar_pedidos_index"))
 
             flash("Pedidos generados con éxito.", "success")
-            # redirect con descarga=1 para mostrar botón
             return redirect(url_for("generar_pedidos.generar_pedidos_index", descarga=1))
 
         except Exception as e:
             flash(f"Error al generar pedidos: {e}", "error")
             return redirect(url_for("generar_pedidos.generar_pedidos_index"))
 
-    # GET → renderizar formulario + flag descarga
-    return render_template(
-        "generar_pedidos.html",
-        mostrar_descarga=mostrar_descarga
-    )
+    return render_template("generar_pedidos.html", mostrar_descarga=mostrar_descarga, negocio=session.get("negocio"))
+
 
 @generar_pedidos_bp.route("/generar-pedidos/descargar", methods=["GET"])
 @login_required
