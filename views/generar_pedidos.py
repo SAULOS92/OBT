@@ -101,9 +101,19 @@ def generar_pedidos_index():
             inv_json = df_inv[GEN_HEADERS["inventario"]].to_dict(orient="records")
             conn = conectar(); cur = conn.cursor()
             cur.execute(
-                "CALL sp_etl_pedxrutaxprod_json(%s, %s, %s);",
-                (json.dumps(mat_json), json.dumps(inv_json), empresa)
-            )
+"CALL sp_cargar_materiales(%s, %s);",
+    (json.dumps(mat_json), empresa)
+)
+
+# Luego llamar al procedimiento que genera pedidos
+
+            conn.commit()
+            cur.close(); conn.close()
+            conn = conectar(); cur = conn.cursor()
+            cur.execute(
+    "CALL sp_etl_pedxrutaxprod_json(%s, %s);",
+    (json.dumps(inv_json), empresa)
+)
             conn.commit()
             cur.close(); conn.close()
 

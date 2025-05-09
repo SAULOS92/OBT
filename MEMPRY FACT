@@ -236,23 +236,18 @@ AS $$
       ruta
   ) AS r;
 $$;
-----PRDOCEDIMIENTO PARA GENERAR EL CONSOLIDADO DE LOS PEDIDOS
-CREATE OR REPLACE PROCEDURE sp_etl_pedxrutaxprod_json(
+-----PROCEDIMIENTO PARA LA INSERCION DE MATERIALES---------
+CREATE OR REPLACE PROCEDURE sp_cargar_materiales(
   p_materiales JSONB,
-  p_inventario JSONB,
   p_empresa TEXT
 )
 LANGUAGE plpgsql
 AS $$
 DECLARE
-  r_materiales  INTEGER;
-  r_inventario  INTEGER;
-  r_inicial     INTEGER;
-  r INTEGER;
+  r_materiales INTEGER;
 BEGIN
-  DELETE FROM materiales   WHERE bd = p_bd;
-  DELETE FROM inventario   WHERE bd = p_bd; 
-  -- 2) Insertar materiales
+  DELETE FROM materiales WHERE bd = p_empresa;
+
   INSERT INTO materiales (bd, pro_codigo, particion, pq_x_caja)
   SELECT
     p_empresa,
@@ -266,7 +261,27 @@ BEGIN
   );
   GET DIAGNOSTICS r_materiales = ROW_COUNT;
 
-  -- 3) Insertar inventario
+  IF r_materiales = 0 THEN
+    RAISE EXCEPTION 'No se insertaron materiales para la empresa %', p_empresa;
+  END IF;
+END;
+$$;
+
+----PRDOCEDIMIENTO PARA GENERAR EL CONSOLIDADO DE LOS PEDIDOS
+CREATE OR REPLACE PROCEDURE sp_etl_pedxrutaxprod_json(
+  p_inventario JSONB,
+  p_empresa TEXT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  r_inventario  INTEGER;
+  r_inicial     INTEGER;
+  r INTEGER;
+BEGIN
+  DELETE FROM inventario WHERE bd = p_empresa; 
+
+  -- Insertar inventario
   INSERT INTO inventario (bd, codigo, stock)
   SELECT
     p_empresa,
@@ -279,7 +294,7 @@ BEGIN
   );
   GET DIAGNOSTICS r_inventario = ROW_COUNT;
 
-  -- 4) Insertar consolidado inicial
+  -- Insertar consolidado inicial
   INSERT INTO pedxrutaxprod (bd, ruta, codigo_pro, producto, cantidad)
   SELECT
     bd,
@@ -288,47 +303,44 @@ BEGIN
     producto,
     SUM(cantidad)
   FROM pedxclixprod
-  WHERE ruta IS NOT NULL AND bd=p_empresa 
+  WHERE ruta IS NOT NULL AND bd = p_empresa
   GROUP BY bd, ruta, codigo_pro, producto;
   GET DIAGNOSTICS r_inicial = ROW_COUNT;
 
-  -- 5) Si alguno de los INSERT no añadió filas, salir sin ejecutar el resto
-  IF r_materiales = 0 OR r_inventario = 0 OR r_inicial = 0 THEN
+  IF r_inventario = 0 OR r_inicial = 0 THEN
     RETURN;
   END IF;
 
-  -- 6) Actualizar particiones (solo m.particion <> 0)
+  -- Actualizar particiones
   UPDATE pedxrutaxprod p
   SET
     particiones = m.particion,
     pq_por_caja = m.pq_x_caja
   FROM materiales m
   WHERE p.codigo_pro = m.pro_codigo
-    AND m.particion <> 0 AND p.bd=p_empresa AND m.bd=p_empresa;
+    AND m.particion <> 0 AND p.bd = p_empresa AND m.bd = p_empresa;
 
-  -- 7) Ajustar inventario por ruta
+  -- Ajustar inventario por ruta
   FOR r IN
-  SELECT DISTINCT ruta
-  FROM pedxrutaxprod
-  ORDER BY ruta
-LOOP
-  -- primero actualizas inv sobre pedxrutaxprod p
-  UPDATE pedxrutaxprod p
-  SET inv = LEAST(p.cantidad, i.stock)
-  FROM inventario i
-  WHERE p.codigo_pro = i.codigo
-    AND p.ruta       = r AND p.bd=p_empresa AND i.bd=p_empresa;
+    SELECT DISTINCT ruta
+    FROM pedxrutaxprod
+    WHERE bd = p_empresa
+    ORDER BY ruta
+  LOOP
+    UPDATE pedxrutaxprod p
+    SET inv = LEAST(p.cantidad, i.stock)
+    FROM inventario i
+    WHERE p.codigo_pro = i.codigo
+      AND p.ruta = r AND p.bd = p_empresa AND i.bd = p_empresa;
 
-  -- luego ajustas inventario usando p2.inv, no p.inv
-  UPDATE inventario i
-  SET stock = i.stock - p2.inv
-  FROM pedxrutaxprod p2
-  WHERE i.codigo    = p2.codigo_pro
-    AND p2.ruta     = r AND p2.bd=p_empresa AND i.bd=p_empresa;
-END LOOP;
+    UPDATE inventario i
+    SET stock = i.stock - p2.inv
+    FROM pedxrutaxprod p2
+    WHERE i.codigo = p2.codigo_pro
+      AND p2.ruta = r AND p2.bd = p_empresa AND i.bd = p_empresa;
+  END LOOP;
 
-
-  -- 8) Insertar consolidado ruta 99, evitando división por cero
+  -- Generar consolidado ruta 99
   INSERT INTO pedxrutaxprod (
     bd,
     ruta,
@@ -346,16 +358,14 @@ END LOOP;
     MAX(pq_por_caja) AS pq_por_caja,
     particiones,
     CEIL(
-      SUM(ped8_pq)::NUMERIC
-      /
-      NULLIF(particiones, 0)
+      SUM(ped8_pq)::NUMERIC / NULLIF(particiones, 0)
     ) * particiones AS cantidad
   FROM pedxrutaxprod
-  WHERE ped8_pq > 0 AND bd=p_empresa
+  WHERE ped8_pq > 0 AND bd = p_empresa
   GROUP BY bd, codigo_pro, producto, particiones;
-
 END;
 $$;
+
 
 
   ----OBTENER EL INFORME DE REPARTICION DE INVENTARIO
