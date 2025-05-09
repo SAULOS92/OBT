@@ -99,6 +99,7 @@ LANGUAGE plpgsql
 AS $$
 BEGIN  
   DELETE FROM pedxclixprod WHERE bd = p_bd;
+  DELETE FROM pedxrutaxprod WHERE bd = p_bd;
   DELETE FROM rutas        WHERE bd = p_bd;
   DELETE FROM materiales   WHERE bd = p_bd;
   DELETE FROM inventario   WHERE bd = p_bd;
@@ -280,7 +281,8 @@ DECLARE
   r_inicial     INTEGER;
   r INTEGER;
 BEGIN
-  DELETE FROM inventario WHERE bd = p_empresa; 
+  DELETE FROM inventario WHERE bd = p_empresa;
+  DELETE FROM pedxrutaxprod WHERE bd = p_empresa; 
 
   -- Insertar inventario
   INSERT INTO inventario (bd, codigo, stock)
