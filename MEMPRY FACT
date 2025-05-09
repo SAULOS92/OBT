@@ -216,7 +216,6 @@ AS $$
   FROM (
     SELECT
       bd,
-      numero_pedido,
       codigo_cli,
       nombre,
       barrio,
@@ -226,13 +225,12 @@ AS $$
       SUM(valor) AS valor,
       ruta
     FROM pedxclixprod
-    WHERE bd = p_empresa
+    WHERE bd = p_empresa AND valor > 0
     GROUP BY
-      bd,
-      numero_pedido,
-      codigo_cli,
-      nombre,
       barrio,
+      codigo_cli,
+      bd,     
+      nombre,
       ciudad,
       asesor,
       ruta

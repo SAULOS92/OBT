@@ -146,7 +146,7 @@ def descargar_resumen():
     cur.close(); conn.close()
     data = json.loads(raw) if isinstance(raw,str) else (raw or [])
 
-    cols = ["bd","numero_pedido","codigo_cli","nombre","barrio","ciudad","asesor","total_pedidos", "valor", "ruta"]
+    cols = ["bd","codigo_cli","nombre","barrio","ciudad","asesor","total_pedidos", "valor", "ruta"]
     df_res = pd.DataFrame(data, columns=cols)
 
     buf = BytesIO()
