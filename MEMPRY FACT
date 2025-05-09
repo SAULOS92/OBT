@@ -146,7 +146,7 @@ BEGIN
     tipo_pro      TEXT,
     estado        TEXT
   )
-  WHERE x.tipo_pro   = 'N' OR x.tipo_pro  IS NULL
+  WHERE x.tipo_pro   = 'N'
   AND x.estado = 'Sin Descargar' OR x.estado = 'Sin facturar';
   BEGIN
   WITH cte AS (
@@ -225,7 +225,7 @@ AS $$
       SUM(valor) AS valor,
       ruta
     FROM pedxclixprod
-    WHERE bd = p_empresa AND valor > 0
+    WHERE bd = p_empresa
     GROUP BY
       barrio,
       codigo_cli,

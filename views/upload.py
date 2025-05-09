@@ -77,6 +77,10 @@ def upload_index():
             df_ped = normalize_cols(df_ped, PED_COL_MAP)
             df_rut = normalize_cols(df_rut, RUT_COL_MAP)
 
+            # 3.5) Si falta 'tipo_pro', añadirlo con valor "N"
+            if "tipo_pro" not in df_ped.columns:
+                df_ped["tipo_pro"] = "N"
+
             # 4) Validar encabezados faltantes
             falt_ped = [h for h in PED_HEADERS if h not in df_ped.columns]
             falt_rut = [h for h in RUT_HEADERS if h not in df_rut.columns]
