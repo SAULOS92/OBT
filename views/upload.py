@@ -113,6 +113,7 @@ def upload_index():
             # 8) Serializar JSON y ejecutar SP
             pedidos = df_ped[PED_HEADERS].to_dict(orient="records")
             rutas   = df_rut[RUT_HEADERS].to_dict(orient="records")
+            df_rut = df_rut[df_rut["codigo_ruta"].str.contains(p_dia, na=False)]
             conn = conectar(); cur = conn.cursor()
             cur.execute(
                 "CALL etl_cargar_pedidos_y_rutas_masivo(%s,%s,%s,%s);",
@@ -120,18 +121,7 @@ def upload_index():
             )
             conn.commit(); cur.close(); conn.close()
 
-            conn = conectar(); cur = conn.cursor()
-            cur.execute(
-                "SELECT fn_clientes_duplicados_rutas(%s);",
-                (empresa,)
-            )
-            raw_dup = cur.fetchone()[0]
-            cur.close(); conn.close()
-            dup = json.loads(raw_dup) if isinstance(raw_dup, str) else (raw_dup or [])
-            if dup:
-                detalles = ", ".join(d["codigo_cliente"] for d in dup)
-                flash(f"Duplicados en rutas: {detalles}", "error")
-                return redirect(request.url)
+            
 
             flash("¡Carga masiva exitosa!","success")
             # recarga con flag descarga=1
@@ -156,7 +146,7 @@ def descargar_resumen():
     cur.close(); conn.close()
     data = json.loads(raw) if isinstance(raw,str) else (raw or [])
 
-    cols = ["bd", "codigo_cli","nombre","barrio","ciudad","asesor","total_pedidos", "valor", "ruta"]
+    cols = ["bd","numero_pedido","codigo_cli","nombre","barrio","ciudad","asesor","total_pedidos", "valor", "ruta"]
     df_res = pd.DataFrame(data, columns=cols)
 
     buf = BytesIO()

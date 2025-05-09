@@ -16,7 +16,7 @@ CREATE TABLE rutas (
     bd VARCHAR(100),
     codigo_ruta INTEGER,  
     dia VARCHAR(20),  
-    codigo_cliente VARCHAR(100)    
+    codigo_cliente VARCHAR(100) UNIQUE   
 );
 
 CREATE TABLE pedxrutaxprod (
@@ -104,7 +104,6 @@ BEGIN
   INSERT INTO pedxclixprod (
     bd,
     numero_pedido,
-    hora,
     codigo_cli,
     ruta,        
     nombre,
@@ -121,7 +120,6 @@ BEGIN
   SELECT
     p_bd,
     x.numero_pedido,
-    x.hora::TIME,
     split_part(x.cliente, '-', 1),
     NULL,
     x.nombre,
@@ -135,8 +133,7 @@ BEGIN
     x.tipo_pro,
     x.estado
   FROM jsonb_to_recordset(p_pedidos) AS x(
-    numero_pedido TEXT,
-    hora          TEXT,
+    numero_pedido TEXT,    
     cliente       TEXT,
     nombre        TEXT,
     barrio        TEXT,
@@ -149,8 +146,8 @@ BEGIN
     tipo_pro      TEXT,
     estado        TEXT
   )
-  WHERE x.tipo_pro   = 'N'
-  AND x.estado = 'Sin Descargar';
+  WHERE x.tipo_pro   = 'N' OR x.tipo_pro  IS NULL
+  AND x.estado = 'Sin Descargar' OR x.estado = 'Sin facturar';
   WITH cte AS (
   SELECT
     p_bd            AS bd,
@@ -197,30 +194,6 @@ AS $$
     WHERE (p.cantidad % pr.particiones) > 0 AND p.bd = p_empresa
   ) AS t;
 $$;
-----------VALIDACION DE CLIENTES ENRUTADOS EN DOS CARROS--------------------
-CREATE OR REPLACE FUNCTION fn_clientes_duplicados_rutas(p_empresa TEXT)
-RETURNS JSONB
-LANGUAGE sql
-AS $$
-  SELECT COALESCE(
-    jsonb_agg(row_to_json(r)
-      ORDER BY r.codigo_cliente
-    ),
-    '[]'::jsonb
-  )
-  FROM (
-    SELECT
-      codigo_cliente,
-      COUNT(*) AS total
-    FROM rutas
-    WHERE bd = p_empresa
-    GROUP BY codigo_cliente
-    HAVING COUNT(*) > 1
-  ) AS r;
-$$;
-
-
-
 ---VALIDACION NUMERO DE PEDIDOS Y CLIENTES SIN RUTA
 CREATE OR REPLACE FUNCTION fn_obtener_resumen_pedidos(
   p_empresa TEXT
@@ -235,6 +208,7 @@ AS $$
   FROM (
     SELECT
       bd,
+      numero_pedido,
       codigo_cli,
       nombre,
       barrio,
@@ -247,6 +221,7 @@ AS $$
     WHERE bd = p_empresa
     GROUP BY
       bd,
+      numero_pedido,
       codigo_cli,
       nombre,
       barrio,
