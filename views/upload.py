@@ -113,7 +113,7 @@ def upload_index():
             # 8) Serializar JSON y ejecutar SP
             pedidos = df_ped[PED_HEADERS].to_dict(orient="records")
             rutas   = df_rut[RUT_HEADERS].to_dict(orient="records")
-            df_rut = df_rut[df_rut["codigo_ruta"].str.contains(p_dia, na=False)]
+            #df_rut = df_rut[df_rut["codigo_ruta"].str.contains(p_dia, na=False)]
             conn = conectar(); cur = conn.cursor()
             cur.execute(
                 "CALL etl_cargar_pedidos_y_rutas_masivo(%s,%s,%s,%s);",
