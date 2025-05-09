@@ -148,6 +148,7 @@ BEGIN
   )
   WHERE x.tipo_pro   = 'N' OR x.tipo_pro  IS NULL
   AND x.estado = 'Sin Descargar' OR x.estado = 'Sin facturar';
+  BEGIN
   WITH cte AS (
   SELECT
     p_bd            AS bd,
@@ -163,6 +164,13 @@ INSERT INTO rutas (bd, codigo_ruta, dia, codigo_cliente)
 SELECT bd, codigo_ruta, dia, codigo_cliente
 FROM cte
 WHERE dia = p_dia;
+
+
+  EXCEPTION
+    WHEN unique_violation THEN
+      RAISE EXCEPTION 'Un cliente no puede estar asignado a dos rutas en el mismo dia';
+  END;
+  
 
   UPDATE pedxclixprod p
   SET ruta = r.codigo_ruta

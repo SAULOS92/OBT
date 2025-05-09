@@ -128,7 +128,7 @@ def upload_index():
             return redirect(url_for("upload.upload_index", descarga=1))
 
         except Exception as e:
-            flash(f"Error inesperado: {e}","error")
+            flash(f"Error inesperado: {e.diag.message_primary}","error")
             return redirect(url_for("upload.upload_index"))
 
     return render_template(
