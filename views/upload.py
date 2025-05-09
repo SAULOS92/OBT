@@ -13,7 +13,7 @@ upload_bp = Blueprint("upload", __name__, template_folder="../templates")
 
 # Tus constantes tal cual
 PED_HEADERS = [
-    "numero_pedido","hora","cliente","nombre","barrio","ciudad",
+    "numero_pedido","cliente","nombre","barrio","ciudad",
     "asesor","codigo_pro","producto","cantidad","valor",
     "tipo_pro","estado"
 ]
