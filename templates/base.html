@@ -28,6 +28,12 @@
             </a>
           </li>
           <li>
+            <a href="{{ url_for('generar_nutresa.generar_nutresa_index') }}"
+               class="flex items-center py-4 px-2 border-b-2 {{ 'border-blue-600 text-blue-600' if request.endpoint=='generar_pedidos.generar_pedidos_index' else 'border-transparent text-gray-700 hover:text-blue-600 hover:border-blue-600' }}">
+              Generar Nutresa
+            </a>
+          </li>
+          <li>
             <a href="{{ url_for('consolidar_compras.consolidar_compras_index') }}"
                class="flex items-center py-4 px-2 border-b-2 {{ 'border-blue-600 text-blue-600' if request.endpoint=='consolidar_compras.consolidar_compras_index' else 'border-transparent text-gray-700 hover:text-blue-600 hover:border-blue-600' }}">
               Consolidar compras
