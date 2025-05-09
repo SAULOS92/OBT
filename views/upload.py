@@ -22,7 +22,6 @@ DIAS_VALIDOS  = {"LU","MA","MI","JU","VI","SA","DO"}
 
 PED_COL_MAP = {
     "numero_pedido": ["Pedido"],
-    "hora":          ["Fecha", "Fecha"],
     "cliente":       ["Cliente", "Código cliente"],
     "nombre":        ["R. Social", "Razón social"],
     "barrio":        ["Barrio", "Barrio"],
