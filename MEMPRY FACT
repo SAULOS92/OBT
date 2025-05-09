@@ -241,6 +241,7 @@ AS $$
       ciudad,
       asesor,
       COUNT(DISTINCT numero_pedido) AS total_pedidos,
+      SUM(valor) AS valor,
       ruta
     FROM pedxclixprod
     WHERE bd = p_empresa
