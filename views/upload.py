@@ -22,16 +22,16 @@ DIAS_VALIDOS  = {"LU","MA","MI","JU","VI","SA","DO"}
 
 PED_COL_MAP = {
     "numero_pedido": ["Pedido"],
-    "hora":          ["Hora"],
-    "cliente":       ["Cliente"],
-    "nombre":        ["R. Social"],
-    "barrio":        ["Barrio"],
-    "ciudad":        ["Ciudad"],
-    "asesor":        ["Asesor"],
-    "codigo_pro":    ["Cod.Prod"],
+    "hora":          ["Hora", "Fecha"],
+    "cliente":       ["Cliente", "Código cliente"],
+    "nombre":        ["R. Social", "Razón social"],
+    "barrio":        ["Barrio", "Barrio"],
+    "ciudad":        ["Ciudad", "Ciudad"],
+    "asesor":        ["Asesor", "Código vendedor"],
+    "codigo_pro":    ["Cod.Prod", "Código producto"],
     "producto":      ["Producto"],
     "cantidad":      ["Cantidad"],
-    "valor":         ["Total"],
+    "valor":         ["Total", "Venta Neta Iva"],
     "tipo_pro":      ["Tip Pro"],
     "estado":        ["Estado"]
 }
@@ -120,6 +120,19 @@ def upload_index():
                 (json.dumps(pedidos), json.dumps(rutas), p_dia, empresa)
             )
             conn.commit(); cur.close(); conn.close()
+
+            conn = conectar(); cur = conn.cursor()
+            cur.execute(
+                "SELECT fn_clientes_duplicados_rutas(%s);",
+                (empresa,)
+            )
+            raw_dup = cur.fetchone()[0]
+            cur.close(); conn.close()
+            dup = json.loads(raw_dup) if isinstance(raw_dup, str) else (raw_dup or [])
+            if dup:
+                detalles = ", ".join(d["codigo_cliente"] for d in dup)
+                flash(f"Duplicados en rutas: {detalles}", "error")
+                return redirect(request.url)
 
             flash("¡Carga masiva exitosa!","success")
             # recarga con flag descarga=1

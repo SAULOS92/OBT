@@ -97,12 +97,10 @@ CREATE OR REPLACE PROCEDURE etl_cargar_pedidos_y_rutas_masivo(
 LANGUAGE plpgsql
 AS $$
 BEGIN  
-  TRUNCATE TABLE
-    pedxclixprod,
-    rutas,
-    materiales,
-    inventario
-  CASCADE;
+  DELETE FROM pedxclixprod WHERE bd = p_bd;
+  DELETE FROM rutas        WHERE bd = p_bd;
+  DELETE FROM materiales   WHERE bd = p_bd;
+  DELETE FROM inventario   WHERE bd = p_bd;
   INSERT INTO pedxclixprod (
     bd,
     numero_pedido,
@@ -153,21 +151,22 @@ BEGIN
   )
   WHERE x.tipo_pro   = 'N'
   AND x.estado = 'Sin Descargar';
-  INSERT INTO rutas (
-  bd,  
-  codigo_ruta,
-  dia,
-  codigo_cliente
+  WITH cte AS (
+  SELECT
+    p_bd            AS bd,
+    split_part(r.codigo_ruta, '-', 1)::INTEGER AS codigo_ruta,
+    split_part(r.codigo_ruta, '-', 2)           AS dia,
+    split_part(r.codigo_cliente, '-', 1)        AS codigo_cliente
+  FROM jsonb_to_recordset(p_rutas) AS r(
+    codigo_cliente TEXT,
+    codigo_ruta    TEXT
+  )
 )
-SELECT
-  p_bd,
-  (split_part(r.codigo_ruta, '-', 1))::INTEGER,  
-  split_part(r.codigo_ruta, '-', 2),
-  (split_part(r.codigo_cliente, '-', 1))
-FROM jsonb_to_recordset(p_rutas) AS r(
-  codigo_cliente           TEXT,
-  codigo_ruta  TEXT
-);
+INSERT INTO rutas (bd, codigo_ruta, dia, codigo_cliente)
+SELECT bd, codigo_ruta, dia, codigo_cliente
+FROM cte
+WHERE dia = p_dia;
+
   UPDATE pedxclixprod p
   SET ruta = r.codigo_ruta
   FROM rutas r
@@ -198,6 +197,29 @@ AS $$
     WHERE (p.cantidad % pr.particiones) > 0 AND p.bd = p_empresa
   ) AS t;
 $$;
+----------VALIDACION DE CLIENTES ENRUTADOS EN DOS CARROS--------------------
+CREATE OR REPLACE FUNCTION fn_clientes_duplicados_rutas(p_empresa TEXT)
+RETURNS JSONB
+LANGUAGE sql
+AS $$
+  SELECT COALESCE(
+    jsonb_agg(row_to_json(r)
+      ORDER BY r.codigo_cliente
+    ),
+    '[]'::jsonb
+  )
+  FROM (
+    SELECT
+      codigo_cliente,
+      COUNT(*) AS total
+    FROM rutas
+    WHERE bd = p_empresa
+    GROUP BY codigo_cliente
+    HAVING COUNT(*) > 1
+  ) AS r;
+$$;
+
+
 
 ---VALIDACION NUMERO DE PEDIDOS Y CLIENTES SIN RUTA
 CREATE OR REPLACE FUNCTION fn_obtener_resumen_pedidos(
@@ -246,9 +268,8 @@ DECLARE
   r_inicial     INTEGER;
   r INTEGER;
 BEGIN
-  -- 1) Limpiar tablas
-  TRUNCATE TABLE materiales, inventario, pedxrutaxprod CASCADE;
-
+  DELETE FROM materiales   WHERE bd = p_bd;
+  DELETE FROM inventario   WHERE bd = p_bd; 
   -- 2) Insertar materiales
   INSERT INTO materiales (bd, pro_codigo, particion, pq_x_caja)
   SELECT
