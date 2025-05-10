@@ -31,7 +31,7 @@ CREATE TABLE pedxrutaxprod (
   pedir        INTEGER GENERATED ALWAYS AS (
     FLOOR((cantidad - inv)::NUMERIC / particiones::NUMERIC)::INTEGER
   ) STORED,
-  ped8_pq      INTEGER GENERATED ALWAYS AS (
+  ped99      INTEGER GENERATED ALWAYS AS (
     (cantidad - inv)
     - (
         FLOOR((cantidad - inv)::NUMERIC / particiones::NUMERIC)::INTEGER
@@ -361,10 +361,10 @@ BEGIN
     MAX(pq_por_caja) AS pq_por_caja,
     particiones,
     CEIL(
-      SUM(ped8_pq)::NUMERIC / NULLIF(particiones, 0)
+      SUM(ped99)::NUMERIC / NULLIF(particiones, 0)
     ) * particiones AS cantidad
   FROM pedxrutaxprod
-  WHERE ped8_pq > 0 AND bd = p_empresa
+  WHERE ped99 > 0 AND bd = p_empresa
   GROUP BY bd, codigo_pro, producto, particiones;
 END;
 $$;
@@ -388,7 +388,7 @@ AS $$
       producto,
       cantidad,
       pedir,
-      ped8_pq,
+      ped99,
       inv
     FROM pedxrutaxprod
     WHERE inv  > 0 AND bd=p_empresa

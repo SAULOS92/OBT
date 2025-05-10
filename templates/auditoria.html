@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Exportar Pedidos & Rutas{% endblock %}
+{% block title %}Auditoría{% endblock %}
 
 {% block content %}
 <div class="relative">
@@ -20,19 +20,16 @@
   </div>
 
   <!-- Contenedor principal -->
-  <div class="max-w-lg mx-auto bg-white p-8 rounded-3xl shadow-xl space-y-6">
+  <div class="max-w-md mx-auto bg-white p-8 rounded-3xl shadow-xl space-y-6">
 
     <!-- Título -->
-    <h1 class="text-3xl font-extrabold text-center">📁 Exportar Pedidos & Rutas</h1>
+    <h1 class="text-3xl font-extrabold text-center text-gray-800">📊 Auditoría de Datos</h1>
 
-    <!-- Instrucciones -->
-    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 space-y-2 rounded-lg">
-      <p class="text-gray-800">
-        Se exportarán los datos de las tablas:
-        <strong class="text-yellow-700">PEDXCLIXPROD</strong> y
-        <strong class="text-yellow-700">pedxrutaxprod</strong>, filtradas por tu empresa actual.
-      </p>
-    </div>
+    <!-- Descripción -->
+    <p class="text-gray-600 text-center">
+      Esta herramienta permite exportar los datos de <strong>PEDXCLIXPROD</strong> y <strong>pedxrutaxprod</strong>
+      filtrados por la empresa actual.
+    </p>
 
     <!-- Flash messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -48,21 +45,22 @@
       {% endif %}
     {% endwith %}
 
-    <!-- Botón para exportar -->
-    <form method="POST" action="{{ url_for('exportar.descargar_excel') }}">
+    <!-- Formulario de descarga -->
+    <form method="POST" action="{{ url_for('auditoria.descargar_excel') }}"
+          id="export-form" class="space-y-4">
+
       <button type="submit"
               class="w-full py-3 font-semibold rounded-xl
                      bg-blue-600 text-white hover:bg-blue-700 transition">
-        Exportar a Excel
+        📥 Descargar Auditoría
       </button>
     </form>
-
   </div>
 </div>
 
 <script>
   document.addEventListener('DOMContentLoaded', () => {
-    const form    = document.querySelector('form');
+    const form = document.getElementById('export-form');
     const overlay = document.getElementById('loading-overlay');
 
     form.addEventListener('submit', () => {
@@ -75,3 +73,5 @@
   });
 </script>
 {% endblock %}
+
+

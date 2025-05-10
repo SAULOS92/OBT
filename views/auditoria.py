@@ -3,7 +3,7 @@ import pandas as pd
 import io
 import db  # usa el archivo db.py en la raíz
 
-auditoria_bp = Blueprint('auditoria', __name__)
+auditoria_bp = Blueprint('auditoria', __name__, template_folder="../templates")
 
 @auditoria_bp.route('/auditoria', methods=['GET'])
 def auditoria_view():
