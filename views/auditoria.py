@@ -31,7 +31,7 @@ def descargar_excel():
         conn.close()
 
         output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df1.to_excel(writer, sheet_name='PEDXCLIXPROD', index=False)
             df2.to_excel(writer, sheet_name='pedxrutaxprod', index=False)
         output.seek(0)
