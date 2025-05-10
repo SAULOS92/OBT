@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Exportar Pedidos & Rutas{% endblock %}
+
+{% block content %}
+<div class="relative">
+
+  <!-- Spinner -->
+  <div id="loading-overlay"
+       class="hidden absolute inset-0 bg-white bg-opacity-75
+              flex items-center justify-center z-50">
+    <svg class="h-12 w-12 animate-spin text-blue-600"
+         xmlns="http://www.w3.org/2000/svg" fill="none"
+         viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10"
+              stroke="currentColor" stroke-width="4"></circle>
+      <path class="opacity-75" fill="currentColor"
+            d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z">
+      </path>
+    </svg>
+  </div>
+
+  <!-- Contenedor principal -->
+  <div class="max-w-lg mx-auto bg-white p-8 rounded-3xl shadow-xl space-y-6">
+
+    <!-- Título -->
+    <h1 class="text-3xl font-extrabold text-center">📁 Exportar Pedidos & Rutas</h1>
+
+    <!-- Instrucciones -->
+    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 space-y-2 rounded-lg">
+      <p class="text-gray-800">
+        Se exportarán los datos de las tablas:
+        <strong class="text-yellow-700">PEDXCLIXPROD</strong> y
+        <strong class="text-yellow-700">pedxrutaxprod</strong>, filtradas por tu empresa actual.
+      </p>
+    </div>
+
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="space-y-2">
+          {% for cat, msg in messages %}
+            <div class="px-4 py-2 rounded-lg
+                        {% if cat=='success' %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %}">
+              {{ msg }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <!-- Botón para exportar -->
+    <form method="POST" action="{{ url_for('exportar.descargar_excel') }}">
+      <button type="submit"
+              class="w-full py-3 font-semibold rounded-xl
+                     bg-blue-600 text-white hover:bg-blue-700 transition">
+        Exportar a Excel
+      </button>
+    </form>
+
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const form    = document.querySelector('form');
+    const overlay = document.getElementById('loading-overlay');
+
+    form.addEventListener('submit', () => {
+      overlay.classList.remove('hidden');
+    });
+
+    window.addEventListener('load', () => {
+      overlay.classList.add('hidden');
+    });
+  });
+</script>
+{% endblock %}

@@ -100,8 +100,8 @@ def generar_pedidos_index():
                     flash(f"Columnas duplicadas en Materiales: {dup}", "error")
                     return redirect(url_for("generar_pedidos.generar_pedidos_index"))
 
-                df_mat["particion"] = df_mat["particion"].str.strip().replace("", "0").astype(float).astype(int)
-                df_mat["pq_x_caja"] = df_mat["pq_x_caja"].str.strip().replace("", "0").astype(float).astype(int)
+                df_mat["particion"] = df_mat["particion"].str.strip().replace("", "1").astype(float).astype(int)
+                df_mat["pq_x_caja"] = df_mat["pq_x_caja"].str.strip().replace("", "1").astype(float).astype(int)
 
 
 
