@@ -191,8 +191,8 @@ def descargar_reportes():
             zf.writestr(f"pedidos_ruta_{ruta}.xlsx", buf.read())
 
     zip_buf.seek(0)
-    hoy = datetime.now().strftime("%Y%m%d")
-    nombre_zip = f"reportes_{hoy}.zip"
+    hoy = datetime.now().strftime("%Y%m%d_%H%M")
+    nombre_zip = f"formatos_{hoy}.zip"
     return send_file(
         zip_buf,
         as_attachment=True,

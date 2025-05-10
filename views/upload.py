@@ -1,6 +1,7 @@
 import json
 import numpy as np
 import pandas as pd
+from datetime import datetime
 from io import BytesIO
 from flask import (
     Blueprint, render_template, request,
@@ -154,14 +155,17 @@ def descargar_resumen():
     df_res = pd.DataFrame(data, columns=cols)
 
     buf = BytesIO()
+    
     with pd.ExcelWriter(buf, engine="openpyxl") as writer:
         df_res.to_excel(writer, sheet_name="ResumenPedidos", index=False)
     buf.seek(0)
+    hoy = datetime.now().strftime("%Y%m%d_%H%M")
+    nombre_xlsx = f"ResumenPedidos_{hoy}.xlsx"
 
     return send_file(
         buf,
         as_attachment=True,
-        download_name="resumen_pedidos.xlsx",
+        download_name=nombre_xlsx,
         mimetype="application/vnd.openxmlformats-officedocument-spreadsheetml.sheet"
     )
 
