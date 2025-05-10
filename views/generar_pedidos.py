@@ -161,11 +161,14 @@ def descargar_reportes():
     with zipfile.ZipFile(zip_buf, "w") as zf:
 
         # 2a) Hoja de repartición (única)
+        column_order = ["ruta", "codigo_pro", "producto", "cantidad", "pedido", "ped99", "inv"]  # Reemplaza con el orden exacto que deseas
+        df = pd.DataFrame(data_rep)[column_order]
+
         b_rep = BytesIO()
-        pd.DataFrame(data_rep)\
-          .to_excel(b_rep, sheet_name="Reparticion", index=False, engine="openpyxl")
+        df.to_excel(b_rep, sheet_name="Reparticion", index=False, engine="openpyxl")
         b_rep.seek(0)
         zf.writestr("reparticion_inventario.xlsx", b_rep.read())
+
 
         # 2b) Un archivo por cada ruta distinta en data_ped
         rutas = sorted({ item["ruta"] for item in data_ped })
