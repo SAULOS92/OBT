@@ -15,24 +15,37 @@
 
         {% if session.user_id %}
           <!-- Secciones protegidas -->
-          <li>
-            <a href="{{ url_for('upload.upload_index') }}"
-               class="flex items-center py-4 px-2 border-b-2 {{ 'border-blue-600 text-blue-600' if request.endpoint=='upload.upload_index' else 'border-transparent text-gray-700 hover:text-blue-600 hover:border-blue-600' }}">
-              Validaciones
-            </a>
-          </li>
-          <li>
-            <a href="{{ url_for('generar_pedidos.generar_pedidos_index') }}"
-               class="flex items-center py-4 px-2 border-b-2 {{ 'border-blue-600 text-blue-600' if request.endpoint=='generar_pedidos.generar_pedidos_index' else 'border-transparent text-gray-700 hover:text-blue-600 hover:border-blue-600' }}">
-              Generar Pedidos
-            </a>
-          </li>          
-          <li>
-            <a href="{{ url_for('consolidar_compras.consolidar_compras_index') }}"
-               class="flex items-center py-4 px-2 border-b-2 {{ 'border-blue-600 text-blue-600' if request.endpoint=='consolidar_compras.consolidar_compras_index' else 'border-transparent text-gray-700 hover:text-blue-600 hover:border-blue-600' }}">
-              Consolidar compras
-            </a>
-          </li>
+          <li class="flex items-center space-x-2">
+  <span class="w-6 h-6 flex items-center justify-center rounded-full 
+    {{ 'bg-blue-600 text-white' if request.endpoint=='upload.upload_index' else 'bg-gray-300 text-gray-700' }}">
+    1
+  </span>
+  <a href="{{ url_for('upload.upload_index') }}"
+     class="py-4 px-2 border-b-2 {{ 'border-blue-600 text-blue-600 font-semibold' if request.endpoint=='upload.upload_index' else 'border-transparent text-gray-700 hover:text-blue-600 hover:border-blue-600' }}">
+    Validaciones
+  </a>
+</li>
+<li class="flex items-center space-x-2">
+  <span class="w-6 h-6 flex items-center justify-center rounded-full 
+    {{ 'bg-blue-600 text-white' if request.endpoint=='generar_pedidos.generar_pedidos_index' else 'bg-gray-300 text-gray-700' }}">
+    2
+  </span>
+  <a href="{{ url_for('generar_pedidos.generar_pedidos_index') }}"
+     class="py-4 px-2 border-b-2 {{ 'border-blue-600 text-blue-600 font-semibold' if request.endpoint=='generar_pedidos.generar_pedidos_index' else 'border-transparent text-gray-700 hover:text-blue-600 hover:border-blue-600' }}">
+    Generar Pedidos
+  </a>
+</li>
+<li class="flex items-center space-x-2">
+  <span class="w-6 h-6 flex items-center justify-center rounded-full 
+    {{ 'bg-blue-600 text-white' if request.endpoint=='consolidar_compras.consolidar_compras_index' else 'bg-gray-300 text-gray-700' }}">
+    3
+  </span>
+  <a href="{{ url_for('consolidar_compras.consolidar_compras_index') }}"
+     class="py-4 px-2 border-b-2 {{ 'border-blue-600 text-blue-600 font-semibold' if request.endpoint=='consolidar_compras.consolidar_compras_index' else 'border-transparent text-gray-700 hover:text-blue-600 hover:border-blue-600' }}">
+    Consolidar Compras
+  </a>
+</li>
+
 
           <!-- Spacer y botón de logout -->
           <li class="ml-auto">
