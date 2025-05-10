@@ -8,8 +8,8 @@ CREATE TABLE inventario (
 CREATE TABLE materiales (
     bd VARCHAR(100),
     pro_codigo VARCHAR(100),
-    particion  INTEGER,
-    pq_x_caja  INTEGER
+    particion  INTEGER DEFAULT 1,
+    pq_x_caja  INTEGER DEFAULT 1
 );
 
 CREATE TABLE rutas (
@@ -303,11 +303,11 @@ BEGIN
     bd,
     ruta,
     codigo_pro,
-    producto,
+    MIN(producto) AS producto,
     SUM(cantidad)
   FROM pedxclixprod
   WHERE ruta IS NOT NULL AND bd = p_empresa
-  GROUP BY bd, ruta, codigo_pro, producto;
+  GROUP BY bd, ruta, codigo_pro;
   GET DIAGNOSTICS r_inicial = ROW_COUNT;
 
   IF r_inventario = 0 OR r_inicial = 0 THEN

@@ -161,7 +161,7 @@ def descargar_reportes():
     with zipfile.ZipFile(zip_buf, "w") as zf:
 
         # 2a) Hoja de repartición (única)
-        column_order = ["ruta", "codigo_pro", "producto", "cantidad", "pedir", "ped8_pq", "inv"]  # Reemplaza con el orden exacto que deseas
+        column_order = ["ruta", "codigo_pro", "producto", "cantidad", "pedir", "ped99", "inv"]  # Reemplaza con el orden exacto que deseas
         df = pd.DataFrame(data_rep)[column_order]
 
         b_rep = BytesIO()
