@@ -2,14 +2,17 @@ from flask import Blueprint, render_template, session, send_file, flash, redirec
 import pandas as pd
 import io
 import db  # usa el archivo db.py en la raíz
+from views.auth import login_required
 
 auditoria_bp = Blueprint('auditoria', __name__, template_folder="../templates")
 
 @auditoria_bp.route('/auditoria', methods=['GET'])
+@login_required
 def auditoria_view():
     return render_template('auditoria.html')
 
 @auditoria_bp.route('/auditoria/descargar', methods=['POST'])
+@login_required
 def descargar_excel():
     empresa = session.get('empresa')
     if not empresa:
@@ -17,11 +20,15 @@ def descargar_excel():
         return redirect(url_for('auditoria.auditoria_view'))
 
     try:
+        conn = db.conectar()
+
         query1 = "SELECT * FROM PEDXCLIXPROD WHERE bd = %s"
-        df1 = pd.read_sql(query1, db.engine, params=(empresa,))
+        df1 = pd.read_sql(query1, conn, params=(empresa,))
 
         query2 = "SELECT * FROM pedxrutaxprod WHERE bd = %s"
-        df2 = pd.read_sql(query2, db.engine, params=(empresa,))
+        df2 = pd.read_sql(query2, conn, params=(empresa,))
+
+        conn.close()
 
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -37,4 +44,5 @@ def descargar_excel():
     except Exception as e:
         flash(f'Error al exportar: {str(e)}', 'danger')
         return redirect(url_for('auditoria.auditoria_view'))
+
 
