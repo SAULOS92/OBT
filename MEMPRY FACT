@@ -16,7 +16,8 @@ CREATE TABLE rutas (
     bd VARCHAR(100),
     codigo_ruta INTEGER,  
     dia VARCHAR(20),  
-    codigo_cliente VARCHAR(100) UNIQUE   
+    codigo_cliente VARCHAR(100)
+     CONSTRAINT rutas_bd_dia_cliente_unique UNIQUE (bd, dia, codigo_cliente)  
 );
 
 CREATE TABLE pedxrutaxprod (
@@ -445,7 +446,7 @@ VALUES (
   crypt('MiPasswordSeguro123', gen_salt('bf')),
   '2025-05-01',
   '2026-05-01',
-   carnicos
+   'carnicos'
 );
 
 
