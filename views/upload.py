@@ -33,7 +33,7 @@ PED_COL_MAP = {
     "cantidad":      ["Cantidad"],
     "valor":         ["Total", "Venta Neta Iva"],
     "tipo_pro":      ["Tip Pro"],
-    "estado":        ["Estado"]
+    "estado":        ["Estado", "Est"]
 }
 RUT_COL_MAP = {
     "codigo_cliente": ["Cod. Cliente", "Código CW"],
