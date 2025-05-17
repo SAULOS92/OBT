@@ -54,7 +54,7 @@ def generar_pedidos_index():
 # ╔══════════════════════════════════════════════════════════════════════╗
 # ║  2) Endpoint AJAX (POST)                                             ║
 # ╚══════════════════════════════════════════════════════════════════════╝
-@generar_pedidos_bp.route("/cargar-pedidos", methods=["POST"])
+@generar_pedidos_bp.route("/generar-pedidos", methods=["POST"])
 @login_required
 def cargar_pedidos():
     """
