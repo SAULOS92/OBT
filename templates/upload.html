@@ -127,6 +127,7 @@
     }
 
     async function loadWorkbooks() {
+      if (!fPed.files[0] || !fRut.files[0]) return;
       const bufPed = await fPed.files[0].arrayBuffer();
       const bufRut = await fRut.files[0].arrayBuffer();
       wbPed = XLSX.read(bufPed, { type:'array' });
