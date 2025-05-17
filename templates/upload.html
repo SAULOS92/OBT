@@ -35,7 +35,7 @@
           <span class="underline">CELUWEB</span>
         </h3>
         <ol class="list-decimal list-inside text-gray-700 ml-6">
-          <li>Pedidos</li>
+          <li>Informes → Pedidos → Informe de pedidos por material</li>
           <li>Logística → Facturación → Administración de Rutas → Asignación de Rutas → Exportar Rutas Asignadas</li>
         </ol>
       </div>
@@ -146,6 +146,13 @@
       let normPed = rawPed.map(h => PED_COL_MAP[h] || h);
       let normRut = rawRut.map(h => RUT_COL_MAP[h] || h);
       if (!normPed.includes('tipo_pro')) normPed.push('tipo_pro');
+
+      const header = 'valor';
+      const firstIdx = normPed.indexOf(header);
+      const lastIdx  = normPed.lastIndexOf(header);
+        if (firstIdx !== -1 && lastIdx !== firstIdx) {
+          normPed.splice(firstIdx, 1);
+        }
 
       function check(rawNorm, expected) {
         const seen = new Set(), dup = [], falt = [];
