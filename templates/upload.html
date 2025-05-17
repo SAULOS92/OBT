@@ -206,9 +206,36 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         return o;
       });
-      // forward/back fill...
-      const grupos={}; data.forEach((r,i)=>(grupos[r.cliente]=grupos[r.cliente]||[]).push({i,r}));
-      Object.values(grupos).forEach(arr=>{ arr.sort((a,b)=>a.i-b.i); let nom,bar,ciu; arr.forEach(x=>{const f=x.r; if(f.nombre)nom=f.nombre;else f.nombre=nom; if(f.barrio)bar=f.barrio;else f.barrio=bar; if(f.ciudad)ciu=f.ciudad;else f.ciudad=ciu;}); let nn,bb,cc; arr.slice().reverse().forEach(x=>{const f=x.r; if(f.nombre)nn=f.nombre;else f.nombre=nn; if(f.barrio)bb=f.barrio;else f.barrio=bb; if(f.ciudad)cc=f.ciudad;else f.ciudad=cc;}); });
+
+      // forward/back fill sólo si hay celdas vacías en "nombre"
+      if (data.some(r => !r.nombre)) {
+        const grupos = {};
+        data.forEach((r, i) => (grupos[r.cliente] = grupos[r.cliente] || []).push({ i, r }));
+        Object.values(grupos).forEach(arr => {
+          arr.sort((a, b) => a.i - b.i);
+          let nom, bar, ciu;
+          arr.forEach(x => {
+            const f = x.r;
+            if (f.nombre) nom = f.nombre;
+            else f.nombre = nom;
+            if (f.barrio) bar = f.barrio;
+            else f.barrio = bar;
+            if (f.ciudad) ciu = f.ciudad;
+            else f.ciudad = ciu;
+          });
+          let nn, bb, cc;
+          arr.slice().reverse().forEach(x => {
+            const f = x.r;
+            if (f.nombre) nn = f.nombre;
+            else f.nombre = nn;
+            if (f.barrio) bb = f.barrio;
+            else f.barrio = bb;
+            if (f.ciudad) cc = f.ciudad;
+            else f.ciudad = cc;
+          });
+        });
+      }
+
       data = data.filter(r=>['Sin Descargar','Sin facturar'].includes(r.estado));
 
       // procesar rutas...
@@ -216,7 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const rowsRut = XLSX.utils.sheet_to_json(sheetRut, { header:1, defval:null });
       const rawHeadR = rowsRut[0].map(h=>h.toString().trim().toLowerCase());
       const normHeadR = rawHeadR.map(h=>RUT_COL_MAP[h]||h);
-      let dataR = rowsRut.slice(1).map(vals=>{ const o={}; normHeadR.forEach((hdr,i)=>{ if(RUT_HEADERS.includes(hdr)) o[hdr]=vals[i]; }); return o; });
+      let dataR = rowsRut.slice(1).map(vals=>{ const o={}; normHeadR.forEach((hdr,i)=>{ if(RORM_HEADERS.includes(hdr)) o[hdr]=vals[i]; }); return o; });
       dataR = dataR.filter(r=> r.codigo_ruta && r.codigo_ruta.includes(dia));
 
       const res = await fetch(`/cargar-pedidos?dia=${encodeURIComponent(dia)}`, {
