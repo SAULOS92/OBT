@@ -55,24 +55,47 @@
     </div>
 
     <!-- Flash messages -->
-    <div id="flash-messages" class="space-y-2"></div>
+    <div id="flash-messages" class="space-y-2">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for cat, msg in messages %}
+            <div class="px-4 py-2 rounded-lg
+                        {% if cat=='success' %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %}">
+              {{ msg }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+    </div>
 
     <!-- Formulario de carga -->
-    <form id="upload-form" class="space-y-4">
+    <form id="upload-form"
+          method="POST"
+          enctype="multipart/form-data"
+          class="space-y-4">
       <div>
         <label class="block mb-1 font-medium">📄 Excel Pedidos</label>
-        <input type="file" id="file-pedidos" accept=".xlsx" required
-               class="block w-full text-sm text-gray-600 file:py-2 file:px-4 file:border-0 file:rounded-xl file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+        <input type="file" name="pedidos" id="file-pedidos" accept=".xlsx"
+               class="block w-full text-sm text-gray-600
+                      file:py-2 file:px-4 file:border-0
+                      file:rounded-xl file:bg-blue-50 file:text-blue-700
+                      hover:file:bg-blue-100"
+               required>
       </div>
       <div>
         <label class="block mb-1 font-medium">🚚 Excel Rutas</label>
-        <input type="file" id="file-rutas" accept=".xlsx" required
-               class="block w-full text-sm text-gray-600 file:py-2 file:px-4 file:border-0 file:rounded-xl file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+        <input type="file" name="rutas" id="file-rutas" accept=".xlsx"
+               class="block w-full text-sm text-gray-600
+                      file:py-2 file:px-4 file:border-0
+                      file:rounded-xl file:bg-blue-50 file:text-blue-700
+                      hover:file:bg-blue-100"
+               required>
       </div>
       <div>
         <label class="block mb-1 font-medium">📆 Día de la semana</label>
-        <select id="select-dia" required
-                class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400">
+        <select name="dia" id="select-dia" required
+                class="w-full px-4 py-2 border rounded-lg
+                       focus:outline-none focus:ring-2 focus:ring-blue-400">
           <option value="" disabled selected>Selecciona un día</option>
           <option value="LU">Lunes (LU)</option>
           <option value="MA">Martes (MA)</option>
@@ -83,82 +106,233 @@
           <option value="DO">Domingo (DO)</option>
         </select>
       </div>
-      <button id="submit-btn" type="submit"
-              class="w-full py-3 font-semibold rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition">
+      <button type="submit"
+              class="w-full py-3 font-semibold rounded-xl
+                     bg-blue-600 text-white hover:bg-blue-700 transition">
         Cargar Masivo
       </button>
     </form>
 
+    <!-- Botón de descarga tras éxito -->
+    {% if mostrar_descarga %}
+      <div class="mt-4 text-center">
+        <a href="{{ url_for('upload.descargar_resumen') }}"
+           class="inline-block px-6 py-3 bg-green-600 text-white font-semibold rounded-xl
+                  hover:bg-green-700 transition">
+          Descargar Resumen
+        </a>
+      </div>
+    {% endif %}
   </div>
 </div>
 
+<!-- SheetJS para leer Excel en el navegador -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  const form = document.getElementById('upload-form');
-  const overlay = document.getElementById('loading-overlay');
-  const flashContainer = document.getElementById('flash-messages');
-  const submitBtn = document.getElementById('submit-btn');
-  const filePed = document.getElementById('file-pedidos');
-  const fileRut = document.getElementById('file-rutas');
-  const selectDia = document.getElementById('select-dia');
 
-  const PED_HEADERS = ['numero_pedido','cliente','nombre','barrio','ciudad','asesor','codigo_pro','producto','cantidad','valor','estado'];
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const form           = document.getElementById('upload-form');
+  const overlay        = document.getElementById('loading-overlay');
+  const inputPedidos   = document.getElementById('file-pedidos');
+  const inputRutas     = document.getElementById('file-rutas');
+  const selectDia      = document.getElementById('select-dia');
+  const flashContainer = document.getElementById('flash-messages');
+
+  const PED_HEADERS = [
+    'numero_pedido','cliente','nombre','barrio','ciudad',
+    'asesor','codigo_pro','producto','cantidad','valor','estado'
+  ];
   const RUT_HEADERS = ['codigo_cliente','codigo_ruta'];
   const DIAS_VALIDOS = ['LU','MA','MI','JU','VI','SA','DO'];
 
-  const PED_COL_MAP = { 'pedido':'numero_pedido','cliente':'cliente','código cliente':'cliente','r. social':'nombre','razón social':'nombre','barrio':'barrio','ciudad':'ciudad','asesor':'asesor','código vendedor':'asesor','cod.prod':'codigo_pro','código producto':'codigo_pro','producto':'producto','cantidad':'cantidad','valor':'valor','total':'valor','venta neta iva':'valor','tip pro':'tipo_pro','estado':'estado','est':'estado' };
-  const RUT_COL_MAP = { 'cod. cliente':'codigo_cliente','código cw':'codigo_cliente','ruta':'codigo_ruta','descripción ruta':'codigo_ruta' };
+  const PED_COL_MAP = {
+    'pedido': 'numero_pedido',
+    'cliente': 'cliente',
+    'código cliente': 'cliente',
+    'r. social': 'nombre',
+    'razón social': 'nombre',
+    'barrio': 'barrio',
+    'ciudad': 'ciudad',
+    'asesor': 'asesor',
+    'código vendedor': 'asesor',
+    'cod.prod': 'codigo_pro',
+    'código producto': 'codigo_pro',
+    'producto': 'producto',
+    'cantidad': 'cantidad',
+    'valor': 'valor',
+    'total': 'valor',
+    'venta neta iva': 'valor',
+    'tip pro': 'tipo_pro',
+    'estado': 'estado',
+    'est': 'estado'
+  };
+  const RUT_COL_MAP = {
+    'cod. cliente': 'codigo_cliente',
+    'código cw': 'codigo_cliente',
+    'ruta': 'codigo_ruta',
+    'descripción ruta': 'codigo_ruta'
+  };
 
-  function mostrarMensaje(tipo, msgs) {
+  function mostrarMensaje(tipo, mensajes) {
     flashContainer.innerHTML = '';
     const div = document.createElement('div');
-    div.className = 'px-4 py-2 rounded-lg ' + (tipo==='success'?'bg-green-100 text-green-700':'bg-red-100 text-red-700');
-    if(Array.isArray(msgs)){
-      const ul=document.createElement('ul'); msgs.forEach(m=>{const li=document.createElement('li');li.textContent=m;ul.appendChild(li)}); div.appendChild(ul);
-    } else div.textContent=msgs;
+    div.className = 'px-4 py-2 rounded-lg ' +
+      (tipo === 'success'
+        ? 'bg-green-100 text-green-700'
+        : 'bg-red-100 text-red-700');
+    if (Array.isArray(mensajes)) {
+      const ul = document.createElement('ul');
+      mensajes.forEach(msg => {
+        const li = document.createElement('li');
+        li.textContent = msg;
+        ul.appendChild(li);
+      });
+      div.appendChild(ul);
+    } else {
+      div.textContent = mensajes;
+    }
     flashContainer.appendChild(div);
   }
 
-  async function leerEncabezados(file){
-    const buf=await file.arrayBuffer(); const wb=XLSX.read(buf,{type:'array'}); const sheet=wb.Sheets[wb.SheetNames[0]];
-    const [row]=XLSX.utils.sheet_to_json(sheet,{header:1,range:0,defval:null});
-    return row.map(h=>h?.toString().trim().toLowerCase()||'');
-  }
-  async function leerDatosFiltrados(file,keys){
-    const buf=await file.arrayBuffer(); const wb=XLSX.read(buf,{type:'array'}); const sheet=wb.Sheets[wb.SheetNames[0]];
-    const rows=XLSX.utils.sheet_to_json(sheet,{header:keys,range:1,defval:null,raw:true});
-    return rows.map(r=>{const o={};keys.forEach(k=>{if(r[k]!=null)o[k]=r[k]});return o;});
+  async function leerEncabezados(file) {
+    const buffer = await file.arrayBuffer();
+    const wb     = XLSX.read(buffer, { type: 'array' });
+    const sheet  = wb.Sheets[wb.SheetNames[0]];
+    const [headerRow] = XLSX.utils.sheet_to_json(sheet, {
+      header: 1,
+      range: 0,
+      defval: null
+    });
+    return headerRow.map(h => h?.toString().trim().toLowerCase() || '');
   }
 
-  form.addEventListener('submit',async e=>{
-    e.preventDefault(); flashContainer.innerHTML=''; overlay.classList.remove('hidden'); submitBtn.disabled=true;
-    const fPed=filePed.files[0], fRut=fileRut.files[0], dia=selectDia.value; let errs=[];
-    if(!fPed||!fRut){errs.push('Selecciona ambos archivos.')} else {const check=f=>/\.(xlsx|xls)$/i.test(f.name); if(!check(fPed))errs.push('Excel Pedidos inválido'); if(!check(fRut))errs.push('Excel Rutas inválido');}
-    if(!DIAS_VALIDOS.includes(dia)) errs.push('Día inválido');
-    if(errs.length){overlay.classList.add('hidden');mostrarMensaje('error',errs);submitBtn.disabled=false;return;}
-    try{
-      const origPed=await leerEncabezados(fPed), origRut=await leerEncabezados(fRut);
-      const normPed=origPed.map(h=>PED_COL_MAP[h]||h), normRut=origRut.map(h=>RUT_COL_MAP[h]||h);
-      errs=[]; PED_HEADERS.forEach(r=>{if(!normPed.includes(r))errs.push(`Falta en pedidos: ${r}`)});
-      RUT_HEADERS.forEach(r=>{if(!normRut.includes(r))errs.push(`Falta en rutas: ${r}`)});
-      if(errs.length){throw new Error(errs.join('; '));}
-      const datosPed=await leerDatosFiltrados(fPed,PED_HEADERS), datosRut=await leerDatosFiltrados(fRut,RUT_HEADERS);
-      // forward/back fill y tipos (igual que antes)...
-      const payload={pedidos:datosPed,rutas:datosRut};
-      const res=await fetch(`/cargar-pedidos?dia=${encodeURIComponent(dia)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-      if(!res.ok){throw new Error(`Error ${res.status}`);}      
-      const blob=await res.blob();
-      const cd=res.headers.get('Content-Disposition');
-      const filename=cd?.match(/filename="(.+)"/)?.[1]||`ResumenPedidos_${Date.now()}.xlsx`;
-      const link=document.createElement('a'); link.href=URL.createObjectURL(blob); link.download=filename; document.body.appendChild(link); link.click(); link.remove();
-      mostrarMensaje('success','Descarga iniciada'); form.reset();
-    }catch(err){mostrarMensaje('error',err.message);}finally{overlay.classList.add('hidden');submitBtn.disabled=false;}
+  async function leerDatosFiltrados(file, colKeys) {
+    const buffer = await file.arrayBuffer();
+    const wb     = XLSX.read(buffer, { type: 'array' });
+    const sheet  = wb.Sheets[wb.SheetNames[0]];
+    const allRows = XLSX.utils.sheet_to_json(sheet, {
+      header: colKeys,
+      range: 1,
+      defval: null,
+      raw: true
+    });
+    return allRows.map(row => {
+      const obj = {};
+      colKeys.forEach(k => {
+        if (row[k] !== undefined && row[k] !== null) obj[k] = row[k];
+      });
+      return obj;
+    });
+  }
+
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    flashContainer.innerHTML = '';
+    overlay.classList.remove('hidden');
+
+    const filePed = inputPedidos.files[0];
+    const fileRut = inputRutas.files[0];
+    const dia     = selectDia.value;
+    let errores   = [];
+
+    if (!filePed || !fileRut) {
+      errores.push('Debe seleccionar ambos archivos (pedidos y rutas).');
+    } else {
+      const extOk = f => /\.(xlsx|xls)$/i.test(f.name);
+      if (!extOk(filePed)) errores.push('El archivo de pedidos no es un Excel válido.');
+      if (!extOk(fileRut)) errores.push('El archivo de rutas no es un Excel válido.');
+    }
+    if (!dia || !DIAS_VALIDOS.includes(dia)) {
+      errores.push('El día seleccionado no es válido.');
+    }
+    if (errores.length) {
+      overlay.classList.add('hidden');
+      mostrarMensaje('error', errores);
+      return;
+    }
+
+    try {
+      const encPedOrig = await leerEncabezados(filePed);
+      const encRutOrig = await leerEncabezados(fileRut);
+
+      const normPed = encPedOrig.map(h => PED_COL_MAP[h] || h);
+      const normRut = encRutOrig.map(h => RUT_COL_MAP[h] || h);
+
+      errores = [];
+      PED_HEADERS.forEach(r => {
+        if (!normPed.includes(r)) errores.push(`Falta columna obligatoria en pedidos: "${r}"`);
+      });
+      RUT_HEADERS.forEach(r => {
+        if (!normRut.includes(r)) errores.push(`Falta columna obligatoria en rutas: "${r}"`);
+      });
+      normPed.filter((c,i) => normPed.indexOf(c)!==i)
+             .forEach(c => errores.push(`Columna duplicada en pedidos: "${c}"`));
+      normRut.filter((c,i) => normRut.indexOf(c)!==i)
+             .forEach(c => errores.push(`Columna duplicada en rutas: "${c}"`));
+      if (errores.length) {
+        overlay.classList.add('hidden');
+        mostrarMensaje('error', errores);
+        return;
+      }
+
+      const datosPed = await leerDatosFiltrados(filePed, PED_HEADERS);
+      const datosRut = await leerDatosFiltrados(fileRut, RUT_HEADERS);
+
+      // Forward/backward fill por cliente en pedidos
+      const grupos = {};
+      datosPed.forEach((f,i) => {
+        (grupos[f.cliente] = grupos[f.cliente]||[]).push({i,f});
+      });
+      Object.values(grupos).forEach(arr => {
+        arr.sort((a,b)=>a.i-b.i);
+        let ln, lb, lc;
+        arr.forEach(x => {
+          const f = x.f;
+          if (f.nombre) ln = f.nombre; else if (ln) f.nombre = ln;
+          if (f.barrio) lb = f.barrio; else if (lb) f.barrio = lb;
+          if (f.ciudad) lc = f.ciudad; else if (lc) f.ciudad = lc;
+        });
+        let nn, nb, nc;
+        arr.slice().reverse().forEach(x => {
+          const f = x.f;
+          if (f.nombre) nn = f.nombre; else if (nn) f.nombre = nn;
+          if (f.barrio) nb = f.barrio; else if (nb) f.barrio = nb;
+          if (f.ciudad) nc = f.ciudad; else if (nc) f.ciudad = nc;
+        });
+      });
+
+      // Conversión de tipos y default tipo_pro
+      datosPed.forEach(f => {
+        const ci = parseInt(f.cantidad); f.cantidad = isNaN(ci)?0:ci;
+        const vf = parseFloat(f.valor);  f.valor    = isNaN(vf)?0.0:vf;
+        if (!f.tipo_pro) f.tipo_pro = 'N';
+      });
+
+      const payload = { pedidos: datosPed, rutas: datosRut };
+      const res = await fetch(`/cargar-pedidos?dia=${encodeURIComponent(dia)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        let msg = `Error ${res.status}`;
+        try { msg = (await res.json()).error || msg; } catch {}
+        throw new Error(msg);
+      }
+      const data = await res.json().catch(()=>({}));
+      overlay.classList.add('hidden');
+      mostrarMensaje('success', data.message || 'Carga masiva completada exitosamente.');
+      form.reset();
+
+    } catch (err) {
+      overlay.classList.add('hidden');
+      mostrarMensaje('error', err.message || 'Error inesperado procesando los archivos.');
+    }
   });
 });
 </script>
 {% endblock %}
-
 
 
 
