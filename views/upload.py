@@ -12,7 +12,7 @@ from views.auth import login_required
 
 upload_bp = Blueprint("upload", __name__, template_folder="../templates")
 
-# Tus constantes tal cual
+# Tus constantes
 PED_HEADERS = [
     "numero_pedido","cliente","nombre","barrio","ciudad",
     "asesor","codigo_pro","producto","cantidad","valor",
@@ -40,16 +40,14 @@ RUT_COL_MAP = {
     "codigo_ruta":    ["Ruta", "Descripción Ruta"]
 }
 
+# Listas de sinónimos para read_excel usecols
+PED_SYNS = [syn for syns in PED_COL_MAP.values() for syn in syns]
+RUT_SYNS = [syn for syns in RUT_COL_MAP.values() for syn in syns]
+
+# Función para normalizar nombres de columnas
 def normalize_cols(df: pd.DataFrame, col_map: dict) -> pd.DataFrame:
-    inv = {}
-    for internal, syns in col_map.items():
-        for s in syns:
-            inv[s.strip().lower()] = internal
-    to_rename = {
-        col: inv[col.strip().lower()]
-        for col in df.columns
-        if col.strip().lower() in inv
-    }
+    inv = {s.strip().lower(): internal for internal, syns in col_map.items() for s in syns}
+    to_rename = {col: inv[col.strip().lower()] for col in df.columns if col.strip().lower() in inv}
     return df.rename(columns=to_rename)
 
 @upload_bp.route("/", methods=["GET","POST"])
@@ -57,22 +55,27 @@ def normalize_cols(df: pd.DataFrame, col_map: dict) -> pd.DataFrame:
 @login_required 
 def upload_index():
     empresa = session.get('empresa')
-    descargar_flag = request.args.get("descarga", default=0, type=int)
-    mostrar_descarga = bool(descargar_flag)
+    mostrar_descarga = bool(request.args.get("descarga", default=0, type=int))
 
     if request.method == "POST":
         try:
             # 1) Archivos + día
             f_ped = request.files.get("pedidos")
             f_rut = request.files.get("rutas")
-            p_dia = request.form.get("dia","").strip()
+            p_dia = request.form.get("dia","\"").strip()
             if not f_ped or not f_rut or p_dia not in DIAS_VALIDOS:
                 flash("Sube ambos archivos y selecciona un día válido.","error")
                 return redirect(request.url)
 
-            # 2) Leer todo como texto y fillna("")
-            df_ped = pd.read_excel(f_ped, engine="openpyxl", dtype=str).fillna("")
-            df_rut = pd.read_excel(f_rut, engine="openpyxl", dtype=str).fillna("")
+            # 2) Leer solo columnas necesarias y tratar cadenas vacías como NaN
+            df_ped = pd.read_excel(
+                f_ped, engine="openpyxl", usecols=PED_SYNS,
+                dtype=str, na_values=[""], keep_default_na=False
+            )
+            df_rut = pd.read_excel(
+                f_rut, engine="openpyxl", usecols=RUT_SYNS,
+                dtype=str, na_values=[""], keep_default_na=False
+            )
 
             # 3) Normalizar nombres según COL_MAP
             df_ped = normalize_cols(df_ped, PED_COL_MAP)
@@ -102,23 +105,18 @@ def upload_index():
                 flash(f"Encabezados duplicados en Rutas: {dup_r}","error")
                 return redirect(request.url)
 
-            # 6) Rellenar nombre/barrio/ciudad faltantes
+            # 6) Rellenar nombre/barrio/ciudad agrupando y llenando NaN
             for col in ("nombre","barrio","ciudad"):
-                df_ped[col] = (
-                    df_ped.groupby("cliente")[col]
-                          .transform(lambda g: g.replace("", np.nan).ffill().bfill())
-                          .fillna("")
-                )
+                df_ped[col] = df_ped[col].replace("", np.nan)
+                df_ped[col] = df_ped.groupby("cliente")[col].transform(lambda x: x.ffill().bfill()).fillna("")
 
             # 7) Forzar numéricos y rellenar vacíos con cero
-            df_ped["cantidad"] = df_ped["cantidad"].replace("","0").astype(int)
-            df_ped["valor"]    = df_ped["valor"].replace("","0").astype(float)
-            # codigo_pro queda como texto
+            df_ped["cantidad"] = pd.to_numeric(df_ped["cantidad"], errors='coerce').fillna(0).astype(int)
+            df_ped["valor"]    = pd.to_numeric(df_ped["valor"], errors='coerce').fillna(0.0).astype(float)
 
             # 8) Serializar JSON y ejecutar SP
             pedidos = df_ped[PED_HEADERS].to_dict(orient="records")
             rutas   = df_rut[RUT_HEADERS].to_dict(orient="records")
-            #df_rut = df_rut[df_rut["codigo_ruta"].str.contains(p_dia, na=False)]
             conn = conectar(); cur = conn.cursor()
             cur.execute(
                 "CALL etl_cargar_pedidos_y_rutas_masivo(%s,%s,%s,%s);",
@@ -126,14 +124,11 @@ def upload_index():
             )
             conn.commit(); cur.close(); conn.close()
 
-            
-
             flash("¡Carga masiva exitosa!","success")
-            # recarga con flag descarga=1
             return redirect(url_for("upload.upload_index", descarga=1))
 
         except Exception as e:
-            flash(f"Error inesperado: {e.diag.message_primary}","error")
+            flash(f"Error inesperado: {e}","error")
             return redirect(url_for("upload.upload_index"))
 
     return render_template(
@@ -149,13 +144,12 @@ def descargar_resumen():
     cur.execute("SELECT fn_obtener_resumen_pedidos(%s);", (empresa,))
     raw = cur.fetchone()[0]
     cur.close(); conn.close()
-    data = json.loads(raw) if isinstance(raw,str) else (raw or [])
+    data = json.loads(raw) if isinstance(raw, str) else (raw or [])
 
     cols = ["bd","codigo_cli","nombre","barrio","ciudad","asesor","total_pedidos", "valor", "ruta"]
     df_res = pd.DataFrame(data, columns=cols)
 
     buf = BytesIO()
-    
     with pd.ExcelWriter(buf, engine="openpyxl") as writer:
         df_res.to_excel(writer, sheet_name="ResumenPedidos", index=False)
     buf.seek(0)
@@ -166,7 +160,7 @@ def descargar_resumen():
         buf,
         as_attachment=True,
         download_name=nombre_xlsx,
-        mimetype="application/vnd.openxmlformats-officedocument-spreadsheetml.sheet"
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
 
