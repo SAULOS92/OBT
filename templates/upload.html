@@ -5,9 +5,14 @@
 <div class="relative">
 
   <!-- Spinner -->
-  <div id="loading-overlay" class="hidden absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50">
-    <svg class="h-12 w-12 animate-spin text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+  <div id="loading-overlay"
+       class="hidden absolute inset-0 bg-white bg-opacity-75
+              flex items-center justify-center z-50">
+    <svg class="h-12 w-12 animate-spin text-blue-600"
+         xmlns="http://www.w3.org/2000/svg" fill="none"
+         viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10"
+              stroke="currentColor" stroke-width="4"></circle>
       <path class="opacity-75" fill="currentColor"
             d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z">
       </path>
@@ -17,26 +22,76 @@
   <!-- Contenedor principal -->
   <div class="max-w-lg mx-auto bg-white p-8 rounded-3xl shadow-xl space-y-6">
 
+    <!-- Título -->
     <h1 class="text-3xl font-extrabold text-center">📤 Cargar Pedidos & Rutas</h1>
 
-    <!-- Instrucciones idénticas a tu versión previa -->
+    <!-- Instrucciones -->
+    <div class="bg-blue-50 border-l-4 border-blue-400 p-4 space-y-3 rounded-lg">
+      <h2 class="font-semibold text-blue-700">📥 Cargar aquí los archivos:</h2>
 
-    <div id="flash-messages" class="space-y-2"></div>
+      <div>
+        <h3 class="flex items-center text-lg font-medium">
+          <span class="mr-2 text-green-600">✅</span>
+          <span class="underline">ECOM</span>
+        </h3>
+        <ol class="list-decimal list-inside text-gray-700 space-y-1 ml-6">
+          <li>Comercial → Pedidos → Todos los pedidos en estado «Sin Descargar»</li>
+          <li>Despachos → ClixRuta</li>
+        </ol>
+      </div>
 
+      <div>
+        <h3 class="flex items-center text-lg font-medium">
+          <span class="mr-2 text-purple-600">📦</span>
+          <span class="underline">CELUWEB</span>
+        </h3>
+        <ol class="list-decimal list-inside text-gray-700 space-y-1 ml-6">
+          <li>Pedidos</li>
+          <li>Logística → Facturación → Administración de Rutas → Asignación de Rutas → Exportar Rutas Asignadas</li>
+        </ol>
+      </div>
+
+      <p class="mt-2 text-red-600 font-semibold">
+        ⚠️ <span class="font-medium">IMPORTANTE:</span> Antes de generar los pedidos, todos los clientes deben tener una ruta asignada.
+      </p>
+    </div>
+
+    <!-- Flash messages -->
+    <div id="flash-messages" class="space-y-2">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for cat, msg in messages %}
+            <div class="px-4 py-2 rounded-lg {% if cat=='success' %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %}">
+              {{ msg }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+    </div>
+
+    <!-- Formulario de carga -->
     <form id="upload-form" class="space-y-4">
       <div>
         <label class="block mb-1 font-medium">📄 Excel Pedidos</label>
         <input type="file" id="file-pedidos" accept=".xlsx" required
-               class="block w-full text-sm text-gray-600 file:py-2 file:px-4 file:border-0 file:rounded-xl file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+               class="block w-full text-sm text-gray-600
+                      file:py-2 file:px-4 file:border-0
+                      file:rounded-xl file:bg-blue-50 file:text-blue-700
+                      hover:file:bg-blue-100">
       </div>
       <div>
         <label class="block mb-1 font-medium">🚚 Excel Rutas</label>
         <input type="file" id="file-rutas" accept=".xlsx" required
-               class="block w-full text-sm text-gray-600 file:py-2 file:px-4 file:border-0 file:rounded-xl file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+               class="block w-full text-sm text-gray-600
+                      file:py-2 file:px-4 file:border-0
+                      file:rounded-xl file:bg-blue-50 file:text-blue-700
+                      hover:file:bg-blue-100">
       </div>
       <div>
         <label class="block mb-1 font-medium">📆 Día de la semana</label>
-        <select id="select-dia" required class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400">
+        <select id="select-dia" required
+                class="w-full px-4 py-2 border rounded-lg
+                       focus:outline-none focus:ring-2 focus:ring-blue-400">
           <option value="" disabled selected>Selecciona un día</option>
           <option value="LU">Lunes (LU)</option>
           <option value="MA">Martes (MA)</option>
@@ -48,7 +103,8 @@
         </select>
       </div>
       <button id="submit-btn" type="submit"
-              class="w-full py-3 font-semibold rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition">
+              class="w-full py-3 font-semibold rounded-xl
+                     bg-blue-600 text-white hover:bg-blue-700 transition">
         Cargar Masivo
       </button>
     </form>
@@ -61,11 +117,11 @@
 document.addEventListener('DOMContentLoaded', () => {
   const form = document.getElementById('upload-form'),
         overlay = document.getElementById('loading-overlay'),
-        flashContainer = document.getElementById('flash-messages'),
-        submitBtn = document.getElementById('submit-btn'),
-        filePed = document.getElementById('file-pedidos'),
-        fileRut = document.getElementById('file-rutas'),
-        selectDia = document.getElementById('select-dia');
+        flash = document.getElementById('flash-messages'),
+        btn = document.getElementById('submit-btn'),
+        fPed = document.getElementById('file-pedidos'),
+        fRut = document.getElementById('file-rutas'),
+        selDia = document.getElementById('select-dia');
 
   const PED_HEADERS = [
     "numero_pedido","cliente","nombre","barrio","ciudad",
@@ -88,111 +144,93 @@ document.addEventListener('DOMContentLoaded', () => {
     'ruta':'codigo_ruta','descripción ruta':'codigo_ruta'
   };
 
-  function mostrarMensaje(tipo, msgs) {
-    flashContainer.innerHTML = '';
+  function showMsg(type, msgs) {
+    flash.innerHTML = '';
     const d = document.createElement('div');
     d.className = 'px-4 py-2 rounded-lg ' +
-      (tipo==='success'?'bg-green-100 text-green-700':'bg-red-100 text-red-700');
+      (type==='success'? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700');
     if (Array.isArray(msgs)) {
       const ul = document.createElement('ul');
-      msgs.forEach(m=>{ const li=document.createElement('li'); li.textContent=m; ul.appendChild(li); });
+      msgs.forEach(m => { const li = document.createElement('li'); li.textContent = m; ul.appendChild(li); });
       d.appendChild(ul);
     } else {
       d.textContent = msgs;
     }
-    flashContainer.appendChild(d);
+    flash.appendChild(d);
   }
 
-  async function leerEncabezados(file) {
+  async function leerEnc(file) {
     const buf = await file.arrayBuffer(),
-          wb = XLSX.read(buf,{type:'array'}),
-          sheet = wb.Sheets[wb.SheetNames[0]],
-          [row] = XLSX.utils.sheet_to_json(sheet,{header:1,range:0,defval:null});
-    return row.map(h=>h?.toString().trim().toLowerCase()||'');
+          wb = XLSX.read(buf,{type:'array', sheetRows:1}),
+          sh = wb.Sheets[wb.SheetNames[0]],
+          [row] = XLSX.utils.sheet_to_json(sh,{header:1,defval:null});
+    return row.map(h=> h?.toString().trim().toLowerCase()||'');
   }
 
-  async function leerDatosFiltrados(file, colMap, allowedKeys) {
+  async function leerDatos(file, map, keys) {
     const buf = await file.arrayBuffer(),
           wb = XLSX.read(buf,{type:'array'}),
-          sheet = wb.Sheets[wb.SheetNames[0]],
-          rows = XLSX.utils.sheet_to_json(sheet,{header:1,defval:null});
-
-    // normalizar encabezados
+          sh = wb.Sheets[wb.SheetNames[0]],
+          rows = XLSX.utils.sheet_to_json(sh,{header:1,defval:null});
     const raw = rows[0].map(h=>h?.toString().trim().toLowerCase()||''),
-          norm = raw.map(h=>colMap[h]||h);
-
-    // si falta tipo_pro en encabezados, lo agregamos para validar
-    if (!norm.includes('tipo_pro')) {
-      norm.push('tipo_pro');
-    }
-
-    // convertir filas a objetos
+          norm = raw.map(h=>map[h]||h);
+    if (!norm.includes('tipo_pro')) norm.push('tipo_pro');
     return rows.slice(1).map(vals => {
-      const obj = {};
+      const o = {};
       norm.forEach((hdr,i) => {
-        if (allowedKeys.includes(hdr)) {
-          if (hdr === 'tipo_pro' && raw.indexOf('tipo_pro') === -1) {
-            // columna faltante, valor por defecto
-            obj[hdr] = 'N';
-          } else {
-            obj[hdr] = vals[i];
-          }
+        if (keys.includes(hdr)) {
+          o[hdr] = (hdr==='tipo_pro' && raw.indexOf('tipo_pro')===-1)
+                   ? 'N'
+                   : vals[i];
         }
       });
-      return obj;
+      return o;
     });
   }
 
   form.addEventListener('submit', async e => {
     e.preventDefault();
-    flashContainer.innerHTML = '';
+    flash.innerHTML = '';
     overlay.classList.remove('hidden');
-    submitBtn.disabled = true;
+    btn.disabled = true;
 
-    const fPed = filePed.files[0], fRut = fileRut.files[0], dia = selectDia.value;
+    const a = fPed.files[0], b = fRut.files[0], dia = selDia.value;
     let errs = [];
-    if (!fPed||!fRut) errs.push('Selecciona ambos archivos.');
+    if (!a||!b) errs.push('Selecciona ambos archivos.');
     else {
-      const isX = f=>/\.(xlsx|xls)$/i.test(f.name);
-      if (!isX(fPed)) errs.push('Excel Pedidos inválido.');
-      if (!isX(fRut)) errs.push('Excel Rutas inválido.');
+      const ok = f=>/\.(xlsx|xls)$/i.test(f.name);
+      if (!ok(a)) errs.push('Excel Pedidos inválido.');
+      if (!ok(b)) errs.push('Excel Rutas inválido.');
     }
     if (!DIAS_VALIDOS.includes(dia)) errs.push('Día inválido.');
     if (errs.length) {
-      mostrarMensaje('error', errs);
+      showMsg('error', errs);
       overlay.classList.add('hidden');
-      submitBtn.disabled = false;
+      btn.disabled = false;
       return;
     }
 
     try {
-      // validación de encabezados con solo la primera fila
-      const origPed = await leerEncabezados(fPed),
-            origRut = await leerEncabezados(fRut);
-
-      const normPed = origPed.map(h=>PED_COL_MAP[h]||h),
-            normRut = origRut.map(h=>RUT_COL_MAP[h]||h);
-
-      // inyectar tipo_pro si falta
-      if (!normPed.includes('tipo_pro')) normPed.push('tipo_pro');
-
+      const hPed = await leerEnc(a),
+            hRut = await leerEnc(b),
+            nPed = hPed.map(h=>PED_COL_MAP[h]||h),
+            nRut = hRut.map(h=>RUT_COL_MAP[h]||h);
+      if (!nPed.includes('tipo_pro')) nPed.push('tipo_pro');
       errs = [];
-      PED_HEADERS.forEach(r=>{ if (!normPed.includes(r)) errs.push(`Falta columna pedidos: ${r}`); });
-      RUT_HEADERS.forEach(r=>{ if (!normRut.includes(r)) errs.push(`Falta columna rutas: ${r}`); });
+      PED_HEADERS.forEach(r=>{ if (!nPed.includes(r)) errs.push(`Falta pedidos: ${r}`); });
+      RUT_HEADERS.forEach(r=>{ if (!nRut.includes(r)) errs.push(`Falta rutas: ${r}`); });
       if (errs.length) throw new Error(errs.join('; '));
 
-      // lectura filtrada de datos y default tipo_pro
-      const datosPed = await leerDatosFiltrados(fPed, PED_COL_MAP, PED_HEADERS),
-            datosRut = await leerDatosFiltrados(fRut, RUT_COL_MAP, RUT_HEADERS);
+      const datosPed = await leerDatos(a, PED_COL_MAP, PED_HEADERS),
+            datosRut = await leerDatos(b, RUT_COL_MAP, RUT_HEADERS);
 
-      // envío y descarga
       const res = await fetch(`/cargar-pedidos?dia=${encodeURIComponent(dia)}`, {
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify({pedidos: datosPed, rutas: datosRut})
       });
       if (!res.ok) {
-        const err = await res.json().catch(_=>({error:`Error ${res.status}`})); 
+        const err = await res.json().catch(_=>({error:`Error ${res.status}`}));
         throw new Error(err.error);
       }
 
@@ -206,18 +244,19 @@ document.addEventListener('DOMContentLoaded', () => {
       link.click();
       link.remove();
 
-      mostrarMensaje('success','Descarga iniciada.');
+      showMsg('success','Descarga iniciada.');
       form.reset();
     } catch(err) {
-      mostrarMensaje('error', err.message);
+      showMsg('error', err.message);
     } finally {
       overlay.classList.add('hidden');
-      submitBtn.disabled = false;
+      btn.disabled = false;
     }
   });
 });
 </script>
 {% endblock %}
+
 
 
 
