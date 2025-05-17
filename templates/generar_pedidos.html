@@ -1,10 +1,14 @@
+{# ---------------------------------------------------------------------------
+  Plantilla: generar_pedidos.html
+  Página de carga/validación de Excel y descarga de ZIP con reportes
+--------------------------------------------------------------------------- #}
 {% extends "base.html" %}
 {% block title %}Generar Pedidos{% endblock %}
 
 {% block content %}
 <div class="relative">
 
-  <!-- Spinner -->
+  {# --------------------------- Spinner centrado --------------------------- #}
   <div id="loading-overlay"
        class="hidden absolute inset-0 bg-white bg-opacity-75
               flex items-center justify-center z-50">
@@ -23,14 +27,13 @@
 
     <h1 class="text-3xl font-extrabold text-center">🚀 Generar Pedidos</h1>
 
-    <!-- Instrucciones -->
+    {# ------------------------ Bloque de instrucciones ---------------------- #}
     <div class="bg-indigo-50 border-l-4 border-indigo-400 p-4 rounded-lg space-y-4">
       <h2 class="font-semibold text-indigo-700">📥 Cargar aquí los archivos:</h2>
 
       <div>
         <h3 class="flex items-center text-lg font-medium">
-          <span class="mr-2 text-indigo-600">📦</span>
-          <span class="underline">ECOM</span>
+          <span class="mr-2 text-indigo-600">📦</span><span class="underline">ECOM</span>
         </h3>
         <ol class="list-decimal list-inside text-gray-700 ml-6 space-y-1">
           {% if negocio != "nutresa" %}<li>Inventario → Materiales</li>{% endif %}
@@ -40,8 +43,7 @@
 
       <div>
         <h3 class="flex items-center text-lg font-medium">
-          <span class="mr-2 text-purple-600">📦</span>
-          <span class="underline">CELUWEB</span>
+          <span class="mr-2 text-purple-600">📦</span><span class="underline">CELUWEB</span>
         </h3>
         <ol class="list-decimal list-inside text-gray-700 ml-6 space-y-1">
           {% if negocio != "nutresa" %}<li>Maestras → Materiales → Materiales → Buscar → Exportar</li>{% endif %}
@@ -54,7 +56,7 @@
       </p>
     </div>
 
-    <!-- Flash messages -->
+    {# ------------------ Mensajes que llega del servidor (Flask) ------------- #}
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         <div class="space-y-2">
@@ -68,11 +70,11 @@
       {% endif %}
     {% endwith %}
 
-    <!-- Formulario de subida -->
-    <form id="gen-form"
-          method="POST"
-          enctype="multipart/form-data"
-          class="space-y-4">
+    {# Mensajes generados en el navegador #}
+    <div id="flash-messages" class="space-y-2"></div>
+
+    {# -------------------------- Formulario de carga ------------------------ #}
+    <form id="gen-form" method="POST" enctype="multipart/form-data" class="space-y-4">
       {% if negocio != "nutresa" %}
       <div>
         <label class="block mb-1 font-medium">📦 Excel Materiales</label>
@@ -98,11 +100,9 @@
       </button>
     </form>
 
-    <!-- Botón de descarga tras POST exitoso -->
     {% if mostrar_descarga %}
       <div class="mt-6 text-center">
         <a href="{{ url_for('generar_pedidos.descargar_reportes') }}"
-        onclick="document.getElementById('download-section').style.display = 'none';"
            class="inline-block px-6 py-3 bg-green-600 text-white font-semibold rounded-xl
                   hover:bg-green-700 transition">
           Descargar Reportes
@@ -112,22 +112,211 @@
   </div>
 </div>
 
+{# -------------------------- Dependencia XLSX.js --------------------------- #}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+{# ------------------------ Lógica de validación + envío -------------------- #}
 <script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const form    = document.getElementById('gen-form');
-    const overlay = document.getElementById('loading-overlay');
+document.addEventListener('DOMContentLoaded', () => {
+  /* ------------- Referencias al DOM ------------- */
+  const form     = document.getElementById('gen-form');
+  const overlay  = document.getElementById('loading-overlay');
+  const flash    = document.getElementById('flash-messages');
+  const fMat     = document.querySelector('input[name="materiales"]');
+  const fInv     = document.querySelector('input[name="inventario"]');
+  const btn      = form.querySelector('button[type="submit"]');
 
-    // Mostrar spinner al enviar
-    form.addEventListener('submit', () => {
-      overlay.classList.remove('hidden');
+  /* ------------- Definición de encabezados canónicos y sinónimos ---------- */
+  const GEN_HEADERS = {
+    materiales: ["pro_codigo","particion","pq_x_caja"],
+    inventario: ["codigo","stock"]
+  };
+  const GEN_COL_MATERIALES = {
+    pro_codigo: ["Codigo SAP","Código"],
+    particion:  ["Particion","Partición"],
+    pq_x_caja:  ["Unidades x caja","Unidad por Caja"]
+  };
+  const GEN_COL_INVENTARIO = {
+    codigo: ["Codigo articulo","Cod Producto"],
+    stock:  ["Unidades","Unidades Disponibles"]
+  };
+
+  /* ------------- Construye mapas <sinónimo → canónico> -------------------- */
+  const MAT_COL_MAP = {};
+  const INV_COL_MAP = {};
+  Object.entries(GEN_COL_MATERIALES).forEach(([canon, syns]) => syns.forEach(s => MAT_COL_MAP[s.toLowerCase()] = canon));
+  Object.entries(GEN_COL_INVENTARIO).forEach(([canon, syns]) => syns.forEach(s => INV_COL_MAP[s.toLowerCase()] = canon));
+
+  /* ------------- Excel workbooks en memoria --------------------------------*/
+  let wbMat, wbInv;
+
+  /* ------------------------------------------------------------------------
+     Helpers
+  -------------------------------------------------------------------------*/
+  function showMsg(type, msgs) {
+    flash.innerHTML = '';
+    const div = document.createElement('div');
+    div.className = 'px-4 py-2 rounded-lg ' +
+      (type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700');
+    if (Array.isArray(msgs)) {
+      const ul = document.createElement('ul');
+      msgs.forEach(m => { const li = document.createElement('li'); li.textContent = m; ul.appendChild(li); });
+      div.appendChild(ul);
+    } else div.textContent = msgs;
+    flash.appendChild(div);
+  }
+
+  async function loadWorkbooks() {
+    if (fMat && fMat.files[0]) {
+      const buf = await fMat.files[0].arrayBuffer();
+      wbMat = XLSX.read(buf, { type: 'array' });
+    }
+    if (fInv && fInv.files[0]) {
+      const buf = await fInv.files[0].arrayBuffer();
+      wbInv = XLSX.read(buf, { type: 'array' });
+    }
+  }
+
+  const normalize = (raw, map) => raw.map(h => map[String(h).trim().toLowerCase()] || String(h).trim().toLowerCase()).filter(h => h);
+
+  /* ------------------ Convierte particion y pq_x_caja a int --------------- */
+  function normalizeNumericosFilas(rows) {
+    rows.forEach(r => {
+      ['particion','pq_x_caja'].forEach(col => {
+        if (col in r) {
+          let v = String(r[col]).trim();
+          if (v === '') v = '1';
+          r[col] = Number.parseInt(Number.parseFloat(v), 10);
+        }
+      });
     });
+  }
 
-    // Ocultar spinner tras recarga
-    window.addEventListener('load', () => {
+  /* ---------------------- Validación de encabezados ------------------------ */
+  async function validate() {
+    flash.innerHTML = '';
+    btn.disabled = true;
+
+    if (!fInv.files.length) return;        // inventario siempre requerido
+    await loadWorkbooks();                 // asegura wbMat / wbInv
+
+    /* ---------- Inventario (requerido) ---------- */
+    const rawInv = XLSX.utils.sheet_to_json(
+      wbInv.Sheets[wbInv.SheetNames[0]], { header:1, sheetRows:1, defval:'' }
+    )[0] || [];
+    const normInv = normalize(rawInv, INV_COL_MAP);
+
+    /* ---------- Materiales (opcional) ----------- */
+    let normMat = [];
+    if (wbMat) {
+      const rawMat = XLSX.utils.sheet_to_json(
+        wbMat.Sheets[wbMat.SheetNames[0]], { header:1, sheetRows:1, defval:'' }
+      )[0] || [];
+      normMat = normalize(rawMat, MAT_COL_MAP);
+    }
+
+    /* ---- Comprobaciones duplicados / faltantes -- */
+    const check = (actual, expected) => {
+      const seen = new Set(), dup = [], falt = [];
+      actual.forEach(h => { if (seen.has(h)) dup.push(h); seen.add(h); });
+      expected.forEach(e => { if (!seen.has(e)) falt.push(e); });
+      return { dup:[...new Set(dup)], falt };
+    };
+
+    const vInv = check(normInv, GEN_HEADERS.inventario);
+    const vMat = wbMat ? check(normMat, GEN_HEADERS.materiales) : {dup:[], falt:[]};
+
+    const errors = [];
+    if (vMat.dup.length)  errors.push('Duplicadas en materiales: ' + vMat.dup.join(', '));
+    if (vMat.falt.length) errors.push('Faltan en materiales: ' + vMat.falt.join(', '));
+    if (vInv.dup.length)  errors.push('Duplicadas en inventario: ' + vInv.dup.join(', '));
+    if (vInv.falt.length) errors.push('Faltan en inventario: ' + vInv.falt.join(', '));
+
+    if (errors.length) {
+      showMsg('error', errors);
+    } else {
+      showMsg('success', 'Listo para cargar');
+      btn.disabled = false;
+    }
+  }
+
+  /* ---------- Listeners para validación reactiva ---------- */
+  if (fMat) fMat.addEventListener('change', validate);
+  fInv.addEventListener('change', validate);
+
+  /* ------------------------------------------------------------------------
+     Submit: envía JSON al backend y descarga ZIP
+  -------------------------------------------------------------------------*/
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    overlay.classList.remove('hidden');
+    btn.disabled = true;
+    flash.innerHTML = '';
+
+    /* ► Relee y valida de nuevo por seguridad */
+    await loadWorkbooks();
+    if (!wbInv) {
+      showMsg('error','Falta el archivo de inventario');
+      overlay.classList.add('hidden'); btn.disabled = false;
+      return;
+    }
+
+    /* --------------- Serializa inventario ---------------- */
+    const dataInv = XLSX.utils.sheet_to_json(
+      wbInv.Sheets[wbInv.SheetNames[0]], { defval:'' }
+    );
+
+    /* --------------- Serializa materiales (opcional) ---- */
+    let dataMat; if (wbMat) {
+      dataMat = XLSX.utils.sheet_to_json(
+        wbMat.Sheets[wbMat.SheetNames[0]], { defval:'' }
+      );
+      normalizeNumericosFilas(dataMat);              // limpia particion / pq_x_caja
+    }
+
+    /* --------------- Cuerpo JSON a enviar --------------- */
+    const payload = { inventario: dataInv };
+    if (dataMat) payload.materiales = dataMat;
+
+    try {
+      const res = await fetch('/cargar-pedidos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({error:`Error ${res.status}`}));
+        throw new Error(err.error);
+      }
+
+      /* ---------- Descarga de ZIP ---------- */
+      const blob = await res.blob();
+      const cd   = res.headers.get('Content-Disposition');
+      const fn   = cd?.match(/filename="?([^"]+)"?/)?.[1] || `Report_${Date.now()}.zip`;
+
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = fn;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      showMsg('success','Descarga iniciada.');
+      form.reset();
+    } catch (err) {
+      showMsg('error', err.message || 'Error inesperado');
+    } finally {
       overlay.classList.add('hidden');
-    });
+      btn.disabled = false;
+    }
   });
+
+  /* ---------- Oculta spinner cuando la página termina de cargar ---------- */
+  window.addEventListener('load', () => overlay.classList.add('hidden'));
+});
 </script>
 {% endblock %}
+
 
 
