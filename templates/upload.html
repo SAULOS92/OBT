@@ -166,8 +166,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const rawPed = await readHeaders(bufferPed);
     const rawRut = await readHeaders(bufferRut);
 
-    const vPed = validateHeaders(rawPed, PED_COL_MAP, PED_HEADERS);
-    const vRut = validateHeaders(rawRut, RUT_COL_MAP, RUT_HEADERS);
+    // Normalize headers
+  let normPed = rawPed.map(h => PED_COL_MAP[h] || h);
+  let normRut = rawRut.map(h => RUT_COL_MAP[h] || h);
+
+  // **1. Inyectar 'tipo_pro' si falta**
+  if (!normPed.includes('tipo_pro')) {
+    normPed.push('tipo_pro');
+  }
+
+  // Validación de duplicados y faltantes
+  const vPed = validateHeadersFromNormalized(normPed, PED_HEADERS);
+  const vRut = validateHeadersFromNormalized(normRut, RUT_HEADERS);
 
     const errors = [];
     if (vPed.dup.length) errors.push('Duplicadas en pedidos: ' + vPed.dup.join(', '));
