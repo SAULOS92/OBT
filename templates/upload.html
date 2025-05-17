@@ -3,14 +3,23 @@
 
 {% block content %}
 <div class="relative">
+
+  <!-- Spinner -->
   <div id="loading-overlay" class="hidden absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50">
-    <!-- spinner... -->
+    <svg class="h-12 w-12 animate-spin text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+      <path class="opacity-75" fill="currentColor"
+            d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z">
+      </path>
+    </svg>
   </div>
 
+  <!-- Contenedor principal -->
   <div class="max-w-lg mx-auto bg-white p-8 rounded-3xl shadow-xl space-y-6">
+
     <h1 class="text-3xl font-extrabold text-center">📤 Cargar Pedidos & Rutas</h1>
 
-    <!-- instrucciones... -->
+    <!-- Instrucciones idénticas a tu versión previa -->
 
     <div id="flash-messages" class="space-y-2"></div>
 
@@ -43,6 +52,7 @@
         Cargar Masivo
       </button>
     </form>
+
   </div>
 </div>
 
@@ -57,43 +67,76 @@ document.addEventListener('DOMContentLoaded', () => {
         fileRut = document.getElementById('file-rutas'),
         selectDia = document.getElementById('select-dia');
 
-  const PED_HEADERS = ['numero_pedido','cliente','nombre','barrio','ciudad','asesor','codigo_pro','producto','cantidad','valor','estado'];
-  const RUT_HEADERS = ['codigo_cliente','codigo_ruta'];
-  const DIAS_VALIDOS = ['LU','MA','MI','JU','VI','SA','DO'];
-  const PED_COL_MAP = { /* ... tu mapa ... */ };
-  const RUT_COL_MAP = { /* ... tu mapa ... */ };
+  const PED_HEADERS = [
+    "numero_pedido","cliente","nombre","barrio","ciudad",
+    "asesor","codigo_pro","producto","cantidad","valor",
+    "tipo_pro","estado"
+  ];
+  const RUT_HEADERS = ["codigo_cliente","codigo_ruta"];
+  const DIAS_VALIDOS = ["LU","MA","MI","JU","VI","SA","DO"];
+
+  const PED_COL_MAP = {
+    'pedido':'numero_pedido','cliente':'cliente','código cliente':'cliente',
+    'r. social':'nombre','razón social':'nombre','barrio':'barrio','ciudad':'ciudad',
+    'asesor':'asesor','código vendedor':'asesor','cod.prod':'codigo_pro',
+    'código producto':'codigo_pro','producto':'producto','cantidad':'cantidad',
+    'valor':'valor','total':'valor','venta neta iva':'valor',
+    'tip pro':'tipo_pro','tipo_prod':'tipo_pro','estado':'estado','est':'estado'
+  };
+  const RUT_COL_MAP = {
+    'cod. cliente':'codigo_cliente','código cw':'codigo_cliente',
+    'ruta':'codigo_ruta','descripción ruta':'codigo_ruta'
+  };
 
   function mostrarMensaje(tipo, msgs) {
     flashContainer.innerHTML = '';
     const d = document.createElement('div');
-    d.className = 'px-4 py-2 rounded-lg ' + (tipo==='success'?'bg-green-100 text-green-700':'bg-red-100 text-red-700');
+    d.className = 'px-4 py-2 rounded-lg ' +
+      (tipo==='success'?'bg-green-100 text-green-700':'bg-red-100 text-red-700');
     if (Array.isArray(msgs)) {
       const ul = document.createElement('ul');
-      msgs.forEach(m=>{ const li = document.createElement('li'); li.textContent=m; ul.appendChild(li); });
+      msgs.forEach(m=>{ const li=document.createElement('li'); li.textContent=m; ul.appendChild(li); });
       d.appendChild(ul);
-    } else d.textContent = msgs;
+    } else {
+      d.textContent = msgs;
+    }
     flashContainer.appendChild(d);
   }
 
   async function leerEncabezados(file) {
     const buf = await file.arrayBuffer(),
-          wb  = XLSX.read(buf,{type:'array'}),
+          wb = XLSX.read(buf,{type:'array'}),
           sheet = wb.Sheets[wb.SheetNames[0]],
           [row] = XLSX.utils.sheet_to_json(sheet,{header:1,range:0,defval:null});
-    return row.map(h=> h?.toString().trim().toLowerCase()||'');
+    return row.map(h=>h?.toString().trim().toLowerCase()||'');
   }
 
-  async function leerDatosFiltrados(file, encOrig, normKeys, allowedKeys) {
+  async function leerDatosFiltrados(file, colMap, allowedKeys) {
     const buf = await file.arrayBuffer(),
-          wb  = XLSX.read(buf,{type:'array'}),
+          wb = XLSX.read(buf,{type:'array'}),
           sheet = wb.Sheets[wb.SheetNames[0]],
-          rows = XLSX.utils.sheet_to_json(sheet,{header:1,range:1,defval:null});
-    return rows.map(vals => {
+          rows = XLSX.utils.sheet_to_json(sheet,{header:1,defval:null});
+
+    // normalizar encabezados
+    const raw = rows[0].map(h=>h?.toString().trim().toLowerCase()||''),
+          norm = raw.map(h=>colMap[h]||h);
+
+    // si falta tipo_pro en encabezados, lo agregamos para validar
+    if (!norm.includes('tipo_pro')) {
+      norm.push('tipo_pro');
+    }
+
+    // convertir filas a objetos
+    return rows.slice(1).map(vals => {
       const obj = {};
-      encOrig.forEach((orig, i) => {
-        const key = normKeys[i];
-        if (allowedKeys.includes(key)) {
-          obj[key] = vals[i];
+      norm.forEach((hdr,i) => {
+        if (allowedKeys.includes(hdr)) {
+          if (hdr === 'tipo_pro' && raw.indexOf('tipo_pro') === -1) {
+            // columna faltante, valor por defecto
+            obj[hdr] = 'N';
+          } else {
+            obj[hdr] = vals[i];
+          }
         }
       });
       return obj;
@@ -123,40 +166,45 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
+      // validación de encabezados con solo la primera fila
       const origPed = await leerEncabezados(fPed),
-            origRut = await leerEncabezados(fRut),
-            normPed = origPed.map(h=>PED_COL_MAP[h]||h),
+            origRut = await leerEncabezados(fRut);
+
+      const normPed = origPed.map(h=>PED_COL_MAP[h]||h),
             normRut = origRut.map(h=>RUT_COL_MAP[h]||h);
 
+      // inyectar tipo_pro si falta
+      if (!normPed.includes('tipo_pro')) normPed.push('tipo_pro');
+
       errs = [];
-      PED_HEADERS.forEach(r=>{ if(!normPed.includes(r)) errs.push(`Falta pedidos: ${r}`); });
-      RUT_HEADERS.forEach(r=>{ if(!normRut.includes(r)) errs.push(`Falta rutas: ${r}`); });
+      PED_HEADERS.forEach(r=>{ if (!normPed.includes(r)) errs.push(`Falta columna pedidos: ${r}`); });
+      RUT_HEADERS.forEach(r=>{ if (!normRut.includes(r)) errs.push(`Falta columna rutas: ${r}`); });
       if (errs.length) throw new Error(errs.join('; '));
 
-      const datosPed = await leerDatosFiltrados(fPed, origPed, normPed, PED_HEADERS),
-            datosRut = await leerDatosFiltrados(fRut, origRut, normRut, RUT_HEADERS);
+      // lectura filtrada de datos y default tipo_pro
+      const datosPed = await leerDatosFiltrados(fPed, PED_COL_MAP, PED_HEADERS),
+            datosRut = await leerDatosFiltrados(fRut, RUT_COL_MAP, RUT_HEADERS);
 
+      // envío y descarga
       const res = await fetch(`/cargar-pedidos?dia=${encodeURIComponent(dia)}`, {
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({pedidos:datosPed, rutas:datosRut})
+        body: JSON.stringify({pedidos: datosPed, rutas: datosRut})
       });
-
       if (!res.ok) {
-        const err = await res.json().catch(_=>({error:`Error ${res.status}`}));
+        const err = await res.json().catch(_=>({error:`Error ${res.status}`})); 
         throw new Error(err.error);
       }
 
       const blob = await res.blob(),
-            cd   = res.headers.get('Content-Disposition'),
-            fn   = cd?.match(/filename="(.+)"/)?.[1] || `ResumenPedidos_${Date.now()}.xlsx`,
-            a    = document.createElement('a');
-
-      a.href = URL.createObjectURL(blob);
-      a.download = fn;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+            cd = res.headers.get('Content-Disposition'),
+            fn = cd?.match(/filename="(.+)"/)?.[1] || `ResumenPedidos_${Date.now()}.xlsx`,
+            link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = fn;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
 
       mostrarMensaje('success','Descarga iniciada.');
       form.reset();
