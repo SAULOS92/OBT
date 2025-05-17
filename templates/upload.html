@@ -136,10 +136,15 @@ function sanitizeName(input) {
 
 
     async function loadWorkbooks() {      
-      const bufPed = await fPed.files[0].arrayBuffer();
-      const bufRut = await fRut.files[0].arrayBuffer();
-      wbPed = XLSX.read(bufPed, { type:'array' });
-      wbRut = XLSX.read(bufRut, { type:'array' });
+      if (fPed.files[0]) {
+    const bufPed = await fPed.files[0].arrayBuffer();
+    wbPed = XLSX.read(bufPed, { type: 'array' });
+  }
+  // lee Rutas si existe
+  if (fRut.files[0]) {
+    const bufRut = await fRut.files[0].arrayBuffer();
+    wbRut = XLSX.read(bufRut, { type: 'array' });
+  }
     }
 
     async function reactiveValidate() {
