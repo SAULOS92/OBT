@@ -210,18 +210,18 @@ function sanitizeName(input) {
         if (!normHead.includes('tipo_pro')) normHead.push('tipo_pro');
         let data = rowsPed.slice(1).map(vals => {
           const o = {};
-          normHead.forEach((hdr,i) => {
-if (PED_HEADERS.includes(hdr)) {
-if (hdr === 'nombre') {
-// Aquí sanitizamos solo el nombre
-o[hdr] = sanitizeName(vals[i]);
-} else {
-// El resto de la lógica queda igual
-o[hdr] = (hdr==='tipo_pro' && rawHead.indexOf('tipo_pro')<0)
-              ? 'N'
-                : vals[i];
-    }
-  } 
+          normHead.forEach((hdr,i) => { 
+            if (!PED_HEADERS.includes(hdr)) return;          // ignora columnas extra
+
+    if (hdr === 'nombre') {
+      // Sanitiza únicamente la columna nombre
+      o[hdr] = sanitizeName(vals[i]);
+    } else {
+      // Mantén tu lógica original para el resto
+      o[hdr] = (hdr === 'tipo_pro' && rawHead.indexOf('tipo_pro') < 0)
+                 ? 'N'
+                 : vals[i];
+    } 
             });
           return o;
         });
