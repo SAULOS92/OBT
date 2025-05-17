@@ -4,7 +4,7 @@ from io import BytesIO
 import pandas as pd
 from flask import (
     Blueprint, render_template, request,
-    flash, send_file, session
+    send_file, session, jsonify
 )
 from db import conectar
 from views.auth import login_required
@@ -23,26 +23,20 @@ def upload_index():
             data = request.get_json(force=True)
             pedidos = data["pedidos"]
             rutas = data["rutas"]
-            # Día seleccionado como parámetro de consulta
             p_dia = request.args.get("dia", "").strip()
 
-            # Llamada directa al stored procedure con ambos JSON y el día
+            # Llamada al stored procedure
             conn = conectar()
             cur = conn.cursor()
             cur.execute(
                 "CALL etl_cargar_pedidos_y_rutas_masivo(%s, %s, %s, %s);",
-                (
-                    json.dumps(pedidos),
-                    json.dumps(rutas),
-                    p_dia,
-                    empresa
-                )
+                (json.dumps(pedidos), json.dumps(rutas), p_dia, empresa)
             )
             conn.commit()
             cur.close()
             conn.close()
 
-            # Una vez exitoso, obtener el resumen y enviarlo como Excel
+            # Obtener resumen y devolver Excel
             conn2 = conectar()
             cur2 = conn2.cursor()
             cur2.execute("SELECT fn_obtener_resumen_pedidos(%s);", (empresa,))
@@ -69,15 +63,12 @@ def upload_index():
             )
 
         except Exception as e:
-            flash(f"Error inesperado: {e.diag.message_primary}", "error")
-            return redirect(request.url)
+            # Devuelve JSON para que el front lo capture
+            return jsonify(error=str(e)), 400
 
-    # GET: muestra formulario de carga
-    return render_template(
-        "upload.html"
-    )
+    # GET: muestra formulario
+    return render_template("upload.html")
 
-# Nota: la ruta de descarga separada ya no es necesaria, pues la descarga ocurre tras POST exitoso.
 
 
 
