@@ -139,9 +139,9 @@
       if (!fPed.files[0] || !fRut.files[0]) return;
 
       const rawPed = XLSX.utils.sheet_to_json(wbPed.Sheets[wbPed.SheetNames[0]], { header:1, sheetRows:1, defval:'' })[0]
-        .map(h => h.toString().trim().toLowerCase());
+        .map(h => String(h).trim().toLowerCase());
       const rawRut = XLSX.utils.sheet_to_json(wbRut.Sheets[wbRut.SheetNames[0]], { header:1, sheetRows:1, defval:'' })[0]
-        .map(h => h.toString().trim().toLowerCase());
+        .map(h => String(h).trim().toLowerCase());
 
       let normPed = rawPed.map(h => PED_COL_MAP[h] || h);
       let normRut = rawRut.map(h => RUT_COL_MAP[h] || h);
