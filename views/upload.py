@@ -4,7 +4,7 @@ from io import BytesIO
 import pandas as pd
 from flask import (
     Blueprint, render_template, request,
-    flash, redirect, url_for, send_file, session
+    flash, send_file, session
 )
 from db import conectar
 from views.auth import login_required
@@ -16,7 +16,6 @@ upload_bp = Blueprint("upload", __name__, template_folder="../templates")
 @login_required
 def upload_index():
     empresa = session.get("empresa")
-    mostrar_descarga = bool(request.args.get("descarga", default=0, type=int))
 
     if request.method == "POST":
         try:
@@ -43,45 +42,42 @@ def upload_index():
             cur.close()
             conn.close()
 
-            flash("¡Carga masiva exitosa!", "success")
-            return redirect(url_for("upload.upload_index", descarga=1))
+            # Una vez exitoso, obtener el resumen y enviarlo como Excel
+            conn2 = conectar()
+            cur2 = conn2.cursor()
+            cur2.execute("SELECT fn_obtener_resumen_pedidos(%s);", (empresa,))
+            raw = cur2.fetchone()[0]
+            cur2.close()
+            conn2.close()
+
+            data_res = json.loads(raw) if isinstance(raw, str) else (raw or [])
+            cols = ["bd","codigo_cli","nombre","barrio","ciudad","asesor","total_pedidos","valor","ruta"]
+            df_res = pd.DataFrame(data_res, columns=cols)
+
+            buf = BytesIO()
+            with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+                df_res.to_excel(writer, sheet_name="ResumenPedidos", index=False)
+            buf.seek(0)
+            hoy = datetime.now().strftime("%Y%m%d_%H%M")
+            nombre_xlsx = f"ResumenPedidos_{hoy}.xlsx"
+
+            return send_file(
+                buf,
+                as_attachment=True,
+                download_name=nombre_xlsx,
+                mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
         except Exception as e:
-            flash(f"Error inesperado: {e}", "error")
-            return redirect(url_for("upload.upload_index"))
+            flash(f"Error inesperado: {e.diag.message_primary}", "error")
+            return redirect(request.url)
 
+    # GET: muestra formulario de carga
     return render_template(
-        "upload.html",
-        mostrar_descarga=mostrar_descarga
+        "upload.html"
     )
 
-@upload_bp.route("/cargar-pedidos/descargar-resumen", methods=["GET"])
-@login_required
-def descargar_resumen():
-    empresa = session.get("empresa")
-    conn = conectar()
-    cur = conn.cursor()
-    cur.execute("SELECT fn_obtener_resumen_pedidos(%s);", (empresa,))
-    raw = cur.fetchone()[0]
-    cur.close()
-    conn.close()
+# Nota: la ruta de descarga separada ya no es necesaria, pues la descarga ocurre tras POST exitoso.
 
-    data = json.loads(raw) if isinstance(raw, str) else (raw or [])
-    cols = ["bd","codigo_cli","nombre","barrio","ciudad","asesor","total_pedidos","valor","ruta"]
-    df_res = pd.DataFrame(data, columns=cols)
-
-    buf = BytesIO()
-    with pd.ExcelWriter(buf, engine="openpyxl") as writer:
-        df_res.to_excel(writer, sheet_name="ResumenPedidos", index=False)
-    buf.seek(0)
-    hoy = datetime.now().strftime("%Y%m%d_%H%M")
-    nombre_xlsx = f"ResumenPedidos_{hoy}.xlsx"
-
-    return send_file(
-        buf,
-        as_attachment=True,
-        download_name=nombre_xlsx,
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
 
 
