@@ -9,18 +9,14 @@
     <svg class="h-12 w-12 animate-spin text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
       <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
       <path class="opacity-75" fill="currentColor"
-            d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z">
-      </path>
+            d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"/>
     </svg>
   </div>
 
-  <!-- Contenedor principal -->
   <div class="max-w-lg mx-auto bg-white p-8 rounded-3xl shadow-xl space-y-6">
-
-    <!-- Título -->
     <h1 class="text-3xl font-extrabold text-center">📤 Cargar Pedidos & Rutas</h1>
 
-    <!-- Instrucciones -->
+    <!-- instrucciones -->
     <div class="bg-blue-50 border-l-4 border-blue-400 p-4 space-y-3 rounded-lg">
       <h2 class="font-semibold text-blue-700">📥 Cargar aquí los archivos:</h2>
       <div>
@@ -28,7 +24,7 @@
           <span class="mr-2 text-green-600">✅</span>
           <span class="underline">ECOM</span>
         </h3>
-        <ol class="list-decimal list-inside text-gray-700 space-y-1 ml-6">
+        <ol class="list-decimal list-inside text-gray-700 ml-6">
           <li>Comercial → Pedidos → Todos los pedidos en estado «Sin Descargar»</li>
           <li>Despachos → ClixRuta</li>
         </ol>
@@ -38,40 +34,32 @@
           <span class="mr-2 text-purple-600">📦</span>
           <span class="underline">CELUWEB</span>
         </h3>
-        <ol class="list-decimal list-inside text-gray-700 space-y-1 ml-6">
+        <ol class="list-decimal list-inside text-gray-700 ml-6">
           <li>Pedidos</li>
           <li>Logística → Facturación → Administración de Rutas → Asignación de Rutas → Exportar Rutas Asignadas</li>
         </ol>
       </div>
-      <p class="mt-2 text-red-600 font-semibold">
+      <p class="text-red-600 font-semibold">
         ⚠️ <span class="font-medium">IMPORTANTE:</span> Antes de generar los pedidos, todos los clientes deben tener una ruta asignada.
       </p>
     </div>
 
-    <!-- Flash messages -->
-    <div id="flash-messages" class="space-y-2">
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-          {% for cat, msg in messages %}
-            <div class="px-4 py-2 rounded-lg {% if cat=='success' %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %}">
-              {{ msg }}
-            </div>
-          {% endfor %}
-        {% endif %}
-      {% endwith %}
-    </div>
+    <div id="flash-messages" class="space-y-2"></div>
 
-    <!-- Formulario de carga -->
     <form id="upload-form" class="space-y-4">
       <div>
         <label class="block mb-1 font-medium">📄 Excel Pedidos</label>
         <input type="file" id="file-pedidos" accept=".xlsx" required
-               class="block w-full text-sm text-gray-600 file:py-2 file:px-4 file:border-0 file:rounded-xl file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+               class="block w-full text-sm text-gray-600
+                      file:py-2 file:px-4 file:border-0 file:rounded-xl
+                      file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
       </div>
       <div>
         <label class="block mb-1 font-medium">🚚 Excel Rutas</label>
         <input type="file" id="file-rutas" accept=".xlsx" required
-               class="block w-full text-sm text-gray-600 file:py-2 file:px-4 file:border-0 file:rounded-xl file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+               class="block w-full text-sm text-gray-600
+                      file:py-2 file:px-4 file:border-0 file:rounded-xl
+                      file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
       </div>
       <div>
         <label class="block mb-1 font-medium">📆 Día de la semana</label>
@@ -88,11 +76,11 @@
         </select>
       </div>
       <button id="submit-btn" type="submit"
-              class="w-full py-3 font-semibold rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition" disabled>
+              class="w-full py-3 font-semibold rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition"
+              disabled>
         Cargar Masivo
       </button>
     </form>
-
   </div>
 </div>
 
@@ -107,11 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const flash   = document.getElementById('flash-messages');
   const form    = document.getElementById('upload-form');
 
-  const PED_HEADERS = [
-    "numero_pedido","cliente","nombre","barrio","ciudad",
-    "asesor","codigo_pro","producto","cantidad","valor",
-    "tipo_pro","estado"
-  ];
+  const PED_HEADERS = ["numero_pedido","cliente","nombre","barrio","ciudad","asesor","codigo_pro","producto","cantidad","valor","tipo_pro","estado"];
   const RUT_HEADERS = ["codigo_cliente","codigo_ruta"];
   const DIAS_VALIDOS = ["LU","MA","MI","JU","VI","SA","DO"];
 
@@ -137,7 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
       (type==='success'? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700');
     if (Array.isArray(msgs)) {
       const ul = document.createElement('ul');
-      msgs.forEach(m=>{ const li = document.createElement('li'); li.textContent = m; ul.appendChild(li); });
+      msgs.forEach(m => { const li = document.createElement('li'); li.textContent = m; ul.appendChild(li); });
       div.appendChild(ul);
     } else {
       div.textContent = msgs;
@@ -145,61 +129,60 @@ document.addEventListener('DOMContentLoaded', () => {
     flash.appendChild(div);
   }
 
-  async function leerBuffer(file) {
+  // lee ArrayBuffer una sola vez
+  async function readBuffer(file) {
     return file.arrayBuffer();
   }
 
-  async function leerEnc(buffer) {
+  // lee solo primera fila para validar
+  async function readHeaders(buffer) {
     const wb = XLSX.read(buffer, { type:'array', sheetRows:1 });
     const sh = wb.Sheets[wb.SheetNames[0]];
     const [row] = XLSX.utils.sheet_to_json(sh, { header:1, defval:null });
-    return row.map(h=>h?.toString().trim().toLowerCase()||'');
+    return row.map(h => h?.toString().trim().toLowerCase() || '');
   }
 
-  function validarHeaders(raw, map, expected) {
-    const dup = [], falt = [], norm = [];
+  // valida reactivo faltantes y duplicados
+  function validateHeaders(raw, map, expected) {
+    const norm = [], dup = [], falt = [];
     raw.forEach(h => {
       const k = map[h] || h;
-      const count = norm.filter(x=>x===k).length;
-      if (count) dup.push(k);
+      if (norm.includes(k)) dup.push(k);
       norm.push(k);
     });
     expected.forEach(e => { if (!norm.includes(e)) falt.push(e); });
-    return { norm, dup: [...new Set(dup)], falt };
+    return { norm, dup:[...new Set(dup)], falt };
   }
 
-  async function validarEncabezados() {
+  // validación reactiva al cambiar archivo
+  async function reactiveValidate() {
     flash.innerHTML = '';
     btn.disabled = true;
-
     if (!fPed.files[0] || !fRut.files[0]) return;
 
-    bufferPed = await leerBuffer(fPed.files[0]);
-    bufferRut = await leerBuffer(fRut.files[0]);
+    bufferPed = await readBuffer(fPed.files[0]);
+    bufferRut = await readBuffer(fRut.files[0]);
 
-    const rawPed = await leerEnc(bufferPed);
-    const rawRut = await leerEnc(bufferRut);
+    const rawPed = await readHeaders(bufferPed);
+    const rawRut = await readHeaders(bufferRut);
 
-    const vPed = validarHeaders(rawPed, PED_COL_MAP, PED_HEADERS);
-    const vRut = validarHeaders(rawRut, RUT_COL_MAP, RUT_HEADERS);
+    const vPed = validateHeaders(rawPed, PED_COL_MAP, PED_HEADERS);
+    const vRut = validateHeaders(rawRut, RUT_COL_MAP, RUT_HEADERS);
 
-    const msgs = [];
-    if (vPed.dup.length) msgs.push('Duplicadas en pedidos: ' + vPed.dup.join(', '));
-    if (vPed.falt.length) msgs.push('Faltan en pedidos: ' + vPed.falt.join(', '));
-    if (vRut.dup.length) msgs.push('Duplicadas en rutas: ' + vRut.dup.join(', '));
-    if (vRut.falt.length) msgs.push('Faltan en rutas: ' + vRut.falt.join(', '));
+    const errors = [];
+    if (vPed.dup.length) errors.push('Duplicadas en pedidos: ' + vPed.dup.join(', '));
+    if (vPed.falt.length) errors.push('Faltan en pedidos: ' + vPed.falt.join(', '));
+    if (vRut.dup.length) errors.push('Duplicadas en rutas: ' + vRut.dup.join(', '));
+    if (vRut.falt.length) errors.push('Faltan en rutas: ' + vRut.falt.join(', '));
 
-    if (msgs.length) {
-      showMsg('error', msgs);
-    } else {
-      showMsg('success', 'Encabezados válidos');
-      btn.disabled = false;
-    }
+    if (errors.length) showMsg('error', errors);
+    else { showMsg('success','Encabezados válidos'); btn.disabled = false; }
   }
 
-  fPed.addEventListener('change', validarEncabezados);
-  fRut.addEventListener('change', validarEncabezados);
+  fPed.addEventListener('change', reactiveValidate);
+  fRut.addEventListener('change', reactiveValidate);
 
+  // al enviar, procesa todo con forward/back fill y default tipo_pro
   form.addEventListener('submit', async e => {
     e.preventDefault();
     flash.innerHTML = '';
@@ -209,7 +192,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const dia = selDia.value;
     const errs = [];
     if (!DIAS_VALIDOS.includes(dia)) errs.push('Día inválido.');
-
     if (errs.length) {
       showMsg('error', errs);
       overlay.classList.add('hidden');
@@ -218,7 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      // Leer datos completos reutilizando buffers
+      // pedidos: parsea todo, agrega tipo_pro=N si faltó, luego forward/back fill
       const datosPed = await (async () => {
         const wb = XLSX.read(bufferPed, { type:'array' });
         const sh = wb.Sheets[wb.SheetNames[0]];
@@ -226,20 +208,30 @@ document.addEventListener('DOMContentLoaded', () => {
         const raw = rows[0].map(h=>h?.toString().trim().toLowerCase()||'');
         const norm = raw.map(h=>PED_COL_MAP[h]||h);
         if (!norm.includes('tipo_pro')) norm.push('tipo_pro');
-        return rows.slice(1).map(vals => {
+        const data = rows.slice(1).map(vals => {
           const o = {};
           norm.forEach((hdr,i) => {
             if (PED_HEADERS.includes(hdr)) {
-              o[hdr] = (hdr==='tipo_pro' && raw.indexOf('tipo_pro')===-1)
-                       ? 'N'
-                       : vals[i];
+              o[hdr] = (hdr==='tipo_pro' && raw.indexOf('tipo_pro')<0) ? 'N' : vals[i];
             }
           });
           return o;
         });
+        // forward/back fill por cliente
+        const grupos = {};
+        data.forEach((r,i) => (grupos[r.cliente]=grupos[r.cliente]||[]).push({i,r}));
+        Object.values(grupos).forEach(arr => {
+          arr.sort((a,b)=>a.i-b.i);
+          let nom,bar,ciu;
+          arr.forEach(x=>{const f=x.r; if(f.nombre) nom=f.nombre; else f.nombre=nom; if(f.barrio) bar=f.barrio; else f.barrio=bar; if(f.ciudad) ciu=f.ciudad; else f.ciudad=ciu;});
+          let nom2,bar2,ciu2;
+          arr.slice().reverse().forEach(x=>{const f=x.r; if(f.nombre) nom2=f.nombre; else f.nombre=nom2; if(f.barrio) bar2=f.barrio; else f.barrio=bar2; if(f.ciudad) ciu2=f.ciudad; else f.ciudad=ciu2;});
+        });
+        return data;
       })();
 
-      const datosRut = await (async () => {
+      // rutas: parsea todo
+      const datosRut = await (async() => {
         const wb = XLSX.read(bufferRut, { type:'array' });
         const sh = wb.Sheets[wb.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(sh, { header:1, defval:null });
@@ -247,22 +239,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const norm = raw.map(h=>RUT_COL_MAP[h]||h);
         return rows.slice(1).map(vals => {
           const o = {};
-          norm.forEach((hdr,i) => {
-            if (RUT_HEADERS.includes(hdr)) {
-              o[hdr] = vals[i];
-            }
-          });
+          norm.forEach((hdr,i)=>{ if(RUT_HEADERS.includes(hdr)) o[hdr]=vals[i]; });
           return o;
         });
       })();
 
       const res = await fetch(`/cargar-pedidos?dia=${encodeURIComponent(dia)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pedidos: datosPed, rutas: datosRut })
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ pedidos:datosPed, rutas:datosRut })
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: `Error ${res.status}` }));
+        const err = await res.json().catch(()=>({error:`Error ${res.status}`}));
         throw new Error(err.error);
       }
 
@@ -276,7 +264,7 @@ document.addEventListener('DOMContentLoaded', () => {
       a.click();
       a.remove();
 
-      showMsg('success', 'Descarga iniciada correctamente.');
+      showMsg('success','Descarga iniciada.');
       form.reset();
     } catch (err) {
       showMsg('error', err.message);
@@ -288,6 +276,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 {% endblock %}
+
 
 
 
