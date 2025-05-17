@@ -147,6 +147,8 @@
       let normRut = rawRut.map(h => RUT_COL_MAP[h] || h);
       if (!normPed.includes('tipo_pro')) normPed.push('tipo_pro');
 
+      normPed = normPed.filter(hdr => hdr);
+
       const header = 'valor';
       const firstIdx = normPed.indexOf(header);
       const lastIdx  = normPed.lastIndexOf(header);
