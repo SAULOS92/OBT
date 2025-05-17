@@ -144,18 +144,12 @@
       const rawRut = XLSX.utils.sheet_to_json(wbRut.Sheets[wbRut.SheetNames[0]], { header:1, sheetRows:1, defval:'' })[0]
         .map(h => String(h).trim().toLowerCase());
 
-      let normPed = rawPed.map(h => PED_COL_MAP[h] || h);
-      let normRut = rawRut.map(h => RUT_COL_MAP[h] || h);
+      let normPed = rawPed.map(h => PED_COL_MAP[h] || h).filter(hdr => hdr !== '');
+      let normRut = rawRut.map(h => RUT_COL_MAP[h] || h).filter(hdr => hdr !== '');
       if (!normPed.includes('tipo_pro')) normPed.push('tipo_pro');
+      
 
-      normPed = normPed.filter(hdr => hdr);
-
-      const header = 'valor';
-      const firstIdx = normPed.indexOf(header);
-      const lastIdx  = normPed.lastIndexOf(header);
-        if (firstIdx !== -1 && lastIdx !== firstIdx) {
-          normPed.splice(firstIdx, 1);
-        }
+      
 
       function check(rawNorm, expected) {
         const seen = new Set(), dup = [], falt = [];
