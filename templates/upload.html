@@ -176,8 +176,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Validación de duplicados y faltantes
-  const vPed = validateHeadersFromNormalized(normPed, PED_HEADERS);
-  const vRut = validateHeadersFromNormalized(normRut, RUT_HEADERS);
+  const vPed = validateHeaders(normPed, (h=>h), PED_HEADERS);
+const vRut = validateHeaders(normRut, (h=>h), RUT_HEADERS);
 
     const errors = [];
     if (vPed.dup.length) errors.push('Duplicadas en pedidos: ' + vPed.dup.join(', '));
