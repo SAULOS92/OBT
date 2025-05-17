@@ -3,64 +3,31 @@
 
 {% block content %}
 <div class="relative">
-
-  <!-- Spinner -->
   <div id="loading-overlay" class="hidden absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50">
-    <svg class="h-12 w-12 animate-spin text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-      <path class="opacity-75" fill="currentColor"
-            d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z">
-      </path>
-    </svg>
+    <!-- spinner... -->
   </div>
 
-  <!-- Contenedor principal -->
   <div class="max-w-lg mx-auto bg-white p-8 rounded-3xl shadow-xl space-y-6">
-
-    <!-- Título -->
     <h1 class="text-3xl font-extrabold text-center">📤 Cargar Pedidos & Rutas</h1>
 
-    <!-- Instrucciones -->
-    <div class="bg-blue-50 border-l-4 border-blue-400 p-4 space-y-3 rounded-lg">
-      <h2 class="font-semibold text-blue-700">📥 Cargar aquí los archivos:</h2>
-      <div>
-        <h3 class="flex items-center text-lg font-medium"><span class="mr-2 text-green-600">✅</span> <span class="underline">ECOM</span></h3>
-        <ol class="list-decimal list-inside text-gray-700 space-y-1 ml-6">
-          <li>Comercial → Pedidos → Todos los pedidos en estado «Sin Descargar»</li>
-          <li>Despachos → ClixRuta</li>
-        </ol>
-      </div>
-      <div>
-        <h3 class="flex items-center text-lg font-medium"><span class="mr-2 text-purple-600">📦</span> <span class="underline">CELUWEB</span></h3>
-        <ol class="list-decimal list-inside text-gray-700 space-y-1 ml-6">
-          <li>Pedidos</li>
-          <li>Logística → Facturación → Administración de Rutas → Asignación de Rutas → Exportar Rutas Asignadas</li>
-        </ol>
-      </div>
-      <p class="mt-2 text-red-600 font-semibold">⚠️ <span class="font-medium">IMPORTANTE:</span> Antes de generar los pedidos, todos los clientes deben tener una ruta asignada.</p>
-    </div>
+    <!-- instrucciones... -->
 
-    <!-- Flash messages -->
     <div id="flash-messages" class="space-y-2"></div>
 
-    <!-- Formulario de carga -->
     <form id="upload-form" class="space-y-4">
       <div>
         <label class="block mb-1 font-medium">📄 Excel Pedidos</label>
-        <input type="file" id="file-pedidos" accept=".xlsx"
-               class="block w-full text-sm text-gray-600 file:py-2 file:px-4 file:border-0 file:rounded-xl file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-               required>
+        <input type="file" id="file-pedidos" accept=".xlsx" required
+               class="block w-full text-sm text-gray-600 file:py-2 file:px-4 file:border-0 file:rounded-xl file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
       </div>
       <div>
         <label class="block mb-1 font-medium">🚚 Excel Rutas</label>
-        <input type="file" id="file-rutas" accept=".xlsx"
-               class="block w-full text-sm text-gray-600 file:py-2 file:px-4 file:border-0 file:rounded-xl file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-               required>
+        <input type="file" id="file-rutas" accept=".xlsx" required
+               class="block w-full text-sm text-gray-600 file:py-2 file:px-4 file:border-0 file:rounded-xl file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
       </div>
       <div>
         <label class="block mb-1 font-medium">📆 Día de la semana</label>
-        <select id="select-dia" required
-                class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400">
+        <select id="select-dia" required class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400">
           <option value="" disabled selected>Selecciona un día</option>
           <option value="LU">Lunes (LU)</option>
           <option value="MA">Martes (MA)</option>
@@ -76,68 +43,60 @@
         Cargar Masivo
       </button>
     </form>
-
   </div>
 </div>
 
-<!-- SheetJS -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-  const form = document.getElementById('upload-form');
-  const overlay = document.getElementById('loading-overlay');
-  const flashContainer = document.getElementById('flash-messages');
-  const submitBtn = document.getElementById('submit-btn');
-  const filePed = document.getElementById('file-pedidos');
-  const fileRut = document.getElementById('file-rutas');
-  const selectDia = document.getElementById('select-dia');
+  const form = document.getElementById('upload-form'),
+        overlay = document.getElementById('loading-overlay'),
+        flashContainer = document.getElementById('flash-messages'),
+        submitBtn = document.getElementById('submit-btn'),
+        filePed = document.getElementById('file-pedidos'),
+        fileRut = document.getElementById('file-rutas'),
+        selectDia = document.getElementById('select-dia');
 
   const PED_HEADERS = ['numero_pedido','cliente','nombre','barrio','ciudad','asesor','codigo_pro','producto','cantidad','valor','estado'];
   const RUT_HEADERS = ['codigo_cliente','codigo_ruta'];
   const DIAS_VALIDOS = ['LU','MA','MI','JU','VI','SA','DO'];
-
-  const PED_COL_MAP = {
-    'pedido':'numero_pedido','cliente':'cliente','código cliente':'cliente','r. social':'nombre','razón social':'nombre',
-    'barrio':'barrio','ciudad':'ciudad','asesor':'asesor','código vendedor':'asesor','cod.prod':'codigo_pro',
-    'código producto':'codigo_pro','producto':'producto','cantidad':'cantidad','valor':'valor','total':'valor',
-    'venta neta iva':'valor','tip pro':'tipo_pro','estado':'estado','est':'estado'
-  };
-  const RUT_COL_MAP = {
-    'cod. cliente':'codigo_cliente','código cw':'codigo_cliente','ruta':'codigo_ruta','descripción ruta':'codigo_ruta'
-  };
+  const PED_COL_MAP = { /* ... tu mapa ... */ };
+  const RUT_COL_MAP = { /* ... tu mapa ... */ };
 
   function mostrarMensaje(tipo, msgs) {
     flashContainer.innerHTML = '';
-    const div = document.createElement('div');
-    div.className = 'px-4 py-2 rounded-lg ' +
-      (tipo==='success'?'bg-green-100 text-green-700':'bg-red-100 text-red-700');
+    const d = document.createElement('div');
+    d.className = 'px-4 py-2 rounded-lg ' + (tipo==='success'?'bg-green-100 text-green-700':'bg-red-100 text-red-700');
     if (Array.isArray(msgs)) {
       const ul = document.createElement('ul');
-      msgs.forEach(m => { const li = document.createElement('li'); li.textContent = m; ul.appendChild(li); });
-      div.appendChild(ul);
-    } else {
-      div.textContent = msgs;
-    }
-    flashContainer.appendChild(div);
+      msgs.forEach(m=>{ const li = document.createElement('li'); li.textContent=m; ul.appendChild(li); });
+      d.appendChild(ul);
+    } else d.textContent = msgs;
+    flashContainer.appendChild(d);
   }
 
   async function leerEncabezados(file) {
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf,{type:'array'});
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const [row] = XLSX.utils.sheet_to_json(sheet,{header:1,range:0,defval:null});
-    return row.map(h => h?.toString().trim().toLowerCase()||'');
+    const buf = await file.arrayBuffer(),
+          wb  = XLSX.read(buf,{type:'array'}),
+          sheet = wb.Sheets[wb.SheetNames[0]],
+          [row] = XLSX.utils.sheet_to_json(sheet,{header:1,range:0,defval:null});
+    return row.map(h=> h?.toString().trim().toLowerCase()||'');
   }
 
-  async function leerDatosFiltrados(file, keys) {
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf,{type:'array'});
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet,{header:keys,range:1,defval:null,raw:true});
-    return rows.map(r => {
-      const o = {};
-      keys.forEach(k => { if (r[k]!=null) o[k] = r[k]; });
-      return o;
+  async function leerDatosFiltrados(file, encOrig, normKeys, allowedKeys) {
+    const buf = await file.arrayBuffer(),
+          wb  = XLSX.read(buf,{type:'array'}),
+          sheet = wb.Sheets[wb.SheetNames[0]],
+          rows = XLSX.utils.sheet_to_json(sheet,{header:1,range:1,defval:null});
+    return rows.map(vals => {
+      const obj = {};
+      encOrig.forEach((orig, i) => {
+        const key = normKeys[i];
+        if (allowedKeys.includes(key)) {
+          obj[key] = vals[i];
+        }
+      });
+      return obj;
     });
   }
 
@@ -147,15 +106,13 @@ document.addEventListener('DOMContentLoaded', () => {
     overlay.classList.remove('hidden');
     submitBtn.disabled = true;
 
-    const fPed = filePed.files[0];
-    const fRut = fileRut.files[0];
-    const dia = selectDia.value;
+    const fPed = filePed.files[0], fRut = fileRut.files[0], dia = selectDia.value;
     let errs = [];
-    if (!fPed || !fRut) errs.push('Selecciona ambos archivos.');
+    if (!fPed||!fRut) errs.push('Selecciona ambos archivos.');
     else {
-      const isExcel = f => /\.(xlsx|xls)$/i.test(f.name);
-      if(!isExcel(fPed)) errs.push('Excel Pedidos inválido.');
-      if(!isExcel(fRut)) errs.push('Excel Rutas inválido.');
+      const isX = f=>/\.(xlsx|xls)$/i.test(f.name);
+      if (!isX(fPed)) errs.push('Excel Pedidos inválido.');
+      if (!isX(fRut)) errs.push('Excel Rutas inválido.');
     }
     if (!DIAS_VALIDOS.includes(dia)) errs.push('Día inválido.');
     if (errs.length) {
@@ -166,40 +123,42 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      const origPed = await leerEncabezados(fPed);
-      const origRut = await leerEncabezados(fRut);
-      const normPed = origPed.map(h => PED_COL_MAP[h]||h);
-      const normRut = origRut.map(h => RUT_COL_MAP[h]||h);
-      errs = [];
-      PED_HEADERS.forEach(r => { if(!normPed.includes(r)) errs.push(`Falta pedidos: ${r}`); });
-      RUT_HEADERS.forEach(r => { if(!normRut.includes(r)) errs.push(`Falta rutas: ${r}`); });
-      if(errs.length) throw new Error(errs.join('; '));
+      const origPed = await leerEncabezados(fPed),
+            origRut = await leerEncabezados(fRut),
+            normPed = origPed.map(h=>PED_COL_MAP[h]||h),
+            normRut = origRut.map(h=>RUT_COL_MAP[h]||h);
 
-      const datosPed = await leerDatosFiltrados(fPed, PED_HEADERS);
-      const datosRut = await leerDatosFiltrados(fRut, RUT_HEADERS);
-      const payload = { pedidos: datosPed, rutas: datosRut };
+      errs = [];
+      PED_HEADERS.forEach(r=>{ if(!normPed.includes(r)) errs.push(`Falta pedidos: ${r}`); });
+      RUT_HEADERS.forEach(r=>{ if(!normRut.includes(r)) errs.push(`Falta rutas: ${r}`); });
+      if (errs.length) throw new Error(errs.join('; '));
+
+      const datosPed = await leerDatosFiltrados(fPed, origPed, normPed, PED_HEADERS),
+            datosRut = await leerDatosFiltrados(fRut, origRut, normRut, RUT_HEADERS);
 
       const res = await fetch(`/cargar-pedidos?dia=${encodeURIComponent(dia)}`, {
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(payload)
+        body: JSON.stringify({pedidos:datosPed, rutas:datosRut})
       });
-      if(!res.ok) {
-        const err = await res.json().catch(() => ({error:`Error ${res.status}`}));
+
+      if (!res.ok) {
+        const err = await res.json().catch(_=>({error:`Error ${res.status}`}));
         throw new Error(err.error);
       }
 
-      const blob = await res.blob();
-      const cd = res.headers.get('Content-Disposition');
-      const filename = cd?.match(/filename="(.+)"/)?.[1] || `ResumenPedidos_${Date.now()}.xlsx`;
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      const blob = await res.blob(),
+            cd   = res.headers.get('Content-Disposition'),
+            fn   = cd?.match(/filename="(.+)"/)?.[1] || `ResumenPedidos_${Date.now()}.xlsx`,
+            a    = document.createElement('a');
 
-      mostrarMensaje('success', 'Descarga iniciada.');
+      a.href = URL.createObjectURL(blob);
+      a.download = fn;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      mostrarMensaje('success','Descarga iniciada.');
       form.reset();
     } catch(err) {
       mostrarMensaje('error', err.message);
@@ -211,6 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 {% endblock %}
+
 
 
 
