@@ -128,7 +128,8 @@
     // Dentro de <script> y antes de loadWorkbooks()
 function sanitizeName(input) {
   if (input == null) return '';
-  let text = String(input).trim();
+  // 🔴 Elimina TODOS los controles 0x00-0x1F y 0x7F
+  let text = String(input).replace(/[\x00-\x1F\x7F]/g, '').trim();
   try { text = decodeURIComponent(escape(text)); } catch {}
   return text.normalize('NFC');
 }
@@ -211,17 +212,8 @@ function sanitizeName(input) {
         let data = rowsPed.slice(1).map(vals => {
           const o = {};
           normHead.forEach((hdr,i) => { 
-            if (!PED_HEADERS.includes(hdr)) return;          // ignora columnas extra
-
-    if (hdr === 'nombre') {
-      // Sanitiza únicamente la columna nombre
-      o[hdr] = sanitizeName(vals[i]);
-    } else {
-      // Mantén tu lógica original para el resto
-      o[hdr] = (hdr === 'tipo_pro' && rawHead.indexOf('tipo_pro') < 0)
-                 ? 'N'
-                 : vals[i];
-    } 
+            if (PED_HEADERS.includes(hdr))
+             o[hdr] = (hdr==='tipo_pro' && rawHead.indexOf('tipo_pro')<0) ? 'N' : vals[i]; 
             });
           return o;
         });
@@ -237,7 +229,7 @@ function sanitizeName(input) {
             arr.slice().reverse().forEach(x => { const f = x.r; if (f.nombre) nn = f.nombre; else f.nombre = nn; if (f.barrio) bb = f.barrio; else f.barrio = bb; if (f.ciudad) cc = f.ciudad; else f.ciudad = cc; });
           });
         }
-
+        data.forEach(r => { r.nombre = sanitizeName(r.nombre); });
         data = data.filter(r => ['Sin Descargar','Sin facturar'].includes(r.estado));
 
         const sheetRut = wbRut.Sheets[wbRut.SheetNames[0]];
