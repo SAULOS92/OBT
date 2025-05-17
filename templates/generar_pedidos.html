@@ -269,7 +269,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (dataMat) payload.materiales = dataMat;
 
     try {
-      const res = await fetch('/cargar-pedidos', {
+      const res = await fetch('/generar-pedidos', {
         method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify(payload)
       });
 
