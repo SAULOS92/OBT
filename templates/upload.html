@@ -145,7 +145,6 @@ document.addEventListener('DOMContentLoaded', function() {
   const RUT_HEADERS = ['codigo_cliente','codigo_ruta'];
   const DIAS_VALIDOS = ['LU','MA','MI','JU','VI','SA','DO'];
 
-  // Mapas de sinónimos reales invertidos:
   const PED_COL_MAP = {
     'pedido': 'numero_pedido',
     'cliente': 'cliente',
@@ -153,8 +152,6 @@ document.addEventListener('DOMContentLoaded', function() {
     'r. social': 'nombre',
     'razón social': 'nombre',
     'barrio': 'barrio',
-    'barrio': 'barrio',
-    'ciudad': 'ciudad',
     'ciudad': 'ciudad',
     'asesor': 'asesor',
     'código vendedor': 'asesor',
@@ -197,11 +194,35 @@ document.addEventListener('DOMContentLoaded', function() {
     flashContainer.appendChild(div);
   }
 
-  async function leerExcel(file) {
+  async function leerEncabezados(file) {
     const buffer = await file.arrayBuffer();
-    const wb = XLSX.read(buffer, { type: 'array' });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    return XLSX.utils.sheet_to_json(sheet, { defval: null });
+    const wb     = XLSX.read(buffer, { type: 'array' });
+    const sheet  = wb.Sheets[wb.SheetNames[0]];
+    const [headerRow] = XLSX.utils.sheet_to_json(sheet, {
+      header: 1,
+      range: 0,
+      defval: null
+    });
+    return headerRow.map(h => h?.toString().trim().toLowerCase() || '');
+  }
+
+  async function leerDatosFiltrados(file, colKeys) {
+    const buffer = await file.arrayBuffer();
+    const wb     = XLSX.read(buffer, { type: 'array' });
+    const sheet  = wb.Sheets[wb.SheetNames[0]];
+    const allRows = XLSX.utils.sheet_to_json(sheet, {
+      header: colKeys,
+      range: 1,
+      defval: null,
+      raw: true
+    });
+    return allRows.map(row => {
+      const obj = {};
+      colKeys.forEach(k => {
+        if (row[k] !== undefined && row[k] !== null) obj[k] = row[k];
+      });
+      return obj;
+    });
   }
 
   form.addEventListener('submit', async function(e) {
@@ -214,7 +235,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const dia     = selectDia.value;
     let errores   = [];
 
-    // Validación inicial
     if (!filePed || !fileRut) {
       errores.push('Debe seleccionar ambos archivos (pedidos y rutas).');
     } else {
@@ -232,27 +252,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     try {
-      // Leer archivos
-      const [rawPed, rawRut] = await Promise.all([
-        leerExcel(filePed),
-        leerExcel(fileRut)
-      ]);
+      const encPedOrig = await leerEncabezados(filePed);
+      const encRutOrig = await leerEncabezados(fileRut);
 
-      // Extraer encabezados originales
-      const encPed = rawPed.length ? Object.keys(rawPed[0]) : [];
-      const encRut = rawRut.length ? Object.keys(rawRut[0]) : [];
+      const normPed = encPedOrig.map(h => PED_COL_MAP[h] || h);
+      const normRut = encRutOrig.map(h => RUT_COL_MAP[h] || h);
 
-      // Normalizar encabezados
-      const normPed = encPed.map(h => {
-        const clave = h.toString().trim().toLowerCase();
-        return PED_COL_MAP[clave] || clave;
-      });
-      const normRut = encRut.map(h => {
-        const clave = h.toString().trim().toLowerCase();
-        return RUT_COL_MAP[clave] || clave;
-      });
-
-      // Validar faltantes y duplicados
       errores = [];
       PED_HEADERS.forEach(r => {
         if (!normPed.includes(r)) errores.push(`Falta columna obligatoria en pedidos: "${r}"`);
@@ -270,23 +275,8 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
       }
 
-      // Mapear datos a objetos canónicos
-      const datosPed = rawPed.map(row => {
-        const o = {};
-        encPed.forEach((orig,i) => {
-          const n = normPed[i];
-          if (PED_HEADERS.includes(n)) o[n] = row[orig];
-        });
-        return o;
-      });
-      const datosRut = rawRut.map(row => {
-        const o = {};
-        encRut.forEach((orig,i) => {
-          const n = normRut[i];
-          if (RUT_HEADERS.includes(n)) o[n] = row[orig];
-        });
-        return o;
-      });
+      const datosPed = await leerDatosFiltrados(filePed, PED_HEADERS);
+      const datosRut = await leerDatosFiltrados(fileRut, RUT_HEADERS);
 
       // Forward/backward fill por cliente en pedidos
       const grupos = {};
@@ -318,7 +308,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!f.tipo_pro) f.tipo_pro = 'N';
       });
 
-      // Enviar DOS JSON (pedidos, rutas) y el día
       const payload = { pedidos: datosPed, rutas: datosRut };
       const res = await fetch(`/cargar-pedidos?dia=${encodeURIComponent(dia)}`, {
         method: 'POST',
@@ -344,6 +333,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endblock %}
+
 
 
 
