@@ -126,8 +126,7 @@
       flash.appendChild(div);
     }
 
-    async function loadWorkbooks() {
-      if (!fPed.files[0] || !fRut.files[0]) return;
+    async function loadWorkbooks() {      
       const bufPed = await fPed.files[0].arrayBuffer();
       const bufRut = await fRut.files[0].arrayBuffer();
       wbPed = XLSX.read(bufPed, { type:'array' });
@@ -144,8 +143,8 @@
       const rawRut = XLSX.utils.sheet_to_json(wbRut.Sheets[wbRut.SheetNames[0]], { header:1, sheetRows:1, defval:'' })[0]
         .map(h => String(h).trim().toLowerCase());
 
-      let normPed = rawPed.map(h => PED_COL_MAP[h] || h).filter(hdr => hdr !== '');
-      let normRut = rawRut.map(h => RUT_COL_MAP[h] || h).filter(hdr => hdr !== '');
+      let normPed = rawPed.map(h => PED_COL_MAP[h] || h);
+      let normRut = rawRut.map(h => RUT_COL_MAP[h] || h);
       if (!normPed.includes('tipo_pro')) normPed.push('tipo_pro');
       
 
