@@ -146,6 +146,19 @@
       let normPed = rawPed.map(h => PED_COL_MAP[h] || h);
       let normRut = rawRut.map(h => RUT_COL_MAP[h] || h);
       if (!normPed.includes('tipo_pro')) normPed.push('tipo_pro');
+
+      // 2) elimina TODOS los encabezados vacíos
+  normPed = normPed.filter(hdr => hdr !== '');
+
+  // 3) ahora elimina duplicados de 'valor' o de cualquier otro header si quieres
+  // (opcional, si aún tienes varios 'valor' mapeados)
+  const header = 'valor';
+  while (true) {
+    const firstIdx = normPed.indexOf(header);
+    const lastIdx  = normPed.lastIndexOf(header);
+    if (firstIdx === -1 || firstIdx === lastIdx) break;
+    normPed.splice(firstIdx, 1);
+  }
       
 
       
