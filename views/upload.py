@@ -64,7 +64,8 @@ def upload_index():
 
         except Exception as e:
             # Devuelve JSON para que el front lo capture
-            return jsonify(error=str(e)), 400
+            error_msg = getattr(e, 'diag', None).message_primary if getattr(e, 'diag', None) else str(e)
+            return jsonify(error=error_msg), 400
 
     # GET: muestra formulario
     return render_template("upload.html")
