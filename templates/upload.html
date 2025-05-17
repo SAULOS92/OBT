@@ -76,7 +76,7 @@
         </select>
       </div>
       <button id="submit-btn" type="submit"
-              class="w-full py-3 font-semibold rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition"
+              class="w-full py-3 font-semibold rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
               disabled>
         Cargar Masivo
       </button>
@@ -112,7 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
     'ruta':'codigo_ruta','descripción ruta':'codigo_ruta'
   };
 
-  let bufferPed, bufferRut;
+  let wbPed, wbRut;
 
   function showMsg(type, msgs) {
     flash.innerHTML = '';
@@ -123,61 +123,41 @@ document.addEventListener('DOMContentLoaded', () => {
       const ul = document.createElement('ul');
       msgs.forEach(m => { const li = document.createElement('li'); li.textContent = m; ul.appendChild(li); });
       div.appendChild(ul);
-    } else {
-      div.textContent = msgs;
-    }
+    } else div.textContent = msgs;
     flash.appendChild(div);
   }
 
-  // lee ArrayBuffer una sola vez
-  async function readBuffer(file) {
-    return file.arrayBuffer();
+  async function loadWorkbooks() {
+    const bufPed = await fPed.files[0].arrayBuffer();
+    const bufRut = await fRut.files[0].arrayBuffer();
+    wbPed = XLSX.read(bufPed, { type:'array' });
+    wbRut = XLSX.read(bufRut, { type:'array' });
   }
 
-  // lee solo primera fila para validar
-  async function readHeaders(buffer) {
-    const wb = XLSX.read(buffer, { type:'array', sheetRows:1 });
-    const sh = wb.Sheets[wb.SheetNames[0]];
-    const [row] = XLSX.utils.sheet_to_json(sh, { header:1, defval:null });
-    return row.map(h => h?.toString().trim().toLowerCase() || '');
-  }
-
-  // valida reactivo faltantes y duplicados
-  function validateHeaders(raw, map, expected) {
-    const norm = [], dup = [], falt = [];
-    raw.forEach(h => {
-      const k = map[h] || h;
-      if (norm.includes(k)) dup.push(k);
-      norm.push(k);
-    });
-    expected.forEach(e => { if (!norm.includes(e)) falt.push(e); });
-    return { norm, dup:[...new Set(dup)], falt };
-  }
-
-  // validación reactiva al cambiar archivo
   async function reactiveValidate() {
     flash.innerHTML = '';
     btn.disabled = true;
     if (!fPed.files[0] || !fRut.files[0]) return;
 
-    bufferPed = await readBuffer(fPed.files[0]);
-    bufferRut = await readBuffer(fRut.files[0]);
+    const bufPed = await fPed.files[0].arrayBuffer();
+    const bufRut = await fRut.files[0].arrayBuffer();
+    const rawPed = XLSX.utils.sheet_to_json(wbPed.Sheets[wbPed.SheetNames[0]], { header:1, sheetRows:1, defval:'' })[0]
+      .map(h=>h.toString().trim().toLowerCase());
+    const rawRut = XLSX.utils.sheet_to_json(wbRut.Sheets[wbRut.SheetNames[0]], { header:1, sheetRows:1, defval:'' })[0]
+      .map(h=>h.toString().trim().toLowerCase());
 
-    const rawPed = await readHeaders(bufferPed);
-    const rawRut = await readHeaders(bufferRut);
+    let normPed = rawPed.map(h => PED_COL_MAP[h] || h);
+    let normRut = rawRut.map(h => RUT_COL_MAP[h] || h);
+    if (!normPed.includes('tipo_pro')) normPed.push('tipo_pro');
 
-    // Normalize headers
-  let normPed = rawPed.map(h => PED_COL_MAP[h] || h);
-  let normRut = rawRut.map(h => RUT_COL_MAP[h] || h);
-
-  // **1. Inyectar 'tipo_pro' si falta**
-  if (!normPed.includes('tipo_pro')) {
-    normPed.push('tipo_pro');
-  }
-
-  // Validación de duplicados y faltantes
-  const vPed = validateHeaders(normPed, (h=>h), PED_HEADERS);
-const vRut = validateHeaders(normRut, (h=>h), RUT_HEADERS);
+    function check(norm, expected) {
+      const seen = new Set(), dup = [], falt = [];
+      norm.forEach(h=>{ if(seen.has(h)) dup.push(h); seen.add(h); });
+      expected.forEach(e=>{ if(!seen.has(e)) falt.push(e); });
+      return { dup:[...new Set(dup)], falt };
+    }
+    const vPed = check(normPed, PED_HEADERS);
+    const vRut = check(normRut, RUT_HEADERS);
 
     const errors = [];
     if (vPed.dup.length) errors.push('Duplicadas en pedidos: ' + vPed.dup.join(', '));
@@ -186,13 +166,12 @@ const vRut = validateHeaders(normRut, (h=>h), RUT_HEADERS);
     if (vRut.falt.length) errors.push('Faltan en rutas: ' + vRut.falt.join(', '));
 
     if (errors.length) showMsg('error', errors);
-    else { showMsg('success','Encabezados válidos'); btn.disabled = false; }
+    else { showMsg('success','Listo para cargar'); btn.disabled = false; }
   }
 
-  fPed.addEventListener('change', reactiveValidate);
-  fRut.addEventListener('change', reactiveValidate);
+  fPed.addEventListener('change', async ()=>{ await loadWorkbooks(); reactiveValidate(); });
+  fRut.addEventListener('change', async ()=>{ await loadWorkbooks(); reactiveValidate(); });
 
-  // al enviar, procesa todo con forward/back fill y default tipo_pro
   form.addEventListener('submit', async e => {
     e.preventDefault();
     flash.innerHTML = '';
@@ -200,92 +179,53 @@ const vRut = validateHeaders(normRut, (h=>h), RUT_HEADERS);
     btn.disabled = true;
 
     const dia = selDia.value;
-    const errs = [];
-    if (!DIAS_VALIDOS.includes(dia)) errs.push('Día inválido.');
-    if (errs.length) {
-      showMsg('error', errs);
-      overlay.classList.add('hidden');
-      btn.disabled = false;
-      return;
+    if (!DIAS_VALIDOS.includes(dia)) {
+      showMsg('error',['Día inválido.']);
+      overlay.classList.add('hidden'); btn.disabled=false; return;
     }
 
     try {
-      // pedidos: parsea todo, agrega tipo_pro=N si faltó, luego forward/back fill
-      const datosPed = await (async () => {
-        const wb = XLSX.read(bufferPed, { type:'array' });
-        const sh = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(sh, { header:1, defval:null });
-        const raw = rows[0].map(h=>h?.toString().trim().toLowerCase()||'');
-        const norm = raw.map(h=>PED_COL_MAP[h]||h);
-        if (!norm.includes('tipo_pro')) norm.push('tipo_pro');
-        const data = rows.slice(1).map(vals => {
-          const o = {};
-          norm.forEach((hdr,i) => {
-            if (PED_HEADERS.includes(hdr)) {
-              o[hdr] = (hdr==='tipo_pro' && raw.indexOf('tipo_pro')<0) ? 'N' : vals[i];
-            }
-          });
-          return o;
+      // preparar pedidos
+      const sheetPed = wbPed.Sheets[wbPed.SheetNames[0]];
+      const rowsPed = XLSX.utils.sheet_to_json(sheetPed, { header:1, defval:null });
+      const rawHead = rowsPed[0].map(h=>h.toString().trim().toLowerCase());
+      const normHead = rawHead.map(h=>PED_COL_MAP[h]||h);
+      if (!normHead.includes('tipo_pro')) normHead.push('tipo_pro');
+      let data = rowsPed.slice(1).map(vals=>{
+        const o={}; normHead.forEach((hdr,i)=>{
+          if (PED_HEADERS.includes(hdr)) {
+            o[hdr] = (hdr==='tipo_pro'&& rawHead.indexOf('tipo_pro')<0)? 'N' : vals[i];
+          }
         });
-        // forward/back fill por cliente
-        const grupos = {};
-        data.forEach((r,i) => (grupos[r.cliente]=grupos[r.cliente]||[]).push({i,r}));
-        Object.values(grupos).forEach(arr => {
-          arr.sort((a,b)=>a.i-b.i);
-          let nom,bar,ciu;
-          arr.forEach(x=>{const f=x.r; if(f.nombre) nom=f.nombre; else f.nombre=nom; if(f.barrio) bar=f.barrio; else f.barrio=bar; if(f.ciudad) ciu=f.ciudad; else f.ciudad=ciu;});
-          let nom2,bar2,ciu2;
-          arr.slice().reverse().forEach(x=>{const f=x.r; if(f.nombre) nom2=f.nombre; else f.nombre=nom2; if(f.barrio) bar2=f.barrio; else f.barrio=bar2; if(f.ciudad) ciu2=f.ciudad; else f.ciudad=ciu2;});
-        });
-        return data;
-      })();
-
-      // rutas: parsea todo
-      const datosRut = await (async() => {
-        const wb = XLSX.read(bufferRut, { type:'array' });
-        const sh = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(sh, { header:1, defval:null });
-        const raw = rows[0].map(h=>h?.toString().trim().toLowerCase()||'');
-        const norm = raw.map(h=>RUT_COL_MAP[h]||h);
-        return rows.slice(1).map(vals => {
-          const o = {};
-          norm.forEach((hdr,i)=>{ if(RUT_HEADERS.includes(hdr)) o[hdr]=vals[i]; });
-          return o;
-        });
-      })();
-
-      const res = await fetch(`/cargar-pedidos?dia=${encodeURIComponent(dia)}`, {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({ pedidos:datosPed, rutas:datosRut })
+        return o;
       });
-      if (!res.ok) {
-        const err = await res.json().catch(()=>({error:`Error ${res.status}`}));
-        throw new Error(err.error);
-      }
+      // fill
+      const grupos={}; data.forEach((r,i)=>(grupos[r.cliente]=grupos[r.cliente]||[]).push({i,r}));
+      Object.values(grupos).forEach(arr=>{ arr.sort((a,b)=>a.i-b.i); let nom,bar,ciu; arr.forEach(x=>{const f=x.r; if(f.nombre)nom=f.nombre;else f.nombre=nom; if(f.barrio)bar=f.barrio;else f.barrio=bar; if(f.ciudad)ciu=f.ciudad;else f.ciudad=ciu;}); let nn,bb,cc; arr.slice().reverse().forEach(x=>{const f=x.r; if(f.nombre)nn=f.nombre;else f.nombre=nn; if(f.barrio)bb=f.barrio;else f.barrio=bb; if(f.ciudad)cc=f.ciudad;else f.ciudad=cc;}); });
+      // filtro estado
+      data = data.filter(r=>['Sin Descargar','Sin facturar'].includes(r.estado));
 
-      const blob = await res.blob();
-      const cd   = res.headers.get('Content-Disposition');
-      const fn   = cd?.match(/filename="(.+)"/)?.[1] || `Resumen_${Date.now()}.xlsx`;
-      const a    = document.createElement('a');
-      a.href     = URL.createObjectURL(blob);
-      a.download = fn;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      // preparar rutas
+      const sheetRut = wbRut.Sheets[wbRut.SheetNames[0]];
+      const rowsRut = XLSX.utils.sheet_to_json(sheetRut, { header:1, defval:null });
+      const rawHeadR = rowsRut[0].map(h=>h.toString().trim().toLowerCase());
+      const normHeadR = rawHeadR.map(h=>RUT_COL_MAP[h]||h);
+      let dataR = rowsRut.slice(1).map(vals=>{ const o={}; normHeadR.forEach((hdr,i)=>{ if(RUT_HEADERS.includes(hdr)) o[hdr]=vals[i]; }); return o; });
+      // filtro ruta contiene dia
+      dataR = dataR.filter(r=> r.codigo_ruta && r.codigo_ruta.includes(dia));
 
-      showMsg('success','Descarga iniciada.');
-      form.reset();
-    } catch (err) {
-      showMsg('error', err.message);
-    } finally {
-      overlay.classList.add('hidden');
-      btn.disabled = false;
-    }
+      const res = await fetch(`/cargar-pedidos?dia=${encodeURIComponent(dia)}`,{
+        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({pedidos:data,rutas:dataR})
+      });
+      if(!res.ok){ const err=await res.json().catch(()=>({error:`Error ${res.status}`})); throw new Error(err.error);}      
+      const blob=await res.blob(); const cd=res.headers.get('Content-Disposition'); const fn=cd?.match(/filename="(.+)"/)?.[1]||`Resumen_${Date.now()}.xlsx`; const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fn; document.body.appendChild(a); a.click(); a.remove(); showMsg('success','Descarga iniciada.'); form.reset();
+    }catch(err){ showMsg('error',err.message); }
+    finally{ overlay.classList.add('hidden'); btn.disabled=false; }
   });
 });
 </script>
 {% endblock %}
+
 
 
 
