@@ -242,9 +242,10 @@
         dataR = dataR.filter(r => r.codigo_ruta && r.codigo_ruta.includes(dia));
 
         /* ------ Enviar al backend y descargar resumen ------ */
+        const gz = pako.gzip(JSON.stringify({ pedidos:data, rutas:dataR }));
         const res = await fetch(`/cargar-pedidos?dia=${encodeURIComponent(dia)}`, {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({ pedidos:data, rutas:dataR })
+          method:'POST', headers:{"Content-Encoding":"gzip","Content-Type":"application/json"},
+          body:gz
         });
         if (!res.ok) { const err = await res.json().catch(() => ({error:`Error ${res.status}`})); throw new Error(err.error); }
         const blob = await res.blob();
