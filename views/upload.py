@@ -1,4 +1,4 @@
-import json
+import gzip, json
 from datetime import datetime
 from io import BytesIO
 import pandas as pd
@@ -11,6 +11,16 @@ from views.auth import login_required
 
 upload_bp = Blueprint("upload", __name__, template_folder="../templates")
 
+import gzip, json
+from flask import request
+
+def _get_json_gzip_aware():
+    raw = request.get_data()             # bytes del cuerpo
+    if request.headers.get('Content-Encoding') == 'gzip':
+        raw = gzip.decompress(raw)       # ← descomprime
+    return json.loads(raw or '{}')       # dict
+
+
 @upload_bp.route("/", methods=["GET","POST"])
 @upload_bp.route("/cargar-pedidos", methods=["GET","POST"])
 @login_required
@@ -19,13 +29,14 @@ def upload_index():
 
     if request.method == "POST":
         try:
-            # Recibe JSON preparado en el frontend: pedidos y rutas
-            data = request.get_json(force=True)
-            pedidos = data["pedidos"]
-            rutas = data["rutas"]
-            p_dia = request.args.get("dia", "").strip()
+            # ---- 1) JSON proveniente del frontend --------------------
+            payload  = _get_json_gzip_aware()
+            pedidos = payload.get("inventario", [])
+            rutas = payload.get("materiales")
+            p_dia = payload.args.get("dia", "").strip()          
+            
 
-            # Llamada al stored procedure
+             # ---- 2) Procedimiento almacenado -------------------------
             conn = conectar()
             cur = conn.cursor()
             cur.execute(
@@ -36,7 +47,7 @@ def upload_index():
             cur.close()
             conn.close()
 
-            # Obtener resumen y devolver Excel
+            # ---- 3) Obtener resumen en JSON --------------------------
             conn2 = conectar()
             cur2 = conn2.cursor()
             cur2.execute("SELECT fn_obtener_resumen_pedidos(%s);", (empresa,))
@@ -48,6 +59,7 @@ def upload_index():
             cols = ["bd","codigo_cli","nombre","barrio","ciudad","asesor","total_pedidos","valor","ruta"]
             df_res = pd.DataFrame(data_res, columns=cols)
 
+            # ---- 4) Exportar a Excel 
             buf = BytesIO()
             with pd.ExcelWriter(buf, engine="openpyxl") as writer:
                 df_res.to_excel(writer, sheet_name="ResumenPedidos", index=False)

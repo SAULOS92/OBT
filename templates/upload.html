@@ -87,6 +87,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <script>
+  /* ---------------- Referencias DOM ---------------- */
   document.addEventListener('DOMContentLoaded', () => {
     const fPed    = document.getElementById('file-pedidos');
     const fRut    = document.getElementById('file-rutas');
@@ -95,11 +96,12 @@
     const overlay = document.getElementById('loading-overlay');
     const flash   = document.getElementById('flash-messages');
     const form    = document.getElementById('upload-form');
-
+  /* --------------- Definición de columnas ----------- */
     const PED_HEADERS = ["numero_pedido","cliente","nombre","barrio","ciudad","asesor","codigo_pro","producto","cantidad","valor","tipo_pro","estado"];
     const RUT_HEADERS = ["codigo_cliente","codigo_ruta"];
     const DIAS_VALIDOS = ["LU","MA","MI","JU","VI","SA","DO"];
 
+     /* mapas sinónimos → canónico */
     const PED_COL_MAP = {
       'pedido':'numero_pedido','cliente':'cliente','código cliente':'cliente',
       'r. social':'nombre','razón social':'nombre','barrio':'barrio','ciudad':'ciudad',
@@ -113,8 +115,9 @@
       'ruta':'codigo_ruta','descripción ruta':'codigo_ruta'
     };
 
-    let wbPed, wbRut;
-
+    let wbPed, wbRut;// Workbooks en RAM
+    
+    /* --------------- Helpers UI ---------------------- */
     function showMsg(type, msgs) {
       flash.innerHTML = '';
       const div = document.createElement('div');
@@ -126,28 +129,28 @@
       } else div.textContent = msgs;
       flash.appendChild(div);
     }
-    // Dentro de <script> y antes de loadWorkbooks()
-function sanitizeName(input) {
-  if (input == null) return '';
-  // 🔴 Elimina TODOS los controles 0x00-0x1F y 0x7F
-  let text = String(input).replace(/[\x00-\x1F\x7F]/g, '').trim();
-  try { text = decodeURIComponent(escape(text)); } catch {}
-  return text.normalize('NFC');
-}
 
 
-    async function loadWorkbooks() {      
-      if (fPed.files[0]) {
-    const bufPed = await fPed.files[0].arrayBuffer();
-    wbPed = XLSX.read(bufPed, { type: 'array' });
-  }
-  // lee Rutas si existe
-  if (fRut.files[0]) {
-    const bufRut = await fRut.files[0].arrayBuffer();
-    wbRut = XLSX.read(bufRut, { type: 'array' });
-  }
+    /* Sanitize names (quita caracteres de control) */
+   function sanitizeName(input) {
+      if (input == null) return '';  
+      let text = String(input).replace(/[\x00-\x1F\x7F]/g, '').trim();
+      try { text = decodeURIComponent(escape(text)); } catch {}
+      return text.normalize('NFC');
     }
 
+    /* ------------ Leer archivos a memory ------------- */
+    async function loadWorkbooks() {      
+      if (fPed.files[0]) {
+        const bufPed = await fPed.files[0].arrayBuffer();
+        wbPed = XLSX.read(bufPed, { type: 'array' });
+      }  
+      if (fRut.files[0]) {
+        const bufRut = await fRut.files[0].arrayBuffer();
+        wbRut = XLSX.read(bufRut, { type: 'array' });
+      }
+    }
+    /* ---------- Validación reactiva lightweight ------ */
     async function reactiveValidate() {
       flash.innerHTML = '';
       btn.disabled = true;
@@ -161,22 +164,15 @@ function sanitizeName(input) {
       let normPed = rawPed.map(h => PED_COL_MAP[h] || h);
       let normRut = rawRut.map(h => RUT_COL_MAP[h] || h);
       if (!normPed.includes('tipo_pro')) normPed.push('tipo_pro');
-
-      // 2) elimina TODOS los encabezados vacíos
-  normPed = normPed.filter(hdr => hdr !== '');
-
-  // 3) ahora elimina duplicados de 'valor' o de cualquier otro header si quieres
-  // (opcional, si aún tienes varios 'valor' mapeados)
-  const header = 'valor';
-  while (true) {
-    const firstIdx = normPed.indexOf(header);
-    const lastIdx  = normPed.lastIndexOf(header);
-    if (firstIdx === -1 || firstIdx === lastIdx) break;
-    normPed.splice(firstIdx, 1);
-  }
       
-
-      
+      normPed = normPed.filter(hdr => hdr !== '');  
+      const header = 'valor';
+      while (true) {
+        const firstIdx = normPed.indexOf(header);
+        const lastIdx  = normPed.lastIndexOf(header);
+      if (firstIdx === -1 || firstIdx === lastIdx) break;
+        normPed.splice(firstIdx, 1);
+      }      
 
       function check(rawNorm, expected) {
         const seen = new Set(), dup = [], falt = [];
@@ -204,11 +200,11 @@ function sanitizeName(input) {
     form.addEventListener('submit', async e => {
       e.preventDefault(); flash.innerHTML = ''; overlay.classList.remove('hidden'); btn.disabled = true;
 
-      const dia = selDia.value;
+    const dia = selDia.value;
       if (!DIAS_VALIDOS.includes(dia)) {
         showMsg('error',['Día inválido.']); overlay.classList.add('hidden'); btn.disabled=false; return;
       }
-
+      /* ------ Pedidos completo ------ */
       try {
         const sheetPed = wbPed.Sheets[wbPed.SheetNames[0]];
         const rowsPed = XLSX.utils.sheet_to_json(sheetPed, { header:1, defval:null });
@@ -223,7 +219,7 @@ function sanitizeName(input) {
             });
           return o;
         });
-
+         /* Relleno hacia ↑ y ↓ para nombre/barrio/ciudad */
         if (data.some(r => !r.nombre)) {
           const grupos = {};
           data.forEach((r,i) => (grupos[r.cliente] = grupos[r.cliente] || []).push({ i,r }));
@@ -237,7 +233,7 @@ function sanitizeName(input) {
         }
         data.forEach(r => { r.nombre = sanitizeName(r.nombre); });
         data = data.filter(r => ['Sin Descargar','Sin facturar'].includes(r.estado));
-
+        /* ------ Rutas completo ------ */
         const sheetRut = wbRut.Sheets[wbRut.SheetNames[0]];
         const rowsRut = XLSX.utils.sheet_to_json(sheetRut, { header:1, defval:null });
         const rawHeadR = rowsRut[0].map(h => h.toString().trim().toLowerCase());
@@ -245,6 +241,7 @@ function sanitizeName(input) {
         let dataR = rowsRut.slice(1).map(vals => { const o={}; normHeadR.forEach((hdr,i) => { if (RUT_HEADERS.includes(hdr)) o[hdr]=vals[i]; }); return o; });
         dataR = dataR.filter(r => r.codigo_ruta && r.codigo_ruta.includes(dia));
 
+        /* ------ Enviar al backend y descargar resumen ------ */
         const res = await fetch(`/cargar-pedidos?dia=${encodeURIComponent(dia)}`, {
           method:'POST', headers:{'Content-Type':'application/json'},
           body:JSON.stringify({ pedidos:data, rutas:dataR })

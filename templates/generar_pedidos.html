@@ -105,8 +105,15 @@
 
 {# --------------------------- Lógica cliente JS --------------------------- #}
 <script>
+/*  RESUMEN:
+    1. Al seleccionar archivos → validate():    lee la cabecera, verifica duplicados, faltantes.
+    2. Al hacer submit →     extrae datos completos, normaliza columnas/numéricos y envia POST.
+    3. Mientras el fetch está activo → overlay visible + botón deshabilitado.
+    4. Si el backend responde 200: descarga automática del ZIP.
+*/
 document.addEventListener('DOMContentLoaded', () => {
-  /* ─────────────── Referencias DOM ─────────────── */
+
+  /* ------------------------- DOM refs ------------------------- */
   const form    = document.getElementById('gen-form');
   const overlay = document.getElementById('loading-overlay');
   const flash   = document.getElementById('flash-messages');
@@ -114,19 +121,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const fInv    = document.querySelector('input[name="inventario"]');
   const btn     = form.querySelector('button[type="submit"]');
 
-  /* ───────────── Constantes de encabezados ───────────── */
-  const GEN_HEADERS = { materiales:["pro_codigo","particion","pq_x_caja"], inventario:["codigo","stock"] };
-  const GEN_COL_MATERIALES = {
-    pro_codigo:["Codigo SAP","Código"],
-    particion:["Particion","Partición"],
-    pq_x_caja:["Unidades x caja","Unidad por Caja"]
+  /* --------------- Definición de columnas --------------------- */
+  const GEN_HEADERS = {
+    materiales: ["pro_codigo","particion","pq_x_caja"],
+    inventario:["codigo","stock"]
   };
-  const GEN_COL_INVENTARIO = {
-    codigo:["Codigo articulo","Cod Producto"],
-    stock:["Unidades","Unidades Disponibles"]
-  };
+  /* mapa sinónimos → nombre canónico */
+  const GEN_COL_MATERIALES = { pro_codigo:["Codigo SAP","Código"],
+                               particion:["Particion","Partición"],
+                               pq_x_caja:["Unidades x caja","Unidad por Caja"] };
+  const GEN_COL_INVENTARIO = { codigo:["Codigo articulo","Cod Producto"],
+                               stock:["Unidades","Unidades Disponibles"] };
 
-  /* ───────── Mapas sinónimo → canónico ───────── */
+  /* --------------- Crear mapas inversos ----------------------- */
   const MAT_COL_MAP = Object.fromEntries(
     Object.entries(GEN_COL_MATERIALES).flatMap(([c,s]) => s.map(v=>[v.toLowerCase(),c]))
   );
@@ -134,76 +141,77 @@ document.addEventListener('DOMContentLoaded', () => {
     Object.entries(GEN_COL_INVENTARIO).flatMap(([c,s]) => s.map(v=>[v.toLowerCase(),c]))
   );
 
-  /* ───────── Workbooks ───────── */
+  /* workbooks en RAM */
   let wbMat, wbInv;
 
-  /* ───────── UI helper ───────── */
-  function showMsg(type,msgs){
-    flash.innerHTML='';
-    const div=document.createElement('div');
-    div.className=`px-4 py-2 rounded-lg ${type==='success'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}`;
-    if(Array.isArray(msgs)){
-      const ul=document.createElement('ul');
-      msgs.forEach(m=>{const li=document.createElement('li');li.textContent=m;ul.appendChild(li);});
-      div.appendChild(ul);
-    }else div.textContent=msgs;
-    flash.appendChild(div);
+  /* --------------- Helpers UI ------------------------------- */
+  function showMsg(type,msg){
+    flash.innerHTML = `<div class="px-4 py-2 rounded-lg
+        ${type==='success'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}">
+        ${Array.isArray(msg)?'<ul>'+msg.map(m=>`<li>${m}</li>`).join('')+'</ul>':msg}
+      </div>`;
   }
 
-  /* ───────── Elimina columna 'Estado' ───────── */
+  /* --------------- Elimina la columna 'Estado' --------------- */
   function stripEstado(ws){
-    const data=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-    if(!data.length) return;
-    const idx=data[0].findIndex(h=>String(h).trim().toLowerCase()==='estado');
-    if(idx===-1) return;
-    const clean=data.map(r=>r.filter((_,i)=>i!==idx));
-    const newWs=XLSX.utils.aoa_to_sheet(clean);
-    Object.keys(ws).forEach(k=>k[0]!=='!' && delete ws[k]);
-    Object.assign(ws,newWs);
+    const data = XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+    const idx  = data[0]?.findIndex(h=>String(h).trim().toLowerCase()==='estado');
+    if(idx>-1){
+      const clean = data.map(r=>r.filter((_,i)=>i!==idx));
+      const newWs = XLSX.utils.aoa_to_sheet(clean);
+      Object.keys(ws).forEach(k=>k[0]!=='!' && delete ws[k]);
+      Object.assign(ws,newWs);
+    }
   }
 
-  /* ───────── Carga archivos a memoria ───────── */
+  /* --------------- Carga archivos a memoria ------------------ */
   async function loadWorkbooks(){
     if(fMat && fMat.files[0]){
       wbMat = XLSX.read(await fMat.files[0].arrayBuffer(),{type:'array'});
       stripEstado(wbMat.Sheets[wbMat.SheetNames[0]]);
     }
-    if(fInv && fInv.files[0]){
+    if(fInv.files[0]){
       wbInv = XLSX.read(await fInv.files[0].arrayBuffer(),{type:'array'});
       stripEstado(wbInv.Sheets[wbInv.SheetNames[0]]);
     }
   }
 
-  /* ───────── Normaliza encabezados a canónicos ───────── */
+  /* normaliza encabezados */
   const normalize = (arr,map)=>
     arr.map(h=>map[String(h).trim().toLowerCase()]||String(h).trim().toLowerCase()).filter(Boolean);
 
-  /* ───────── ''→1→int para particion / pq_x_caja ───────── */
+  /* coloca 1 si viene vacío y convierte a int */
   function normalizeNumericosFilas(rows){
     rows.forEach(r=>['particion','pq_x_caja'].forEach(c=>{
-      if(c in r){let v=String(r[c]).trim();if(v==='')v='1';r[c]=parseInt(parseFloat(v),10);}
+      let v=String(r[c]??'').trim(); if(v==='') v='1';
+      r[c] = parseInt(parseFloat(v),10);
     }));
   }
 
-  /* ───────── Validación reactiva ───────── */
+  /* --------------- Validación reactiva ----------------------- */
   async function validate(){
     flash.innerHTML=''; btn.disabled=true;
-    if(!fInv.files.length) return;
+    if(!fInv.files.length) return;      // siempre se requiere inventario
     await loadWorkbooks();
 
-    const rawInv = XLSX.utils.sheet_to_json(wbInv.Sheets[wbInv.SheetNames[0]],{header:1,sheetRows:1,defval:''})[0]||[];
+    /* solo cabeceras (1 fila) para validar rápido */
+    const rawInv  = XLSX.utils.sheet_to_json(
+                      wbInv.Sheets[wbInv.SheetNames[0]],
+                      {header:1,sheetRows:1,defval:''}
+                    )[0] || [];
     const normInv = normalize(rawInv,INV_COL_MAP);
 
-    let normMat=[];
+    let vMat = {dup:[],falt:[]};
     if(wbMat){
-      const rawMat=XLSX.utils.sheet_to_json(wbMat.Sheets[wbMat.SheetNames[0]],{header:1,sheetRows:1,defval:''})[0]||[];
-      normMat = normalize(rawMat,MAT_COL_MAP);
+      const rawMat  = XLSX.utils.sheet_to_json(
+                        wbMat.Sheets[wbMat.SheetNames[0]],
+                        {header:1,sheetRows:1,defval:''}
+                      )[0] || [];
+      const normMat = normalize(rawMat,MAT_COL_MAP);
+      vMat = check(normMat,GEN_HEADERS.materiales);
     }
 
-    const check=(act,exp)=>{const seen=new Set(),dup=[],falt=[];act.forEach(h=>{if(seen.has(h))dup.push(h);seen.add(h);});exp.forEach(e=>!seen.has(e)&&falt.push(e));return{dup:[...new Set(dup)],falt};};
-
-    const vInv=check(normInv,GEN_HEADERS.inventario);
-    const vMat=wbMat?check(normMat,GEN_HEADERS.materiales):{dup:[],falt:[]};
+    const vInv = check(normInv,GEN_HEADERS.inventario);
 
     const errs=[];
     if(vMat.dup.length) errs.push('Duplicadas en materiales: '+vMat.dup.join(', '));
@@ -212,65 +220,61 @@ document.addEventListener('DOMContentLoaded', () => {
     if(vInv.falt.length) errs.push('Faltan en inventario: '+vInv.falt.join(', '));
 
     if(errs.length) showMsg('error',errs);
-    else {showMsg('success','Listo para cargar');btn.disabled=false;}
+    else { showMsg('success','Listo para cargar'); btn.disabled=false; }
   }
+  const check=(act,exp)=>{
+    const seen=new Set(),dup=[],falt=[];
+    act.forEach(h=>{if(seen.has(h)) dup.push(h); seen.add(h);});
+    exp.forEach(e=>!seen.has(e)&&falt.push(e));
+    return {dup:[...new Set(dup)],falt};
+  };
 
   if(fMat) fMat.addEventListener('change',validate);
   fInv.addEventListener('change',validate);
 
-  /* ───────── Helpers para envío ───────── */
-
-  function extractCanonicalRows(rows,map,needed){
-    return rows.map(r=>{
-      const obj={};
-      Object.keys(r).forEach(k=>{
-        const canon=map[k.trim().toLowerCase()];
-        if(canon && needed.includes(canon)) obj[canon]=r[k];
-      });
-      return obj;
-    });
-  }
-
-  function getVlrKey(row){
-    return Object.keys(row).find(k=>k.trim().toLowerCase()==='vlr compra con iva');
-  }
-
-  /* ───────── Submit (fetch + descarga) ───────── */
-  form.addEventListener('submit',async e=>{
+  /* --------------- Extracción y envío ------------------------ */
+  form.addEventListener('submit', async e=>{
     e.preventDefault();
     overlay.classList.remove('hidden'); btn.disabled=true; flash.innerHTML='';
-
     await loadWorkbooks();
-    if(!wbInv){showMsg('error','Falta el archivo de inventario');overlay.classList.add('hidden');btn.disabled=false;return;}
 
-    /* --- Inventario --- */
+    /* Inventario completo */
     const invRows = XLSX.utils.sheet_to_json(wbInv.Sheets[wbInv.SheetNames[0]],{defval:''});
-    const vlrKey = invRows.length ? getVlrKey(invRows[0]) : undefined;
-    const filteredInv = vlrKey ? invRows.filter(r=>parseFloat(String(r[vlrKey]).replace(/[^0-9.-]/g,'')||'0')>0) : invRows;
+    const vlrKey  = Object.keys(invRows[0]||{}).find(k=>k.trim().toLowerCase()==='vlr compra con iva');
+    const filteredInv = vlrKey
+        ? invRows.filter(r=>parseFloat(String(r[vlrKey]).replace(/[^0-9.-]/g,'')||'0')>0)
+        : invRows;
     const dataInv = extractCanonicalRows(filteredInv,INV_COL_MAP,GEN_HEADERS.inventario);
 
-    /* --- Materiales (opcional) --- */
+    /* Materiales (si aplica) */
     let dataMat;
     if(wbMat){
-      const matRows=XLSX.utils.sheet_to_json(wbMat.Sheets[wbMat.SheetNames[0]],{defval:''});
+      const matRows = XLSX.utils.sheet_to_json(wbMat.Sheets[wbMat.SheetNames[0]],{defval:''});
       dataMat = extractCanonicalRows(matRows,MAT_COL_MAP,GEN_HEADERS.materiales);
       normalizeNumericosFilas(dataMat);
     }
 
-    const payload={inventario:dataInv};
+    const payload = {inventario:dataInv};
     if(dataMat) payload.materiales=dataMat;
 
+    /* --- POST y descarga ZIP --- */
     try{
-      const res=await fetch('/generar-pedidos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const res = await fetch('/generar-pedidos',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(payload)
+      });
       if(!res.ok){
-        const err=await res.json().catch(()=>({error:`Error ${res.status}`}));
+        const err = await res.json().catch(()=>({error:`Error ${res.status}`}));
         throw new Error(err.error);
       }
-      const blob=await res.blob();
-      const cd=res.headers.get('Content-Disposition');
-      const fn=cd?.match(/filename="?([^"]+)"?/)?.[1]||`Report_${Date.now()}.zip`;
-      const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fn;document.body.appendChild(a);a.click();a.remove();
-      showMsg('success','Descarga iniciada.');form.reset();
+      const blob = await res.blob();
+      const cd   = res.headers.get('Content-Disposition');
+      const fn   = cd?.match(/filename="?([^"]+)"?/)?.[1]||`Report_${Date.now()}.zip`;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = fn;
+      document.body.appendChild(a); a.click(); a.remove();
+      showMsg('success','Descarga iniciada.'); form.reset();
     }catch(err){
       showMsg('error',err.message||'Error inesperado');
     }finally{
@@ -278,7 +282,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  window.addEventListener('load',()=>overlay.classList.add('hidden'));
+  /* ------ Helpers de mapeo/filtrado ------ */
+  const extractCanonicalRows = (rows,map,needed)=>
+        rows.map(r=>{
+          const o={};
+          Object.keys(r).forEach(k=>{
+            const canon = map[k.trim().toLowerCase()];
+            if(canon && needed.includes(canon)) o[canon]=r[k];
+          });
+          return o;
+        });
+
 });
 </script>
 {% endblock %}
