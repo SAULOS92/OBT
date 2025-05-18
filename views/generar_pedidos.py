@@ -63,9 +63,11 @@ def cargar_pedidos():
 def _build_zip(empresa: int) -> BytesIO:
     conn = conectar(); cur = conn.cursor()
     cur.execute("SELECT fn_obtener_reparticion_inventario_json(%s);", (empresa,))
-    data_rep = json.loads(cur.fetchone()[0] or "[]")
+    raw_rep = cur.fetchone()[0]
+    data_rep = json.loads(raw_rep) if isinstance(raw_rep, str) else (raw_rep or [])
     cur.execute("SELECT fn_obtener_pedidos_con_pedir_json(%s);", (empresa,))
-    data_ped = json.loads(cur.fetchone()[0] or "[]")
+    raw_ped = cur.fetchone()[0]
+    data_ped = json.loads(raw_ped) if isinstance(raw_ped, str) else (raw_ped or [])
     cur.close(); conn.close()    
     
 
