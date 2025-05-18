@@ -4,167 +4,122 @@ import zipfile
 from datetime import datetime
 
 import pandas as pd
-from flask import (
-    Blueprint, render_template, request, jsonify,
-    send_file, session
-)
+from flask import Blueprint, render_template, request, jsonify, send_file, session
 from views.auth import login_required
 from db import conectar
 
-# ─────────────────────────── Configuración logging ──────────────────────────
+# ───────────── Logging ─────────────
 LOG = logging.getLogger(__name__)
-if not LOG.handlers:                             # evita duplicar handlers
+if not LOG.handlers:
     h = logging.StreamHandler()
-    h.setFormatter(logging.Formatter(
-        "[%(asctime)s] %(levelname)s in %(module)s: %(message)s"
-    ))
+    h.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s: %(message)s"))
     LOG.addHandler(h)
     LOG.setLevel(logging.INFO)
 
-# ─────────────────────────── Constantes encabezados ─────────────────────────
-GEN_HEADERS = {
-    "materiales": ["pro_codigo", "particion", "pq_x_caja"],
-    "inventario": ["codigo", "stock"],
-}
-
-generar_pedidos_bp = Blueprint(
-    "generar_pedidos", __name__, template_folder="../templates"
-)
+# ───────────── Blueprint ─────────────
+generar_pedidos_bp = Blueprint("generar_pedidos", __name__, template_folder="../templates")
 
 @generar_pedidos_bp.route("/generar-pedidos", methods=["GET"])
 @login_required
 def generar_pedidos_index():
     return render_template("generar_pedidos.html", negocio=session.get("negocio"))
 
+# ───────────── POST: recibe JSON y devuelve ZIP ─────────────
 @generar_pedidos_bp.route("/generar-pedidos", methods=["POST"])
 @login_required
 def cargar_pedidos():
-    """
-    • Valida JSON recibido
-    • Llama SP de inventario y (opc.) materiales
-    • Verifica materiales indefinidos
-    • Construye y devuelve ZIP
-    En cada tramo se añade un log .info() y, si se lanza excepción
-    controlada (ValueError), se devuelve como 400 con mensaje.
-    """
-    trace_id = uuid.uuid4().hex[:8]          # correlación en logs
+    trace_id = uuid.uuid4().hex[:8]
     try:
-        LOG.info("[%s] ↩️  POST /cargar-pedidos", trace_id)
-        negocio = session.get("negocio")
-        empresa = session.get("empresa")
-
-        # ── 2.1 Leer payload ────────────────────────────────────────
-        payload = request.get_json(silent=True) or {}
+        negocio = session.get("negocio"); empresa = session.get("empresa")
+        payload  = request.get_json(silent=True) or {}
         data_inv = payload.get("inventario") or []
         data_mat = payload.get("materiales")
-        LOG.info("[%s] Inventario filas: %d  |  Materiales filas: %s",
-                 trace_id, len(data_inv), len(data_mat) if data_mat else "—")
 
         if not data_inv:
             raise ValueError("Inventario vacío o ausente.")
         if negocio != "nutresa" and data_mat is None:
             raise ValueError("Falta enviar el archivo de materiales.")
 
-        df_inv = pd.DataFrame(data_inv)[GEN_HEADERS["inventario"]].fillna("")
+        # Inventario: solo 'codigo' y 'stock', ya canónicos desde el frontend
+        df_inv = pd.DataFrame(data_inv).fillna("")
         df_inv["stock"] = df_inv["stock"].replace("", "0").astype(int)
-        LOG.info("[%s] Inventario listo → %d filas", trace_id, len(df_inv))
 
         conn = conectar(); cur = conn.cursor()
-        cur.execute(
-            "CALL sp_etl_pedxrutaxprod_json(%s, %s);",
-            (json.dumps(df_inv.to_dict("records")), empresa),
-        )
+        cur.execute("CALL sp_etl_pedxrutaxprod_json(%s, %s);",
+                    (json.dumps(df_inv.to_dict("records")), empresa))
         conn.commit()
-        LOG.info("[%s] SP inventario ejecutado", trace_id)
 
-        if data_mat is not None and negocio != "nutresa":
-            df_mat = pd.DataFrame(data_mat)[GEN_HEADERS["materiales"]].fillna("")
+        # Materiales (opcional, no nutresa)
+        if data_mat and negocio != "nutresa":
+            df_mat = pd.DataFrame(data_mat).fillna("")
             for col in ("particion", "pq_x_caja"):
-                df_mat[col] = (
-                    df_mat[col].astype(str).str.strip().replace("", "1")
-                    .astype(float).astype(int)
-                )
-            cur.execute(
-                "CALL sp_cargar_materiales(%s, %s);",
-                (json.dumps(df_mat.to_dict("records")), empresa),
-            )
+                df_mat[col] = (df_mat[col].astype(str).str.strip().replace("", "1")
+                               .astype(float).astype(int))
+            cur.execute("CALL sp_cargar_materiales(%s, %s);",
+                        (json.dumps(df_mat.to_dict("records")), empresa))
             conn.commit()
-            LOG.info("[%s] SP materiales ejecutado", trace_id)
 
+            # Verifica materiales indefinidos
             cur.execute("SELECT fn_materiales_sin_definir(%s);", (empresa,))
-            mis = json.loads(cur.fetchone()[0] or "[]")
-            if mis:
-                sin_def = ", ".join(f"{m['codigo_pro']}:{m['producto']}" for m in mis)
-                raise ValueError(f"Materiales sin definir: {sin_def}")
+            sin_def = json.loads(cur.fetchone()[0] or "[]")
+            if sin_def:
+                listado = ", ".join(f"{m['codigo_pro']}:{m['producto']}" for m in sin_def)
+                raise ValueError(f"Materiales sin definir: {listado}")
 
         cur.close(); conn.close()
 
-        LOG.info("[%s] Construyendo ZIP", trace_id)
-        zip_buf = _build_zip(empresa, trace_id)
-        nombre_zip = datetime.now().strftime("formatos_%Y%m%d_%H%M.zip")
-        LOG.info("[%s] ✅ ZIP listo (%s)", trace_id, nombre_zip)
-
+        zip_buf = _build_zip(empresa)
+        nombre  = datetime.now().strftime("formatos_%Y%m%d_%H%M.zip")
         return send_file(zip_buf, as_attachment=True,
-                         download_name=nombre_zip, mimetype="application/zip")
+                         download_name=nombre, mimetype="application/zip")
 
     except ValueError as ve:
-        LOG.warning("[%s] ⚠️  %s", trace_id, ve)
+        LOG.warning("[%s] %s", trace_id, ve)
         return jsonify(error=str(ve)), 400
-
     except Exception:
         tb = traceback.format_exc()
-        LOG.error("[%s] 💥\n%s", trace_id, tb)
+        LOG.error("[%s] %s", trace_id, tb)
         return jsonify(error=tb), 500
 
-def _build_zip(empresa: int, trace_id: str) -> BytesIO:
+# ───────────── Helper ZIP ─────────────
+def _build_zip(empresa: int) -> BytesIO:
     conn = conectar(); cur = conn.cursor()
-
     cur.execute("SELECT fn_obtener_reparticion_inventario_json(%s);", (empresa,))
     data_rep = json.loads(cur.fetchone()[0] or "[]")
-    LOG.info("[%s] Repartición filas: %d", trace_id, len(data_rep))
-
     cur.execute("SELECT fn_obtener_pedidos_con_pedir_json(%s);", (empresa,))
     data_ped = json.loads(cur.fetchone()[0] or "[]")
-    LOG.info("[%s] Pedidos filas: %d", trace_id, len(data_ped))
-
     cur.close(); conn.close()
 
-    # Robustez plural → singular
+    # renombra 'pedidos' → 'pedir' si viniera así
     for lst in (data_rep, data_ped):
         for r in lst:
-            if "pedidos" in r and "pedir" not in r:
+            if "pedidos" in r:
                 r["pedir"] = r.pop("pedidos")
 
     zip_buf = BytesIO()
     with zipfile.ZipFile(zip_buf, "w") as zf:
-        # 1) Repartición
-        col_rep = ["ruta","codigo_pro","producto","cantidad","pedir","ped99","inv"]
-        try:
-            df_rep = pd.DataFrame(data_rep)[col_rep]
-        except KeyError as e:
-            raise ValueError(f"Columnas faltantes en repartición: {e}") from e
-
+        # Repartición
+        df_rep = pd.DataFrame(data_rep)[
+            ["ruta", "codigo_pro", "producto", "cantidad", "pedir", "ped99", "inv"]
+        ]
         buf = BytesIO()
-        df_rep.to_excel(buf, sheet_name="Reparticion", index=False, engine="openpyxl")
+        df_rep.to_excel(buf, index=False, sheet_name="Reparticion", engine="openpyxl")
         buf.seek(0); zf.writestr("reparticion_inventario.xlsx", buf.read())
 
-        # 2) Pedidos por ruta
-        for ruta in sorted({row["ruta"] for row in data_ped}):
-            subset = [row for row in data_ped if row["ruta"] == ruta]
-            try:
-                df = pd.DataFrame(subset, columns=["codigo_pro","producto","pedir"])
-            except KeyError as e:
-                raise ValueError(f"Columnas faltantes en ruta {ruta}: {e}") from e
+        # Un .xlsx por ruta
+        for ruta in sorted({r["ruta"] for r in data_ped}):
+            df = pd.DataFrame(
+                [r for r in data_ped if r["ruta"] == ruta],
+                columns=["codigo_pro", "producto", "pedir"])
             df.insert(2, "UN", "UN")
             buf = BytesIO()
-            with pd.ExcelWriter(buf, engine="openpyxl") as xls:
-                df.to_excel(xls, sheet_name=f"Ruta_{ruta}", index=False, startrow=3)
+            with pd.ExcelWriter(buf, engine="openpyxl") as xlsx:
+                df.to_excel(xlsx, index=False, startrow=3, sheet_name=f"Ruta_{ruta}")
             buf.seek(0)
             zf.writestr(f"pedidos_ruta_{ruta}.xlsx", buf.read())
 
     zip_buf.seek(0)
     return zip_buf
-
 
 
 
