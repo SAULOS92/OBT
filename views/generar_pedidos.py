@@ -31,7 +31,7 @@ def cargar_pedidos():
         if data_mat and negocio != "nutresa":       
             
             cur.execute("CALL sp_cargar_materiales(%s, %s);",
-                        (json.dumps(data_mat.to_dict("records")), empresa))
+                        (json.dumps(data_mat), empresa))
             
             cur.execute("SELECT fn_materiales_sin_definir(%s);", (empresa,))
             sin_def = json.loads(cur.fetchone()[0] or "[]")
@@ -44,7 +44,7 @@ def cargar_pedidos():
         conn = conectar(); cur = conn.cursor()
 
         cur.execute("CALL sp_etl_pedxrutaxprod_json(%s, %s);",
-                    (json.dumps(data_inv.to_dict("records")), empresa))
+                    (json.dumps(data_inv), empresa))
         conn.commit()
         cur.close(); conn.close()
 
