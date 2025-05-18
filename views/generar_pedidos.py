@@ -1,14 +1,3 @@
-"""
-Blueprint: generar_pedidos_bp   •  Depurado + logging detallado
-────────────────────────────────────────────────────────────────────
-GET  /generar-pedidos      → página HTML
-POST /cargar-pedidos       → recibe JSON, ejecuta SP, construye ZIP
-                             • 400 → error controlado (ValueError)
-                             • 500 → traceback completo
-El objetivo es registrar en log **cada tramo crítico** y devolver al
-frontend la información suficiente para diagnosticar fallos.
-"""
-
 import json, traceback, logging, uuid
 from io import BytesIO
 import zipfile
@@ -42,18 +31,11 @@ generar_pedidos_bp = Blueprint(
     "generar_pedidos", __name__, template_folder="../templates"
 )
 
-# ╔══════════════════════════════════════════════════════════════════════╗
-# ║  1) Página principal (GET)                                           ║
-# ╚══════════════════════════════════════════════════════════════════════╝
 @generar_pedidos_bp.route("/generar-pedidos", methods=["GET"])
 @login_required
 def generar_pedidos_index():
     return render_template("generar_pedidos.html", negocio=session.get("negocio"))
 
-
-# ╔══════════════════════════════════════════════════════════════════════╗
-# ║  2) Endpoint AJAX (POST)                                             ║
-# ╚══════════════════════════════════════════════════════════════════════╝
 @generar_pedidos_bp.route("/generar-pedidos", methods=["POST"])
 @login_required
 def cargar_pedidos():
@@ -83,7 +65,6 @@ def cargar_pedidos():
         if negocio != "nutresa" and data_mat is None:
             raise ValueError("Falta enviar el archivo de materiales.")
 
-        # ── 2.2 DataFrame inventario ────────────────────────────────
         df_inv = pd.DataFrame(data_inv)[GEN_HEADERS["inventario"]].fillna("")
         df_inv["stock"] = df_inv["stock"].replace("", "0").astype(int)
         LOG.info("[%s] Inventario listo → %d filas", trace_id, len(df_inv))
@@ -96,7 +77,6 @@ def cargar_pedidos():
         conn.commit()
         LOG.info("[%s] SP inventario ejecutado", trace_id)
 
-        # ── 2.3 DataFrame materiales (opcional) ────────────────────
         if data_mat is not None and negocio != "nutresa":
             df_mat = pd.DataFrame(data_mat)[GEN_HEADERS["materiales"]].fillna("")
             for col in ("particion", "pq_x_caja"):
@@ -119,7 +99,6 @@ def cargar_pedidos():
 
         cur.close(); conn.close()
 
-        # ── 2.4 Construir ZIP ───────────────────────────────────────
         LOG.info("[%s] Construyendo ZIP", trace_id)
         zip_buf = _build_zip(empresa, trace_id)
         nombre_zip = datetime.now().strftime("formatos_%Y%m%d_%H%M.zip")
@@ -128,21 +107,15 @@ def cargar_pedidos():
         return send_file(zip_buf, as_attachment=True,
                          download_name=nombre_zip, mimetype="application/zip")
 
-    # —— Errores controlados  (negocio)  ——————————————
     except ValueError as ve:
         LOG.warning("[%s] ⚠️  %s", trace_id, ve)
         return jsonify(error=str(ve)), 400
 
-    # —— Errores inesperados (programación/infra)  ——————————
     except Exception:
         tb = traceback.format_exc()
         LOG.error("[%s] 💥\n%s", trace_id, tb)
         return jsonify(error=tb), 500
 
-
-# ╔══════════════════════════════════════════════════════════════════════╗
-# ║  3) Helper: ZIP con repartición + pedidos por ruta                   ║
-# ╚══════════════════════════════════════════════════════════════════════╝
 def _build_zip(empresa: int, trace_id: str) -> BytesIO:
     conn = conectar(); cur = conn.cursor()
 

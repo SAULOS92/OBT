@@ -10,7 +10,7 @@
 
   {# --------------------------- Spinner centrado --------------------------- #}
   <div id="loading-overlay"
-       class="hidden absolute inset-0 bg-white bg-opacity-75
+       class="hidden absolute inset-0 bg-white/75
               flex items-center justify-center z-50">
     <svg class="h-12 w-12 animate-spin text-indigo-600"
          xmlns="http://www.w3.org/2000/svg" fill="none"
@@ -18,8 +18,7 @@
       <circle class="opacity-25" cx="12" cy="12" r="10"
               stroke="currentColor" stroke-width="4"></circle>
       <path class="opacity-75" fill="currentColor"
-            d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z">
-      </path>
+            d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"/>
     </svg>
   </div>
 
@@ -107,7 +106,7 @@
 {# --------------------------- Lógica cliente JS --------------------------- #}
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-  /* ----- DOM refs ----- */
+  /* ─────────────── Referencias DOM ─────────────── */
   const form    = document.getElementById('gen-form');
   const overlay = document.getElementById('loading-overlay');
   const flash   = document.getElementById('flash-messages');
@@ -115,191 +114,175 @@ document.addEventListener('DOMContentLoaded', () => {
   const fInv    = document.querySelector('input[name="inventario"]');
   const btn     = form.querySelector('button[type="submit"]');
 
-  /* ----- Encabezados & sinónimos ----- */
-  const GEN_HEADERS = {
-    materiales: ["pro_codigo","particion","pq_x_caja"],
-    inventario: ["codigo","stock"]
-  };
+  /* ───────────── Constantes de encabezados ───────────── */
+  const GEN_HEADERS = { materiales:["pro_codigo","particion","pq_x_caja"], inventario:["codigo","stock"] };
   const GEN_COL_MATERIALES = {
-    pro_codigo: ["Codigo SAP","Código"],
-    particion:  ["Particion","Partición"],
-    pq_x_caja:  ["Unidades x caja","Unidad por Caja"]
+    pro_codigo:["Codigo SAP","Código"],
+    particion:["Particion","Partición"],
+    pq_x_caja:["Unidades x caja","Unidad por Caja"]
   };
   const GEN_COL_INVENTARIO = {
-    codigo: ["Codigo articulo","Cod Producto"],
-    stock:  ["Unidades","Unidades Disponibles"]
+    codigo:["Codigo articulo","Cod Producto"],
+    stock:["Unidades","Unidades Disponibles"]
   };
 
-  /* ----- Mapas sinónimo → canónico ----- */
+  /* ───────── Mapas sinónimo → canónico ───────── */
   const MAT_COL_MAP = Object.fromEntries(
-    Object.entries(GEN_COL_MATERIALES).flatMap(([canon, syns]) => syns.map(s => [s.toLowerCase(), canon]))
+    Object.entries(GEN_COL_MATERIALES).flatMap(([c,s]) => s.map(v=>[v.toLowerCase(),c]))
   );
   const INV_COL_MAP = Object.fromEntries(
-    Object.entries(GEN_COL_INVENTARIO).flatMap(([canon, syns]) => syns.map(s => [s.toLowerCase(), canon]))
+    Object.entries(GEN_COL_INVENTARIO).flatMap(([c,s]) => s.map(v=>[v.toLowerCase(),c]))
   );
 
-  /* ----- Workbooks en memoria ----- */
+  /* ───────── Workbooks ───────── */
   let wbMat, wbInv;
 
-  /* ========================== helpers UI ========================== */
-  function showMsg(type, msgs) {
-    flash.innerHTML = '';
-    const div = document.createElement('div');
-    div.className = `px-4 py-2 rounded-lg ${
-      type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-    }`;
-    if (Array.isArray(msgs)) {
-      const ul = document.createElement('ul');
-      msgs.forEach(m => { const li = document.createElement('li'); li.textContent = m; ul.appendChild(li); });
+  /* ───────── UI helper ───────── */
+  function showMsg(type,msgs){
+    flash.innerHTML='';
+    const div=document.createElement('div');
+    div.className=`px-4 py-2 rounded-lg ${type==='success'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}`;
+    if(Array.isArray(msgs)){
+      const ul=document.createElement('ul');
+      msgs.forEach(m=>{const li=document.createElement('li');li.textContent=m;ul.appendChild(li);});
       div.appendChild(ul);
-    } else div.textContent = msgs;
+    }else div.textContent=msgs;
     flash.appendChild(div);
   }
 
-  /* ================ elimina columna(s) 'Estado' del worksheet =============== */
-  function stripEstado(ws) {
-    const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-    if (!data.length) return;
-    const idxToRemove = [];
-    data[0].forEach((h, i) => {
-      if (String(h).trim().toLowerCase() === 'estado') idxToRemove.push(i);
-    });
-    if (!idxToRemove.length) return;          // nada que quitar
-    const cleaned = data.map(row => row.filter((_, i) => !idxToRemove.includes(i)));
-    const newWs = XLSX.utils.aoa_to_sheet(cleaned);
-    Object.keys(ws).forEach(k => { if (k[0] !== '!') delete ws[k]; });
-    Object.assign(ws, newWs);                 // muta el objeto en sitio
+  /* ───────── Elimina columna 'Estado' ───────── */
+  function stripEstado(ws){
+    const data=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+    if(!data.length) return;
+    const idx=data[0].findIndex(h=>String(h).trim().toLowerCase()==='estado');
+    if(idx===-1) return;
+    const clean=data.map(r=>r.filter((_,i)=>i!==idx));
+    const newWs=XLSX.utils.aoa_to_sheet(clean);
+    Object.keys(ws).forEach(k=>k[0]!=='!' && delete ws[k]);
+    Object.assign(ws,newWs);
   }
 
-  /* =================== carga archivos a wbMat / wbInv =================== */
-  async function loadWorkbooks() {
-    if (fMat && fMat.files[0]) {
-      const buf = await fMat.files[0].arrayBuffer();
-      wbMat = XLSX.read(buf, { type: 'array' });
-      stripEstado(wbMat.Sheets[wbMat.SheetNames[0]]);   // 💥 limpia Estado
+  /* ───────── Carga archivos a memoria ───────── */
+  async function loadWorkbooks(){
+    if(fMat && fMat.files[0]){
+      wbMat = XLSX.read(await fMat.files[0].arrayBuffer(),{type:'array'});
+      stripEstado(wbMat.Sheets[wbMat.SheetNames[0]]);
     }
-    if (fInv && fInv.files[0]) {
-      const buf = await fInv.files[0].arrayBuffer();
-      wbInv = XLSX.read(buf, { type: 'array' });
-      stripEstado(wbInv.Sheets[wbInv.SheetNames[0]]);   // 💥 limpia Estado
+    if(fInv && fInv.files[0]){
+      wbInv = XLSX.read(await fInv.files[0].arrayBuffer(),{type:'array'});
+      stripEstado(wbInv.Sheets[wbInv.SheetNames[0]]);
     }
   }
 
-  /* ---------------- normaliza encabezados con sinónimos ---------------- */
-  const normalize = (arr, map) =>
-    arr
-      .map(h => map[String(h).trim().toLowerCase()] || String(h).trim().toLowerCase())
-      .filter(Boolean);
+  /* ───────── Normaliza encabezados a canónicos ───────── */
+  const normalize = (arr,map)=>
+    arr.map(h=>map[String(h).trim().toLowerCase()]||String(h).trim().toLowerCase()).filter(Boolean);
 
-  /* ------ convierte '' → 1 y a entero en particion / pq_x_caja --------- */
-  function normalizeNumericosFilas(rows) {
-    rows.forEach(r => ['particion','pq_x_caja'].forEach(col => {
-      if (col in r) {
-        let v = String(r[col]).trim();
-        if (v === '') v = '1';
-        r[col] = parseInt(parseFloat(v), 10);
-      }
+  /* ───────── ''→1→int para particion / pq_x_caja ───────── */
+  function normalizeNumericosFilas(rows){
+    rows.forEach(r=>['particion','pq_x_caja'].forEach(c=>{
+      if(c in r){let v=String(r[c]).trim();if(v==='')v='1';r[c]=parseInt(parseFloat(v),10);}
     }));
   }
 
-  /* =================== Validación de encabezados =================== */
-  async function validate() {
-    flash.innerHTML = ''; btn.disabled = true;
-    if (!fInv.files.length) return;            // inventario es obligatorio
+  /* ───────── Validación reactiva ───────── */
+  async function validate(){
+    flash.innerHTML=''; btn.disabled=true;
+    if(!fInv.files.length) return;
     await loadWorkbooks();
 
-    /* ------ Inventario (requ.) ------ */
-    const rawInv = (XLSX.utils.sheet_to_json(
-      wbInv.Sheets[wbInv.SheetNames[0]], { header:1, sheetRows:1, defval:'' }
-    )[0] || []);
-    const normInv = normalize(rawInv, INV_COL_MAP);
+    const rawInv = XLSX.utils.sheet_to_json(wbInv.Sheets[wbInv.SheetNames[0]],{header:1,sheetRows:1,defval:''})[0]||[];
+    const normInv = normalize(rawInv,INV_COL_MAP);
 
-    /* ------ Materiales (opt.)  ------ */
-    let normMat = [];
-    if (wbMat) {
-      const rawMat = (XLSX.utils.sheet_to_json(
-        wbMat.Sheets[wbMat.SheetNames[0]], { header:1, sheetRows:1, defval:'' }
-      )[0] || []);
-      normMat = normalize(rawMat, MAT_COL_MAP);
+    let normMat=[];
+    if(wbMat){
+      const rawMat=XLSX.utils.sheet_to_json(wbMat.Sheets[wbMat.SheetNames[0]],{header:1,sheetRows:1,defval:''})[0]||[];
+      normMat = normalize(rawMat,MAT_COL_MAP);
     }
 
-    const check = (act, exp) => {
-      const seen = new Set(), dup = [], falt = [];
-      act.forEach(h => { if (seen.has(h)) dup.push(h); seen.add(h); });
-      exp.forEach(e => { if (!seen.has(e)) falt.push(e); });
-      return { dup:[...new Set(dup)], falt };
-    };
+    const check=(act,exp)=>{const seen=new Set(),dup=[],falt=[];act.forEach(h=>{if(seen.has(h))dup.push(h);seen.add(h);});exp.forEach(e=>!seen.has(e)&&falt.push(e));return{dup:[...new Set(dup)],falt};};
 
-    const vInv = check(normInv, GEN_HEADERS.inventario);
-    const vMat = wbMat ? check(normMat, GEN_HEADERS.materiales) : {dup:[], falt:[]};
+    const vInv=check(normInv,GEN_HEADERS.inventario);
+    const vMat=wbMat?check(normMat,GEN_HEADERS.materiales):{dup:[],falt:[]};
 
-    const errors = [];
-    if (vMat.dup.length)  errors.push('Duplicadas en materiales: ' + vMat.dup.join(', '));
-    if (vMat.falt.length) errors.push('Faltan en materiales: ' + vMat.falt.join(', '));
-    if (vInv.dup.length)  errors.push('Duplicadas en inventario: ' + vInv.dup.join(', '));
-    if (vInv.falt.length) errors.push('Faltan en inventario: ' + vInv.falt.join(', '));
+    const errs=[];
+    if(vMat.dup.length) errs.push('Duplicadas en materiales: '+vMat.dup.join(', '));
+    if(vMat.falt.length) errs.push('Faltan en materiales: '+vMat.falt.join(', '));
+    if(vInv.dup.length) errs.push('Duplicadas en inventario: '+vInv.dup.join(', '));
+    if(vInv.falt.length) errs.push('Faltan en inventario: '+vInv.falt.join(', '));
 
-    if (errors.length) showMsg('error', errors);
-    else { showMsg('success', 'Listo para cargar'); btn.disabled = false; }
+    if(errs.length) showMsg('error',errs);
+    else {showMsg('success','Listo para cargar');btn.disabled=false;}
   }
 
-  /* ---------- Listeners para validación reactiva ---------- */
-  if (fMat) fMat.addEventListener('change', validate);
-  fInv.addEventListener('change', validate);
+  if(fMat) fMat.addEventListener('change',validate);
+  fInv.addEventListener('change',validate);
 
-  /* ==================== Envío y descarga ZIP ==================== */
-  form.addEventListener('submit', async e => {
+  /* ───────── Helpers para envío ───────── */
+
+  function extractCanonicalRows(rows,map,needed){
+    return rows.map(r=>{
+      const obj={};
+      Object.keys(r).forEach(k=>{
+        const canon=map[k.trim().toLowerCase()];
+        if(canon && needed.includes(canon)) obj[canon]=r[k];
+      });
+      return obj;
+    });
+  }
+
+  function getVlrKey(row){
+    return Object.keys(row).find(k=>k.trim().toLowerCase()==='vlr compra con iva');
+  }
+
+  /* ───────── Submit (fetch + descarga) ───────── */
+  form.addEventListener('submit',async e=>{
     e.preventDefault();
-    overlay.classList.remove('hidden'); btn.disabled = true; flash.innerHTML = '';
+    overlay.classList.remove('hidden'); btn.disabled=true; flash.innerHTML='';
 
     await loadWorkbooks();
-    if (!wbInv) { showMsg('error','Falta el archivo de inventario'); overlay.classList.add('hidden'); btn.disabled = false; return; }
+    if(!wbInv){showMsg('error','Falta el archivo de inventario');overlay.classList.add('hidden');btn.disabled=false;return;}
 
-    /* Inventario JSON */
-    const dataInv = XLSX.utils.sheet_to_json(wbInv.Sheets[wbInv.SheetNames[0]], { defval:'' });
+    /* --- Inventario --- */
+    const invRows = XLSX.utils.sheet_to_json(wbInv.Sheets[wbInv.SheetNames[0]],{defval:''});
+    const vlrKey = invRows.length ? getVlrKey(invRows[0]) : undefined;
+    const filteredInv = vlrKey ? invRows.filter(r=>parseFloat(String(r[vlrKey]).replace(/[^0-9.-]/g,'')||'0')>0) : invRows;
+    const dataInv = extractCanonicalRows(filteredInv,INV_COL_MAP,GEN_HEADERS.inventario);
 
-    /* Materiales JSON (si existe) */
+    /* --- Materiales (opcional) --- */
     let dataMat;
-    if (wbMat) {
-      dataMat = XLSX.utils.sheet_to_json(wbMat.Sheets[wbMat.SheetNames[0]], { defval:'' });
+    if(wbMat){
+      const matRows=XLSX.utils.sheet_to_json(wbMat.Sheets[wbMat.SheetNames[0]],{defval:''});
+      dataMat = extractCanonicalRows(matRows,MAT_COL_MAP,GEN_HEADERS.materiales);
       normalizeNumericosFilas(dataMat);
     }
 
-    const payload = { inventario: dataInv };
-    if (dataMat) payload.materiales = dataMat;
+    const payload={inventario:dataInv};
+    if(dataMat) payload.materiales=dataMat;
 
-    try {
-      const res = await fetch('/generar-pedidos', {
-        method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify(payload)
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({error:`Error ${res.status}`}));
+    try{
+      const res=await fetch('/generar-pedidos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      if(!res.ok){
+        const err=await res.json().catch(()=>({error:`Error ${res.status}`}));
         throw new Error(err.error);
       }
-
-      /* ---- descarga ZIP ---- */
-      const blob = await res.blob();
-      const cd   = res.headers.get('Content-Disposition');
-      const fn   = cd?.match(/filename="?([^"]+)"?/)?.[1] || `Report_${Date.now()}.zip`;
-
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob); a.download = fn;
-      document.body.appendChild(a); a.click(); a.remove();
-
-      showMsg('success','Descarga iniciada.'); form.reset();
-    } catch (err) {
-      showMsg('error', err.message || 'Error inesperado');
-    } finally {
-      overlay.classList.add('hidden'); btn.disabled = false;
+      const blob=await res.blob();
+      const cd=res.headers.get('Content-Disposition');
+      const fn=cd?.match(/filename="?([^"]+)"?/)?.[1]||`Report_${Date.now()}.zip`;
+      const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fn;document.body.appendChild(a);a.click();a.remove();
+      showMsg('success','Descarga iniciada.');form.reset();
+    }catch(err){
+      showMsg('error',err.message||'Error inesperado');
+    }finally{
+      overlay.classList.add('hidden'); btn.disabled=false;
     }
   });
 
-  /* Oculta spinner al terminar de cargar */
-  window.addEventListener('load', () => overlay.classList.add('hidden'));
+  window.addEventListener('load',()=>overlay.classList.add('hidden'));
 });
 </script>
 {% endblock %}
+
 
 
 
