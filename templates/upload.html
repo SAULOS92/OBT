@@ -86,6 +86,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
 <script>
   /* ---------------- Referencias DOM ---------------- */
   document.addEventListener('DOMContentLoaded', () => {
@@ -242,7 +243,8 @@
         dataR = dataR.filter(r => r.codigo_ruta && r.codigo_ruta.includes(dia));
 
         /* ------ Enviar al backend y descargar resumen ------ */
-        const gz = pako.gzip(JSON.stringify({ pedidos:data, rutas:dataR }));
+        const encoder    = new TextEncoder();
+        const gz = pako.gzip(encoder.encode(JSON.stringify({ pedidos:data, rutas:dataR })));
         const res = await fetch(`/cargar-pedidos?dia=${encodeURIComponent(dia)}`, {
           method:'POST', headers:{"Content-Encoding":"gzip","Content-Type":"application/json"},
           body:gz
