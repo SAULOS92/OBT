@@ -15,12 +15,11 @@ import gzip, json
 from flask import request
 
 def _get_json_gzip_aware():
-    raw = request.get_data()                          
-    if request.headers.get('Content-Encoding') == 'gzip':
-        raw = gzip.decompress(raw)                   
-    if isinstance(raw, (bytes, bytearray)):          
-        raw = raw.decode('utf-8', errors='replace')   
-    return json.loads(raw or '{}')                    
+    raw = request.get_data()
+    if request.headers.get("Content-Encoding") == "gzip":
+        raw = gzip.decompress(raw)
+    raw = raw.decode("utf-8", errors="replace")
+    return json.loads(raw or "{}")                    
 
 
 @upload_bp.route("/", methods=["GET","POST"])
@@ -33,9 +32,9 @@ def upload_index():
         try:
             # ---- 1) JSON proveniente del frontend --------------------
             payload  = _get_json_gzip_aware()
-            pedidos = payload.get("inventario", [])
-            rutas = payload.get("materiales")
-            p_dia = payload.args.get("dia", "").strip()
+            pedidos = payload.get("pedidos", [])
+            rutas = payload.get("rutas")
+            p_dia    = request.args.get("dia", "").strip()
 
             
             
