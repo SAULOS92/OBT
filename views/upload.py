@@ -2,7 +2,7 @@ import gzip, json
 from datetime import datetime
 from io import BytesIO
 import pandas as pd
-import time, logging
+import time
 from flask import (
     Blueprint, render_template, request,
     send_file, session, jsonify
@@ -28,7 +28,7 @@ def _get_json_gzip_aware():
 @login_required
 def upload_index():
     empresa = session.get("empresa")
-    logger = logging.getLogger("pedidos") 
+    
     if request.method == "POST":
         try:
             t0 = time.perf_counter() 
@@ -36,10 +36,7 @@ def upload_index():
             payload  = _get_json_gzip_aware()
             pedidos = payload.get("pedidos", [])
             rutas = payload.get("rutas")
-            p_dia    = request.args.get("dia", "").strip()
-
-            
-            
+            p_dia    = request.args.get("dia", "").strip()      
 
              # ---- 2) Procedimiento almacenado -------------------------
             conn = conectar()
@@ -51,7 +48,9 @@ def upload_index():
             conn.commit()
             cur.close()
             conn.close()
-            elapsed = time.perf_counter() - t0 
+            elapsed = time.perf_counter() - t0
+            print(f"[INFO] SP etl_cargar_pedidos_y_rutas_masivo demoró {elapsed:.2f}s "
+      f"(pedidos={len(pedidos)}, rutas={len(rutas)}, día={p_dia}, emp={empresa})")
 
             # ---- 3) Obtener resumen en JSON --------------------------
             conn2 = conectar()
