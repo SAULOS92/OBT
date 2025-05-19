@@ -31,7 +31,8 @@ def upload_index():
     
     if request.method == "POST":
         try:
-            t0 = time.perf_counter() 
+            conn = conectar()
+            t0 = time.perf_counter()
             # ---- 1) JSON proveniente del frontend --------------------
             payload  = _get_json_gzip_aware()
             pedidos = payload.get("pedidos", [])
@@ -39,7 +40,7 @@ def upload_index():
             p_dia    = request.args.get("dia", "").strip()      
 
              # ---- 2) Procedimiento almacenado -------------------------
-            conn = conectar()
+            
             cur = conn.cursor()
             cur.execute(
                 "CALL etl_cargar_pedidos_y_rutas_masivo(%s, %s, %s, %s);",
