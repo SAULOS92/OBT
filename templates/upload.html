@@ -117,6 +117,8 @@
     };
 
     let wbPed, wbRut;// Workbooks en RAM
+    let pedPromise=null, rutPromise=null;
+    let dataPed=null,  dataRut=null;
     
     /* --------------- Helpers UI ---------------------- */
     function showMsg(type, msgs) {
@@ -140,6 +142,56 @@
       return text.normalize('NFC');
     }
 
+    async function parsePedidos(){
+  if(!wbPed) return null;                 // aún no cargado
+  if(pedPromise) return pedPromise;       // ya en curso / listo
+  pedPromise = (async ()=>{
+      const sheetPed = wbPed.Sheets[wbPed.SheetNames[0]];
+        const rowsPed = XLSX.utils.sheet_to_json(sheetPed, { header:1, defval:null });
+        const rawHead = rowsPed[0].map(h => h.toString().trim().toLowerCase());
+        const normHead = rawHead.map(h => PED_COL_MAP[h]||h);
+        if (!normHead.includes('tipo_pro')) normHead.push('tipo_pro');
+        let data = rowsPed.slice(1).map(vals => {
+          const o = {};
+          normHead.forEach((hdr,i) => { 
+            if (PED_HEADERS.includes(hdr))
+             o[hdr] = (hdr==='tipo_pro' && rawHead.indexOf('tipo_pro')<0) ? 'N' : vals[i]; 
+            });
+          return o;
+        });
+         /* Relleno hacia ↑ y ↓ para nombre/barrio/ciudad */
+        if (data.some(r => !r.nombre)) {
+          const grupos = {};
+          data.forEach((r,i) => (grupos[r.cliente] = grupos[r.cliente] || []).push({ i,r }));
+          Object.values(grupos).forEach(arr => {
+            arr.sort((a,b) => a.i - b.i);
+            let nom,bar,ciu;
+            arr.forEach(x => { const f = x.r; if (f.nombre) nom = f.nombre; else f.nombre = nom; if (f.barrio) bar = f.barrio; else f.barrio = bar; if (f.ciudad) ciu = f.ciudad; else f.ciudad = ciu; });
+            let nn,bb,cc;
+            arr.slice().reverse().forEach(x => { const f = x.r; if (f.nombre) nn = f.nombre; else f.nombre = nn; if (f.barrio) bb = f.barrio; else f.barrio = bb; if (f.ciudad) cc = f.ciudad; else f.ciudad = cc; });
+          });
+        }
+        data.forEach(r => { r.nombre = sanitizeName(r.nombre); });
+        dataPed = data.filter(r => ['Sin Descargar','Sin facturar'].includes(r.estado));
+      return dataPed;                     // devuelve arreglo final
+  })().then(arr=>{ dataPed=arr; });
+  return pedPromise;
+}
+
+async function parseRutas(){
+  if(!wbRut) return null;
+  if(rutPromise) return rutPromise;
+  rutPromise = (async ()=>{
+      const sheetRut = wbRut.Sheets[wbRut.SheetNames[0]];
+        const rowsRut = XLSX.utils.sheet_to_json(sheetRut, { header:1, defval:null });
+        const rawHeadR = rowsRut[0].map(h => h.toString().trim().toLowerCase());
+        const normHeadR = rawHeadR.map(h => RUT_COL_MAP[h]||h);
+        let dataRut = rowsRut.slice(1).map(vals => { const o={}; normHeadR.forEach((hdr,i) => { if (RUT_HEADERS.includes(hdr)) o[hdr]=vals[i]; }); return o; });
+      return dataRut;
+  })().then(arr=>{ dataRut=arr; });
+  return rutPromise;
+}
+
     /* ------------ Leer archivos a memory ------------- */
     async function loadWorkbooks() {      
       if (fPed.files[0]) {
@@ -150,6 +202,9 @@
         const bufRut = await fRut.files[0].arrayBuffer();
         wbRut = XLSX.read(bufRut, { type: 'array' });
       }
+      /* se invalidan resultados previos SOLO del workbook recién cambiado */
+      if(wbPed){ pedPromise=null; dataPed=null; parsePedidos(); }
+      if(wbRut){ rutPromise=null; dataRut=null; parseRutas(); }
     }
     /* ---------- Validación reactiva lightweight ------ */
     async function reactiveValidate() {
@@ -207,44 +262,21 @@
       }
       /* ------ Pedidos completo ------ */
       try {
-        const sheetPed = wbPed.Sheets[wbPed.SheetNames[0]];
-        const rowsPed = XLSX.utils.sheet_to_json(sheetPed, { header:1, defval:null });
-        const rawHead = rowsPed[0].map(h => h.toString().trim().toLowerCase());
-        const normHead = rawHead.map(h => PED_COL_MAP[h]||h);
-        if (!normHead.includes('tipo_pro')) normHead.push('tipo_pro');
-        let data = rowsPed.slice(1).map(vals => {
-          const o = {};
-          normHead.forEach((hdr,i) => { 
-            if (PED_HEADERS.includes(hdr))
-             o[hdr] = (hdr==='tipo_pro' && rawHead.indexOf('tipo_pro')<0) ? 'N' : vals[i]; 
-            });
-          return o;
-        });
-         /* Relleno hacia ↑ y ↓ para nombre/barrio/ciudad */
-        if (data.some(r => !r.nombre)) {
-          const grupos = {};
-          data.forEach((r,i) => (grupos[r.cliente] = grupos[r.cliente] || []).push({ i,r }));
-          Object.values(grupos).forEach(arr => {
-            arr.sort((a,b) => a.i - b.i);
-            let nom,bar,ciu;
-            arr.forEach(x => { const f = x.r; if (f.nombre) nom = f.nombre; else f.nombre = nom; if (f.barrio) bar = f.barrio; else f.barrio = bar; if (f.ciudad) ciu = f.ciudad; else f.ciudad = ciu; });
-            let nn,bb,cc;
-            arr.slice().reverse().forEach(x => { const f = x.r; if (f.nombre) nn = f.nombre; else f.nombre = nn; if (f.barrio) bb = f.barrio; else f.barrio = bb; if (f.ciudad) cc = f.ciudad; else f.ciudad = cc; });
-          });
-        }
-        data.forEach(r => { r.nombre = sanitizeName(r.nombre); });
-        data = data.filter(r => ['Sin Descargar','Sin facturar'].includes(r.estado));
+        
         /* ------ Rutas completo ------ */
-        const sheetRut = wbRut.Sheets[wbRut.SheetNames[0]];
-        const rowsRut = XLSX.utils.sheet_to_json(sheetRut, { header:1, defval:null });
-        const rawHeadR = rowsRut[0].map(h => h.toString().trim().toLowerCase());
-        const normHeadR = rawHeadR.map(h => RUT_COL_MAP[h]||h);
-        let dataR = rowsRut.slice(1).map(vals => { const o={}; normHeadR.forEach((hdr,i) => { if (RUT_HEADERS.includes(hdr)) o[hdr]=vals[i]; }); return o; });
-        dataR = dataR.filter(r => r.codigo_ruta && r.codigo_ruta.includes(dia));
+        
+        
+        
+        /* espera a que ambos parseos concluyan */
+        await Promise.all([parsePedidos(), parseRutas()]);
+        if(!dataPed || !dataRut) throw new Error('Archivos aún en procesamiento');
 
+        const rutasDia = dataRut.filter(r=>r.codigo_ruta && r.codigo_ruta.includes(dia));
+        
+        
         /* ------ Enviar al backend y descargar resumen ------ */
         const encoder    = new TextEncoder();
-        const gz = pako.gzip(encoder.encode(JSON.stringify({ pedidos:data, rutas:dataR })));
+        const gz = pako.gzip(encoder.encode(JSON.stringify({ pedidos:dataPed, rutas:rutasDia })));
         const res = await fetch(`/cargar-pedidos?dia=${encodeURIComponent(dia)}`, {
           method:'POST', headers:{"Content-Encoding":"gzip","Content-Type":"application/json"},
           body:gz
