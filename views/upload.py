@@ -47,6 +47,8 @@ def upload_index():
                 "CALL etl_cargar_pedidos_y_rutas_masivo(%s, %s, %s, %s);",
                 (json.dumps(pedidos), json.dumps(rutas), p_dia, empresa)
             )
+            cur.execute("SELECT fn_obtener_resumen_pedidos(%s);", (empresa,))
+            raw = cur.fetchone()[0]
             conn.commit()
             cur.close()
             conn.close()
@@ -55,12 +57,7 @@ def upload_index():
       f"(pedidos={len(pedidos)}, rutas={len(rutas)}, día={p_dia}, emp={empresa})")
 
             # ---- 3) Obtener resumen en JSON --------------------------
-            conn2 = conectar()
-            cur2 = conn2.cursor()
-            cur2.execute("SELECT fn_obtener_resumen_pedidos(%s);", (empresa,))
-            raw = cur2.fetchone()[0]
-            cur2.close()
-            conn2.close()
+          
 
             data_res = json.loads(raw) if isinstance(raw, str) else (raw or [])
             cols = ["bd","codigo_cli","nombre","barrio","ciudad","asesor","total_pedidos","valor","ruta"]
