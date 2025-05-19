@@ -2,6 +2,7 @@ import gzip, json
 from datetime import datetime
 from io import BytesIO
 import pandas as pd
+import time, logging
 from flask import (
     Blueprint, render_template, request,
     send_file, session, jsonify
@@ -27,9 +28,10 @@ def _get_json_gzip_aware():
 @login_required
 def upload_index():
     empresa = session.get("empresa")
-
+    logger = logging.getLogger("pedidos") 
     if request.method == "POST":
         try:
+            t0 = time.perf_counter() 
             # ---- 1) JSON proveniente del frontend --------------------
             payload  = _get_json_gzip_aware()
             pedidos = payload.get("pedidos", [])
@@ -49,6 +51,7 @@ def upload_index():
             conn.commit()
             cur.close()
             conn.close()
+            elapsed = time.perf_counter() - t0 
 
             # ---- 3) Obtener resumen en JSON --------------------------
             conn2 = conectar()
