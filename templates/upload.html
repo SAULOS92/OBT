@@ -165,16 +165,43 @@
         });
          /* Relleno hacia ↑ y ↓ para nombre/barrio/ciudad */
         if (data.some(r => !r.nombre)) {
-          const grupos = {};
-          data.forEach((r,i) => (grupos[r.cliente] = grupos[r.cliente] || []).push({ i,r }));
-          Object.values(grupos).forEach(arr => {
-            arr.sort((a,b) => a.i - b.i);
-            let nom,bar,ciu;
-            arr.forEach(x => { const f = x.r; if (f.nombre) nom = f.nombre; else f.nombre = nom; if (f.barrio) bar = f.barrio; else f.barrio = bar; if (f.ciudad) ciu = f.ciudad; else f.ciudad = ciu; });
-            let nn,bb,cc;
-            arr.slice().reverse().forEach(x => { const f = x.r; if (f.nombre) nn = f.nombre; else f.nombre = nn; if (f.barrio) bb = f.barrio; else f.barrio = bb; if (f.ciudad) cc = f.ciudad; else f.ciudad = cc; });
-          });
-        }
+  const grupos = {};
+  data.forEach((r,i) => (grupos[r.cliente] = grupos[r.cliente] || []).push({ i, r }));
+  Object.values(grupos).forEach(arr => {
+    arr.sort((a, b) => a.i - b.i);
+    // Forward fill
+    let nom, bar, ciu;
+    arr.forEach(x => {
+      const f = x.r;
+      if (f.nombre) nom = f.nombre;
+      else f.nombre = nom;
+      if (f.barrio) bar = f.barrio;
+      else f.barrio = bar;
+      if (f.ciudad) ciu = f.ciudad;
+      else f.ciudad = ciu;
+    });
+    // Backward fill
+    let nn, bb, cc;
+    arr.slice().reverse().forEach(x => {
+      const f = x.r;
+      if (f.nombre) {
+        nn = f.nombre;
+      } else {
+        f.nombre = nn;
+      }
+      if (f.barrio) {
+        bb = f.barrio;
+      } else {
+        f.barrio = bb;
+      }
+      if (f.ciudad) {
+        cc = f.ciudad;
+      } else {
+        f.ciudad = cc;
+      }
+    });
+  });
+}
         data.forEach(r => { r.nombre = sanitizeName(r.nombre); });
         dataPed = data.filter(r => ['Sin Descargar','Sin facturar'].includes(r.estado));
       return dataPed;                     // devuelve arreglo final
