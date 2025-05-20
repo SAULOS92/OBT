@@ -6,17 +6,17 @@ CREATE TABLE inventario (
 );
 
 CREATE TABLE materiales (
-    bd VARCHAR(100),
-    pro_codigo VARCHAR(100),
+    bd VARCHAR(25),
+    pro_codigo VARCHAR(25),
     particion  INTEGER DEFAULT 1,
     pq_x_caja  INTEGER DEFAULT 1
 );
 
 CREATE TABLE rutas (
-    bd VARCHAR(100),
+    bd VARCHAR(25),
     codigo_ruta INTEGER,  
-    dia VARCHAR(20),  
-    codigo_cliente VARCHAR(100)
+    dia VARCHAR(10),  
+    codigo_cliente VARCHAR(30)
      CONSTRAINT rutas_bd_dia_cliente_unique UNIQUE (bd, dia, codigo_cliente)  
 );
 
@@ -60,21 +60,20 @@ CREATE TABLE pedxrutaxprod (
   ) STORED
 );
 CREATE TABLE PEDXCLIXPROD (
-  bd VARCHAR(100),
-  numero_pedido VARCHAR(100),
-  hora TIME,
-  codigo_cli VARCHAR(100),         
+  bd VARCHAR(25),
+  numero_pedido VARCHAR(70),  
+  codigo_cli VARCHAR(25),         
   ruta INTEGER,        
-  nombre VARCHAR(100),   
-  barrio VARCHAR(100),
-  ciudad VARCHAR(100),   
-  asesor VARCHAR(100),
-  codigo_pro VARCHAR(100),        
-  producto VARCHAR(255),   
+  nombre VARCHAR(50),   
+  barrio VARCHAR(40),
+  ciudad VARCHAR(30),   
+  asesor VARCHAR(20),
+  codigo_pro VARCHAR(30),        
+  producto VARCHAR(50),   
   cantidad INTEGER,        
   valor NUMERIC(14,2),   
-  tip_pro VARCHAR(100),        
-  estado VARCHAR(50)   
+  tip_pro VARCHAR(2),        
+  estado VARCHAR(15)   
 );
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
