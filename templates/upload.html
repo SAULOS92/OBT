@@ -148,10 +148,14 @@
   pedPromise = (async ()=>{
       const sheetPed = wbPed.Sheets[wbPed.SheetNames[0]];
         const rowsPed = XLSX.utils.sheet_to_json(sheetPed, { header:1, defval:null });
-        const rawHead = rowsPed[0].map(h => h.toString().trim().toLowerCase());
+        const nonEmptyCols = rowsPed[0]
+          .map((h,i) => rowsPed.every(r => r[i] != null && String(r[i]).trim() !== '') ? i : null)
+          .filter(i => i !== null);
+        const rowsPedFiltered = rowsPed.map(r => nonEmptyCols.map(i => r[i]));
+        const rawHead = rowsPedFiltered[0].map(h => h.toString().trim().toLowerCase());
         const normHead = rawHead.map(h => PED_COL_MAP[h]||h);
         if (!normHead.includes('tipo_pro')) normHead.push('tipo_pro');
-        let data = rowsPed.slice(1).map(vals => {
+        let data = rowsPedFiltered.slice(1).map(vals => {
           const o = {};
           normHead.forEach((hdr,i) => { 
             if (PED_HEADERS.includes(hdr))
