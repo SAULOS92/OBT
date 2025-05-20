@@ -187,6 +187,13 @@ document.addEventListener('DOMContentLoaded', () => {
       r[c] = parseInt(parseFloat(v),10);
     }));
   }
+  function normalizeInventarioFilas(rows){
+  rows.forEach(r => {    
+    let v = String(r.stock ?? '').trim();
+    if (v === '') v = '0';
+    r.stock = parseInt(parseFloat(v), 10);
+  });
+}
 
   /* --------------- Validación reactiva ----------------------- */
   async function validate(){
@@ -245,6 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ? invRows.filter(r=>parseFloat(String(r[vlrKey]).replace(/[^0-9.-]/g,'')||'0')>0)
         : invRows;
     const dataInv = extractCanonicalRows(filteredInv,INV_COL_MAP,GEN_HEADERS.inventario);
+    normalizeInventarioFilas(dataInv);
 
     /* Materiales (si aplica) */
     let dataMat;
