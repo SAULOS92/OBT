@@ -442,16 +442,24 @@ AS $$
 $$;
 
 
-INSERT INTO users (email, password_hash, membership_start, membership_end, negocio)
-VALUES (
-  'facturacion@miempresa.com',
-  'olpar',
-  '900435612-7'
-  'gerencia@gmail.com'
-  crypt('MiPasswordSeguro123', gen_salt('bf')),
-  '2025-05-01',
-  '2026-05-01',
-   'carnicos'
+INSERT INTO users (
+  email,
+  nombre,
+  documento,
+  contacto,
+  password_hash,
+  membership_start,
+  membership_end,
+  negocio
+) VALUES (
+  'facturacion@vallecafe.com',
+  'DISTRIBUCIONES VALLECAFE AHL',
+  '901170076-6',
+  'admonvallecafeahl@gmail.com',
+  crypt('vallecafe123', gen_salt('bf')),
+  '2025-06-01',
+  '2026-06-30',
+  'carnicos'
 );
 
 
