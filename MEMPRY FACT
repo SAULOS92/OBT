@@ -127,7 +127,7 @@ BEGIN
     x.numero_pedido,
     split_part(x.cliente, '-', 1),
     NULL,
-    split_part(x.nombre, '-', 2),
+    x.nombre,
     x.barrio,
     x.ciudad,
     split_part(x.asesor, '-', 1),
