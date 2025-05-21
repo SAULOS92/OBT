@@ -159,7 +159,14 @@
           const o = {};
           normHead.forEach((hdr,i) => { 
             if (PED_HEADERS.includes(hdr))
-             o[hdr] = (hdr==='tipo_pro' && rawHead.indexOf('tipo_pro')<0) ? 'N' : vals[i]; 
+             if (hdr === 'tipo_pro') {
+  // si en la celda hay un valor distinto de null/undefined, úsalo; si no, pon 'N'
+  o[hdr] = (vals[i] != null && String(vals[i]).trim() !== '')
+    ? vals[i]
+    : 'N';
+} else {
+  o[hdr] = vals[i];
+} 
             });
           return o;
         });
