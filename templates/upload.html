@@ -146,48 +146,84 @@
   if(!wbPed) return null;                 // aún no cargado
   if(pedPromise) return pedPromise;       // ya en curso / listo
   pedPromise = (async ()=>{
-      const sheetPed = wbPed.Sheets[wbPed.SheetNames[0]];
-        const rowsPed = XLSX.utils.sheet_to_json(sheetPed, { header:1, defval:null });
-        const nonEmptyCols = rowsPed[0]
-  .map((h, i) => (h != null && String(h).trim() !== '') ? i : null)
-  .filter(i => i !== null);
-        const rowsPedFiltered = rowsPed.map(r => nonEmptyCols.map(i => r[i]));
-        const rawHead = rowsPedFiltered[0].map(h => h.toString().trim().toLowerCase());
-        const normHead = rawHead.map(h => PED_COL_MAP[h]||h);
-        if (!normHead.includes('tipo_pro')) normHead.push('tipo_pro');
-        let data = rowsPedFiltered.slice(1).map(vals => {
-          const o = {};
-          normHead.forEach((hdr,i) => { 
-            if (PED_HEADERS.includes(hdr))
-             if (hdr === 'tipo_pro') {
-  // si en la celda hay un valor distinto de null/undefined, úsalo; si no, pon 'N'
-  o[hdr] = (vals[i] != null && String(vals[i]).trim() !== '')
-    ? vals[i]
-    : 'N';
-} else {
-  o[hdr] = vals[i];
-} 
-            });
-          return o;
-        });
-         /* Relleno hacia ↑ y ↓ para nombre/barrio/ciudad */
-        if (data.some(r => !r.nombre)) {
-          const grupos = {};
-          data.forEach((r,i) => (grupos[r.cliente] = grupos[r.cliente] || []).push({ i,r }));
-          Object.values(grupos).forEach(arr => {
-            arr.sort((a,b) => a.i - b.i);
-            let nom,bar,ciu;
-            arr.forEach(x => { const f = x.r; if (f.nombre) nom = f.nombre; else f.nombre = nom; if (f.barrio) bar = f.barrio; else f.barrio = bar; if (f.ciudad) ciu = f.ciudad; else f.ciudad = ciu; });
-            let nn,bb,cc;
-            arr.slice().reverse().forEach(x => { const f = x.r; if (f.nombre) nn = f.nombre; else f.nombre = nn; if (f.barrio) bb = f.barrio; else f.barrio = bb; if (f.ciudad) cc = f.ciudad; else f.ciudad = cc; });
-          });
+    const sheetPed = wbPed.Sheets[wbPed.SheetNames[0]];
+    const rowsPed = XLSX.utils.sheet_to_json(sheetPed, { header:1, defval:null });
+
+    // Filtrar columnas vacías
+    const nonEmptyCols = rowsPed[0]
+      .map((h, i) => (h != null && String(h).trim() !== '') ? i : null)
+      .filter(i => i !== null);
+    const rowsPedFiltered = rowsPed.map(r => nonEmptyCols.map(i => r[i]));
+
+    // Encabezados originales normalizados
+    const rawHead = rowsPedFiltered[0]
+      .map(h => h.toString().trim().toLowerCase());
+    const normHead = rawHead.map(h => PED_COL_MAP[h] || h);
+
+    // Detecto si ya venía 'tipo_pro' en el archivo
+    const idxTipo = normHead.indexOf('tipo_pro');
+    const hasTipo = idxTipo >= 0;
+
+    // Si no venía, lo añado al final de normHead
+    if (!hasTipo) {
+      normHead.push('tipo_pro');
+    }
+
+    // Construyo los objetos fila por fila
+    let data = rowsPedFiltered.slice(1).map(vals => {
+      const o = {};
+      // Copio todas las columnas excepto tipo_pro
+      normHead.forEach((hdr, i) => {
+        if (PED_HEADERS.includes(hdr) && hdr !== 'tipo_pro') {
+          o[hdr] = vals[i];
         }
-        data.forEach(r => { r.nombre = sanitizeName(r.nombre); });
-        dataPed = data.filter(r => ['Sin Descargar','Sin facturar'].includes(r.estado));
-      return dataPed;                     // devuelve arreglo final
-  })().then(arr=>{ dataPed=arr; });
+      });
+      // Inyecto tipo_pro según corresponda
+      o.tipo_pro = hasTipo
+        // si existía, tomo el valor de la posición original
+        ? vals[idxTipo]
+        // si no, relleno 'N'
+        : 'N';
+      return o;
+    });
+
+    // Relleno hacia ↑ y ↓ para nombre/barrio/ciudad
+    if (data.some(r => !r.nombre)) {
+      const grupos = {};
+      data.forEach((r,i) => {
+        (grupos[r.cliente] = grupos[r.cliente] || []).push({ i, r });
+      });
+      Object.values(grupos).forEach(arr => {
+        arr.sort((a,b) => a.i - b.i);
+        let nom, bar, ciu;
+        arr.forEach(x => {
+          const f = x.r;
+          if (f.nombre) nom = f.nombre; else f.nombre = nom;
+          if (f.barrio) bar = f.barrio; else f.barrio = bar;
+          if (f.ciudad) ciu = f.ciudad; else f.ciudad = ciu;
+        });
+        let nn, bb, cc;
+        arr.slice().reverse().forEach(x => {
+          const f = x.r;
+          if (f.nombre) nn = f.nombre; else f.nombre = nn;
+          if (f.barrio) bb = f.barrio; else f.barrio = bb;
+          if (f.ciudad) cc = f.ciudad; else f.ciudad = cc;
+        });
+      });
+    }
+
+    // Normalizo nombres
+    data.forEach(r => { r.nombre = sanitizeName(r.nombre); });
+
+    // Filtro estados
+    dataPed = data.filter(r => ['Sin Descargar','Sin facturar'].includes(r.estado));
+    return dataPed;  // devuelve arreglo final
+
+  })().then(arr => { dataPed = arr; });
+
   return pedPromise;
 }
+
 
 async function parseRutas(){
   if(!wbRut) return null;
