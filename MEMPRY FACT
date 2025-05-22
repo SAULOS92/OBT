@@ -1,7 +1,7 @@
 ---------------------------------CONSTRUCCION BASE DE DATOS-------------------------------------------------
 CREATE TABLE inventario (
-    bd VARCHAR(100),
-    codigo   VARCHAR(100),
+    bd VARCHAR(25),
+    codigo   VARCHAR(25),
     stock    INTEGER
 );
 
@@ -21,10 +21,10 @@ CREATE TABLE rutas (
 );
 
 CREATE TABLE pedxrutaxprod (
-  bd VARCHAR(100),
+  bd VARCHAR(25),
   ruta         INTEGER           NOT NULL,
-  codigo_pro   VARCHAR(100)      NOT NULL,
-  producto     VARCHAR(255)      NOT NULL,
+  codigo_pro   VARCHAR(25)      NOT NULL,
+  producto     VARCHAR(80)      NOT NULL,
   cantidad     INTEGER           NOT NULL,
   pq_por_caja  INTEGER DEFAULT 1 NOT NULL,
   particiones  INTEGER DEFAULT 1 NOT NULL,
@@ -62,14 +62,14 @@ CREATE TABLE pedxrutaxprod (
 CREATE TABLE PEDXCLIXPROD (
   bd VARCHAR(25),
   numero_pedido VARCHAR(70),  
-  codigo_cli VARCHAR(25),         
+  codigo_cli VARCHAR(30),         
   ruta INTEGER,        
-  nombre VARCHAR(50),   
+  nombre VARCHAR(80),   
   barrio VARCHAR(40),
   ciudad VARCHAR(30),   
   asesor VARCHAR(20),
-  codigo_pro VARCHAR(30),        
-  producto VARCHAR(50),   
+  codigo_pro VARCHAR(25),        
+  producto VARCHAR(80),   
   cantidad INTEGER,        
   valor NUMERIC(14,2),   
   tip_pro VARCHAR(2),        
