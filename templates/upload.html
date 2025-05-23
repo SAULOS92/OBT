@@ -186,7 +186,7 @@
 
     // Encabezados originales normalizados
     const rawHead = rowsPedFiltered[0]
-      .map(h => h.toString().trim().toLowerCase());
+      .map(h => h.toString().trim());
     const normHead = rawHead.map(h => PED_COL_MAP[h] || h);
 
     // Detecto si ya venía 'tipo_pro' en el archivo
@@ -289,9 +289,9 @@ async function parseRutas(){
       if (!fPed.files[0] || !fRut.files[0]) return;
 
       const rawPed = XLSX.utils.sheet_to_json(wbPed.Sheets[wbPed.SheetNames[0]], { header:1, sheetRows:1, defval:'' })[0]
-        .map(h => String(h).trim().toLowerCase());
+        .map(h => String(h).trim());
       const rawRut = XLSX.utils.sheet_to_json(wbRut.Sheets[wbRut.SheetNames[0]], { header:1, sheetRows:1, defval:'' })[0]
-        .map(h => String(h).trim().toLowerCase());
+        .map(h => String(h).trim());
 
       let normPed = rawPed.map(h => PED_COL_MAP[h] || h);
       let normRut = rawRut.map(h => RUT_COL_MAP[h] || h);
