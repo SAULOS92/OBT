@@ -104,16 +104,31 @@
 
      /* mapas sinónimos → canónico */
     const PED_COL_MAP = {
-      'pedido':'numero_pedido','cliente':'cliente','código cliente':'cliente',
-      'r. social':'nombre','razón social':'nombre','barrio':'barrio','ciudad':'ciudad',
-      'asesor':'asesor','código vendedor':'asesor','cod.prod':'codigo_pro',
-      'código producto':'codigo_pro','producto':'producto','cantidad':'cantidad',
-      'valor':'valor','total':'valor','venta neta iva':'valor',
-      'tip pro':'tipo_pro','tipo_prod':'tipo_pro','estado':'estado','est':'estado'
+      'Pedido':'numero_pedido',
+      'numerodocPedido':'numero_pedido',
+      'Cliente':'cliente',
+      'codCliente':'cliente',
+      'R. Social':'nombre',
+      'razonSocial':'nombre',
+      'Barrio':'barrio',      
+      'Ciudad':'ciudad',
+      'Asesor':'asesor',
+      'codVendedor':'asesor',
+      'Cod.Prod':'codigo_pro',
+      'codProducto':'codigo_pro',
+      'Producto':'producto',
+      'Cantidad':'cantidad',      
+      'Total':'valor',      
+      'ventaNeta':'valor',
+      'Tip Pro':'tipo_pro',      
+      'Estado':'estado',
+      'est':'estado'
     };
     const RUT_COL_MAP = {
-      'cod. cliente':'codigo_cliente','código cw':'codigo_cliente',
-      'ruta':'codigo_ruta','descripción ruta':'codigo_ruta'
+      'cod. cliente':'codigo_cliente',
+      'código cw':'codigo_cliente',
+      'ruta':'codigo_ruta',
+      'descripción ruta':'codigo_ruta'
     };
 
     let wbPed, wbRut;// Workbooks en RAM
@@ -136,11 +151,25 @@
 
     /* Sanitize names (quita caracteres de control) */
    function sanitizeName(input) {
-      if (input == null) return '';  
-      let text = String(input).replace(/[\x00-\x1F\x7F]/g, '').trim();
-      try { text = decodeURIComponent(escape(text)); } catch {}
-      return text.normalize('NFC');
-    }
+  if (input == null) return '';
+  let text = String(input)
+    // BOM
+    .replace(/\uFEFF/g, '')
+    // espacios Unicode comunes
+    .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g, ' ')
+    // controles ASCII
+    .replace(/[\x00-\x1F\x7F]/g, '')
+    .trim();
+  try {
+    text = decodeURIComponent(escape(text));
+  } catch {}
+  // quitar diacríticos (NFD + remove combining marks + NFC)
+  text = text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036F]/g, '')
+    .normalize('NFC');
+  return text;
+}
 
     async function parsePedidos(){
   if(!wbPed) return null;                 // aún no cargado
