@@ -81,7 +81,12 @@ def _build_zip(empresa: int) -> BytesIO:
         # ---- Hoja única de repartición ---------------------------
         print("DATA_REP sample:", data_rep[:1])
         print("KEYS:", list(data_rep[0].keys()))
-        df_rep = pd.DataFrame(data_rep)[["ruta", "codigo_pro", "producto", "cantidad", "pedir", "ped99", "inv"]]
+        #df_rep = pd.DataFrame(data_rep)[["ruta", "codigo_pro", "producto", "cantidad", "pedir", "ped99", "inv"]]
+        rep_cols = ["ruta", "codigo_pro", "producto", "cantidad", "pedir", "ped99", "inv"]
+        if not data_rep:
+                df_rep = pd.DataFrame(columns=rep_cols)
+        else:
+                df_rep = pd.DataFrame(data_rep)[rep_cols]
         buf = BytesIO()
         df_rep.to_excel(buf, index=False, sheet_name="Reparticion", engine="openpyxl")
         buf.seek(0); zf.writestr("reparticion_inventario.xlsx", buf.read())
