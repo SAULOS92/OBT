@@ -79,6 +79,8 @@ def _build_zip(empresa: int) -> BytesIO:
     zip_buf = BytesIO()
     with zipfile.ZipFile(zip_buf, "w") as zf:
         # ---- Hoja única de repartición ---------------------------
+        print("DATA_REP sample:", data_rep[:1])
+        print("KEYS:", list(data_rep[0].keys()))
         df_rep = pd.DataFrame(data_rep)[["ruta", "codigo_pro", "producto", "cantidad", "pedir", "ped99", "inv"]]
         buf = BytesIO()
         df_rep.to_excel(buf, index=False, sheet_name="Reparticion", engine="openpyxl")
