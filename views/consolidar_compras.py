@@ -148,26 +148,28 @@ def consolidar_compras_index():
             tmp_dir = os.path.join(current_app.root_path, "tmp")
             os.makedirs(tmp_dir, exist_ok=True)
 
-            # --- (1) Generar CSV adicional para e-com ---
-           # columnas: bodega, codigo_producto, cantidad, costo
-            csv_df = pd.DataFrame({
-               "bodega":            ["01"] * len(df_out),
-              "codigo_producto":   df_out["Material"],
-               "cantidad":          df_out["Cantidad_facturada"],
-               "costo":             0
-           })
-            csv_filename = f"cargue_sugerido_{hoy}.csv"
-            csv_path = os.path.join(tmp_dir, csv_filename)
-            os.makedirs(tmp_dir, exist_ok=True)
-            csv_df.to_csv(csv_path, index=False)
-          # -----------------------------------------
-
-            # --- Guardar en tmp y preparar descarga ---            
+           # --- Guardar Excel en tmp ---
             path = os.path.join(tmp_dir, filename)
             with open(path, "wb") as out:
                 out.write(buf.getvalue())
 
-            download_filename = [ filename, csv_filename ]
+            if fmt == "ecom":
+                # (1) Generar CSV adicional para e-com
+                csv_df = pd.DataFrame({
+                   "bodega":          ["01"] * len(df_out),
+                   "codigo_producto": df_out["Material"],
+                   "cantidad":        df_out["Cantidad_facturada"],
+                   "costo":           0
+                })
+                csv_filename = f"cargue_sugerido_{hoy}.csv"
+                csv_path     = os.path.join(tmp_dir, csv_filename)
+                csv_df.to_csv(csv_path, index=False)
+
+                # exponer ambos archivos
+                download_filename = [filename, csv_filename]
+            else:
+                # solo celluweb
+                download_filename = filename
             flash("Consolidado generado con éxito.", "success")
 
         except Exception as e:
