@@ -145,6 +145,20 @@ def consolidar_compras_index():
                 df_out.to_excel(writer, index=False)
             buf.seek(0)
 
+            # --- (1) Generar CSV adicional para e-com ---
+           # columnas: bodega, codigo_producto, cantidad, costo
+            csv_df = pd.DataFrame({
+               "bodega":            ["01"] * len(df_out),
+              "codigo_producto":   df_out["Material"],
+               "cantidad":          df_out["Cantidad_facturada"],
+               "costo":             0
+           })
+            csv_filename = f"consolidado_ecom_{hoy}.csv"
+            csv_path = os.path.join(tmp_dir, csv_filename)
+            os.makedirs(tmp_dir, exist_ok=True)
+            csv_df.to_csv(csv_path, index=False)
+          # -----------------------------------------
+
             # --- Guardar en tmp y preparar descarga ---
             tmp_dir = os.path.join(current_app.root_path, "tmp")
             os.makedirs(tmp_dir, exist_ok=True)
