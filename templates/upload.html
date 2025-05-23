@@ -260,7 +260,7 @@ async function parseRutas(){
   rutPromise = (async ()=>{
       const sheetRut = wbRut.Sheets[wbRut.SheetNames[0]];
         const rowsRut = XLSX.utils.sheet_to_json(sheetRut, { header:1, defval:null });
-        const rawHeadR = rowsRut[0].map(h => h.toString().trim().toLowerCase());
+        const rawHeadR = rowsRut[0].map(h => h.toString().trim());
         const normHeadR = rawHeadR.map(h => RUT_COL_MAP[h]||h);
         let dataRut = rowsRut.slice(1).map(vals => { const o={}; normHeadR.forEach((hdr,i) => { if (RUT_HEADERS.includes(hdr)) o[hdr]=vals[i]; }); return o; });
       return dataRut;
