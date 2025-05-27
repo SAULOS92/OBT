@@ -243,6 +243,7 @@
 
     // Normalizo nombres
     data.forEach(r => { r.nombre = sanitizeName(r.nombre); });
+    data.forEach(r => { r.barrio = sanitizeName(r.barrio); });
 
     // Filtro estados
     dataPed = data.filter(r => ['Sin Descargar','Sin facturar'].includes(r.estado));
