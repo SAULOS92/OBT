@@ -5,6 +5,7 @@ from views.generar_pedidos import generar_pedidos_bp
 from views.consolidar_compras import consolidar_bp
 from views.auth import auth_bp
 from views.auditoria import auditoria_bp
+from views.subir_pedidos import subir_pedidos_bp
 
 
 
@@ -15,6 +16,7 @@ app.register_blueprint(upload_bp)
 app.register_blueprint(generar_pedidos_bp)
 app.register_blueprint(consolidar_bp)
 app.register_blueprint(auditoria_bp)
+app.register_blueprint(subir_pedidos_bp)
 
 
 
