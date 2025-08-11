@@ -32,14 +32,28 @@ subir_pedidos_bp = Blueprint(
 @login_required
 def subir_pedidos():
     if request.method == "GET":
-        conn = conectar()
-        cur = conn.cursor()
-        cur.execute("SELECT id, placa, carro FROM vehiculos ORDER BY id")
-        vehiculos = [
-            {"id": r[0], "placa": r[1], "carro": r[2]} for r in cur.fetchall()
-        ]
-        cur.close()
-        conn.close()
+        vehiculos = []
+        conn = cur = None
+        try:
+            conn = conectar()
+            cur = conn.cursor()
+            cur.execute("SELECT id, placa, carro FROM vehiculos ORDER BY id")
+            vehiculos = [
+                {"id": r[0], "placa": r[1], "carro": r[2]} for r in cur.fetchall()
+            ]
+        except Exception as e:
+            flash(f"❌ Error cargando vehículos: {e}", "danger")
+        finally:
+            if cur:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
         return render_template("subir_pedidos.html", vehiculos=vehiculos)
 
     try:
