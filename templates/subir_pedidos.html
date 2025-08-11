@@ -2,85 +2,119 @@
 {% block title %}Subir Pedidos{% endblock %}
 
 {% block content %}
-<div class="max-w-md mx-auto bg-white p-8 rounded-3xl shadow-xl space-y-6">
-  <h1 class="text-2xl font-extrabold text-center">🚚 Subir Pedidos</h1>
-
-  <!-- Flash messages -->
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <div class="space-y-2">
-        {% for cat,msg in messages %}
-          <div class="px-4 py-2 rounded-lg {% if cat=='success' %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %}">
-            {{ msg }}
-          </div>
-        {% endfor %}
-      </div>
-    {% endif %}
-  {% endwith %}
-
-  <form method="POST" class="space-y-4">
+<div class="max-w-md mx-auto bg-white p-6 rounded-3xl shadow-xl space-y-4">
+  <h1 class="text-2xl font-bold text-center">🚚 Subir Pedidos</h1>
+  <form id="cred-form" class="space-y-4">
     <div>
-      <label class="block mb-1 font-medium">Ruta</label>
-      <input type="text" name="ruta" required
-             class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" />
-    </div>
-    <div>
-      <label class="block mb-1 font-medium">Placa</label>
-      <input type="text" name="placa" required
-             class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" />
-    </div>
-    <div>
-      <label class="block mb-1 font-medium">Usuario portal</label>
-      <input type="text" name="usuario" required
+      <label class="block mb-1 font-medium">Usuario</label>
+      <input type="text" id="usuario" name="usuario"
              class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" />
     </div>
     <div>
       <label class="block mb-1 font-medium">Contraseña</label>
-      <input type="password" name="password" required
+      <input type="password" id="contrasena" name="contrasena"
              class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" />
     </div>
-    <button type="submit" class="w-full py-3 font-semibold rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition">
-      Enviar
-    </button>
   </form>
 </div>
 
-{% if vehiculos %}
-<div class="max-w-2xl mx-auto mt-10">
-  <h2 class="text-xl font-bold mb-4">Placas y carros</h2>
+<div class="max-w-4xl mx-auto mt-8">
+  <div class="flex justify-between items-center mb-2">
+    <h2 class="text-xl font-bold">Vehículos</h2>
+    <button id="btn-add" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Agregar ruta</button>
+  </div>
   <table class="min-w-full bg-white shadow rounded-lg">
     <thead>
       <tr class="bg-gray-200 text-left">
+        <th class="p-2">Ruta</th>
         <th class="p-2">Placa</th>
-        <th class="p-2">Carro</th>
+        <th class="p-2">Estado</th>
+        <th class="p-2">Acción</th>
       </tr>
     </thead>
-    <tbody>
-      {% for v in vehiculos %}
-      <tr data-id="{{ v.id }}" class="border-t">
-        <td class="p-2"><input name="placa" value="{{ v.placa }}" class="vehiculo-input w-full border rounded p-1"/></td>
-        <td class="p-2"><input name="carro" value="{{ v.carro }}" class="vehiculo-input w-full border rounded p-1"/></td>
+    <tbody id="tabla-vehiculos">
+    {% for v in vehiculos %}
+      <tr data-ruta="{{ v.ruta }}" class="border-t">
+        <td class="p-2">{{ v.ruta }}</td>
+        <td class="p-2"><input type="text" maxlength="10" value="{{ v.placa }}" class="placa-input w-full border rounded p-1"/></td>
+        <td class="p-2 estado">{{ v.estado }}</td>
+        <td class="p-2"><button class="play-btn px-3 py-1 bg-green-600 text-white rounded">Play</button></td>
       </tr>
-      {% endfor %}
+    {% endfor %}
     </tbody>
   </table>
 </div>
 
 <script>
-document.querySelectorAll('.vehiculo-input').forEach(function(inp){
-  inp.addEventListener('change', function(){
-    const tr = this.closest('tr');
-    const id = tr.getAttribute('data-id');
-    const placa = tr.querySelector('input[name="placa"]').value;
-    const carro = tr.querySelector('input[name="carro"]').value;
-    fetch(`/subir-pedidos/vehiculos/${id}`, {
+const bd = "{{ bd }}";
+
+function savePlaca(ruta, placa){
+  fetch("/vehiculos/placa", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({bd: bd, ruta: ruta, placa: placa})
+  });
+}
+
+function attachRowEvents(tr){
+  const inp = tr.querySelector('.placa-input');
+  inp.addEventListener('blur', function(){
+    savePlaca(parseInt(tr.dataset.ruta), this.value);
+  });
+  inp.addEventListener('keypress', function(e){
+    if(e.key === 'Enter'){ e.preventDefault(); this.blur(); }
+  });
+  tr.querySelector('.play-btn').addEventListener('click', function(){
+    const usuario = document.getElementById('usuario').value;
+    const contrasena = document.getElementById('contrasena').value;
+    fetch('/vehiculos/play', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ placa: placa, carro: carro })
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({bd: bd, ruta: parseInt(tr.dataset.ruta), usuario: usuario, contrasena: contrasena})
+    }).then(r=>r.json()).then(res=>{
+      if(res.success){
+        tr.querySelector('.estado').textContent = 'ejecutando...';
+      } else {
+        tr.querySelector('.estado').textContent = 'error';
+      }
     });
   });
-});
-</script>
-{% endif %}
-{% endblock %}
+}
 
+document.querySelectorAll('#tabla-vehiculos tr').forEach(tr => attachRowEvents(tr));
+
+document.getElementById('btn-add').addEventListener('click', function(){
+  fetch('/vehiculos/add', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({bd: bd})
+  }).then(r=>r.json()).then(res=>{
+    if(res.success){
+      const v = res.data;
+      const tr = document.createElement('tr');
+      tr.setAttribute('data-ruta', v.ruta);
+      tr.classList.add('border-t');
+      tr.innerHTML = `<td class="p-2">${v.ruta}</td>
+        <td class="p-2"><input type="text" maxlength="10" value="" class="placa-input w-full border rounded p-1"/></td>
+        <td class="p-2 estado">pendiente</td>
+        <td class="p-2"><button class="play-btn px-3 py-1 bg-green-600 text-white rounded">Play</button></td>`;
+      document.getElementById('tabla-vehiculos').appendChild(tr);
+      attachRowEvents(tr);
+    }
+  });
+});
+
+function poll(){
+  document.querySelectorAll('#tabla-vehiculos tr').forEach(tr => {
+    const ruta = tr.dataset.ruta;
+    fetch(`/vehiculos/estado?bd=${encodeURIComponent(bd)}&ruta=${ruta}`)
+      .then(r=>r.json()).then(res=>{
+        if(res.success){
+          tr.querySelector('.estado').textContent = res.data.status;
+        }
+      });
+  });
+}
+setInterval(poll, 2500);
+</script>
+{% endblock %}
