@@ -20,4 +20,7 @@ gunicorn==23.0.0                     # Production WSGI server :contentReference[
 # Environment variable helpers
 python-dotenv==1.1.0                 # load .env files into env vars :contentReference[oaicite:9]{index=9}
 
+# Browser automation
+selenium==4.21.0                    # Drive web interactions with Selenium
+
 
