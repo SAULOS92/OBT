@@ -1,14 +1,22 @@
-import json, traceback
+import json, traceback, gzip
 from io import BytesIO
 import zipfile
 from datetime import datetime
 
 import pandas as pd
+import msgpack
 from flask import Blueprint, render_template, request, jsonify, send_file, session
 from views.auth import login_required
 from db import conectar
 
 generar_pedidos_bp = Blueprint("generar_pedidos", __name__, template_folder="../templates")
+
+
+def _get_msgpack_aware():
+    raw = request.get_data()
+    if request.headers.get("Content-Encoding") == "gzip":
+        raw = gzip.decompress(raw)
+    return msgpack.unpackb(raw, raw=False)
 
 @generar_pedidos_bp.route("/generar-pedidos", methods=["GET"])
 @login_required
@@ -19,11 +27,11 @@ def generar_pedidos_index():
 @login_required
 def cargar_pedidos():
     try:
-        # JSON enviado por el frontend
+        # Datos enviados por el frontend (MessagePack)
         negocio = session.get("negocio"); empresa = session.get("empresa")
-        payload  = request.get_json(silent=True) or {}
+        payload  = _get_msgpack_aware() or {}
         data_inv = payload.get("inventario") or []
-        data_mat = payload.get("materiales")  
+        data_mat = payload.get("materiales")
 
         # --- 1. Insertar/validar materiales (si aplica) ------------
         if data_mat and negocio != "nutresa":       
