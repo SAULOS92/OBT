@@ -18,17 +18,14 @@ def login():
         email    = request.form['email']
         password = request.form['password']
 
-        conn = conectar()
-        cur  = conn.cursor()
-        cur.execute("""
-            SELECT id, email, negocio
-            FROM users
-            WHERE email = %s
-              AND password_hash = crypt(%s, password_hash)
-        """, (email, password))
+        with conexion() as cur:
+            cur.execute("""
+                SELECT id, email, negocio
+                FROM users
+                WHERE email = %s
+                  AND password_hash = crypt(%s, password_hash)
+            """, (email, password))
         fila = cur.fetchone()
-        cur.close()
-        conn.close()
 
         if fila:
             empresa = email.split('@')[1].split('.')[0]

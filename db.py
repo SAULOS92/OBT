@@ -12,18 +12,16 @@ pool = ConnectionPool(
     min_size=1,        # Mantiene siempre 1 conexión activa
     max_size=12,       # Hasta 12 conexiones simultáneas
     max_idle=30,       # Cierra conexiones inactivas después de 30s
-    timeout=30,        # Espera máx. 30s por una conexión libre
+    timeout=30,        # Espera máx. 30s por conexión libre
     num_workers=3
 )
 
 def conectar(reintentos=3, espera=2):
     """
     Obtiene una conexión del pool.
-    Uso:
+    Uso tradicional:
         conn = conectar()
         cur = conn.cursor()
-        ...
-        liberar(conn)
     """
     for intento in range(1, reintentos + 1):
         try:
@@ -40,18 +38,30 @@ def conectar(reintentos=3, espera=2):
                 raise e
 
 def liberar(conn):
-    """
-    Devuelve una conexión al pool.
-    Siempre llamar en un bloque finally:
-        conn = None
-        try:
-            conn = conectar()
-            ...
-        finally:
-            liberar(conn)
-    """
+    """Devuelve una conexión al pool."""
     if conn:
         pool.putconn(conn)
         print("[DB] Conexión liberada al pool")
 
+class conexion:
+    """
+    Context manager para manejar conexión y cursor automáticamente.
+    Uso:
+        with conexion() as cur:
+            cur.execute("SELECT 1")
+            fila = cur.fetchone()
+    """
+    def __init__(self):
+        self.conn = None
+        self.cur = None
 
+    def __enter__(self):
+        self.conn = conectar()
+        self.cur = self.conn.cursor()
+        return self.cur
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self.cur:
+            self.cur.close()
+        if self.conn:
+            liberar(self.conn)
