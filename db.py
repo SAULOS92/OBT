@@ -25,7 +25,10 @@ def conectar(reintentos=3, espera=2):
     """
     for intento in range(1, reintentos + 1):
         try:
-            conn = pool.connection()
+            # ConnectionPool.connection() returns a context manager, which
+            # doesn't expose the cursor() method directly.  Use getconn()
+            # instead to obtain an actual connection object from the pool.
+            conn = pool.getconn()
             return conn
         except OperationalError as e:
             if intento < reintentos:
