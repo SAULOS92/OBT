@@ -25,7 +25,7 @@ def login():
                 WHERE email = %s
                   AND password_hash = crypt(%s, password_hash)
             """, (email, password))
-        fila = cur.fetchone()
+            fila = cur.fetchone()
 
         if fila:
             empresa = email.split('@')[1].split('.')[0]
