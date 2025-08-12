@@ -5,7 +5,7 @@ Este documento describe los endpoints expuestos por la aplicación Flask, junto 
 ## `views/upload.py`
 
 ### Funciones auxiliares
-- **`_get_json_gzip_aware()`**: Lee el cuerpo de la petición y, si viene comprimido con Gzip, lo descomprime antes de convertirlo a JSON.
+- **`_get_msgpack_payload()`**: Lee el cuerpo de la petición codificado en MessagePack.
 
 ### Endpoints
 - **`GET /`** y **`GET /cargar-pedidos`** (`upload_index`): muestra el formulario de carga de pedidos.

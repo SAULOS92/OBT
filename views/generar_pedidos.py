@@ -1,4 +1,4 @@
-import json, traceback, gzip
+import json, traceback
 from io import BytesIO
 import zipfile
 from datetime import datetime
@@ -12,10 +12,8 @@ from db import conectar
 generar_pedidos_bp = Blueprint("generar_pedidos", __name__, template_folder="../templates")
 
 
-def _get_msgpack_aware():
+def _get_msgpack_payload():
     raw = request.get_data()
-    if request.headers.get("Content-Encoding") == "gzip":
-        raw = gzip.decompress(raw)
     return msgpack.unpackb(raw, raw=False)
 
 @generar_pedidos_bp.route("/generar-pedidos", methods=["GET"])
@@ -29,7 +27,7 @@ def cargar_pedidos():
     try:
         # Datos enviados por el frontend (MessagePack)
         negocio = session.get("negocio"); empresa = session.get("empresa")
-        payload  = _get_msgpack_aware() or {}
+        payload  = _get_msgpack_payload() or {}
         data_inv = payload.get("inventario") or []
         data_mat = payload.get("materiales")
 

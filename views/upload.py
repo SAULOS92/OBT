@@ -1,4 +1,4 @@
-import gzip, json
+import json
 import msgpack
 from datetime import datetime
 from io import BytesIO
@@ -14,10 +14,8 @@ from views.auth import login_required
 upload_bp = Blueprint("upload", __name__, template_folder="../templates")
 
 
-def _get_json_gzip_aware():
+def _get_msgpack_payload():
     raw = request.get_data()
-    if request.headers.get("Content-Encoding") == "gzip":
-        raw = gzip.decompress(raw)
     return msgpack.unpackb(raw, raw=False)
 
 
@@ -32,8 +30,8 @@ def upload_index():
             with conectar() as conn:
                 with conn.cursor() as cur:
                     t0 = time.perf_counter()
-                    # ---- 1) JSON proveniente del frontend --------------------
-                    payload = _get_json_gzip_aware()
+                    # ---- 1) Datos MessagePack del frontend ------------------
+                    payload = _get_msgpack_payload()
                     pedidos = payload.get("pedidos", [])
                     rutas = payload.get("rutas")
                     p_dia = request.args.get("dia", "").strip()

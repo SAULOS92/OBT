@@ -87,7 +87,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/msgpack-lite@0.1.26/dist/msgpack.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
 <script>
   /* ---------------- Referencias DOM ---------------- */
   document.addEventListener('DOMContentLoaded', () => {
@@ -355,10 +354,9 @@ async function parseRutas(){
         /* ------ Enviar al backend y descargar resumen ------ */
         const encoder    = new TextEncoder();
         const packed = msgpack.encode({ pedidos: dataPed, rutas: rutasDia });
-        const gz = pako.gzip(packed);
         const res = await fetch(`/cargar-pedidos?dia=${encodeURIComponent(dia)}`, {
-          method:'POST', headers:{"Content-Encoding":"gzip","Content-Type":"application/msgpack"},
-          body:gz
+          method:'POST', headers:{"Content-Type":"application/msgpack"},
+          body:packed
         });
         if (!res.ok) { const err = await res.json().catch(() => ({error:`Error ${res.status}`})); throw new Error(err.error); }
         const blob = await res.blob();
