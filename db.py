@@ -12,7 +12,7 @@ pool = ConnectionPool(
     min_size=0,       # No mantiene conexiones vivas si no hay uso
     max_size=12,      # Hasta 12 conexiones concurrentes
     max_idle=30,      # Cierra conexiones inactivas después de 30s
-    timeout=10,       # Espera máximo 10s por conexión libre
+    timeout=120,       # Espera máximo 10s por conexión libre
     num_workers=3     # Trabajadores internos del pool
 )
 
