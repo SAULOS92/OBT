@@ -10,8 +10,8 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 pool = ConnectionPool(
     conninfo=DATABASE_URL,
     min_size=0,        # Mantiene siempre 1 conexión activa
-    max_size=12,       # Hasta 12 conexiones simultáneas
-    max_idle=30,       # Cierra conexiones inactivas después de 30s
+    max_size=8,       # Hasta 12 conexiones simultáneas
+    max_idle=3600,       # Cierra conexiones inactivas después de 30s
     timeout=30,        # Espera máx. 30s por conexión libre
     num_workers=3
 )
