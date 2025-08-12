@@ -8,7 +8,7 @@ from flask import (
     Blueprint, render_template, request,
     send_file, session, jsonify
 )
-from db import conexion
+from db import conectar
 from views.auth import login_required
 
 upload_bp = Blueprint("upload", __name__, template_folder="../templates")
