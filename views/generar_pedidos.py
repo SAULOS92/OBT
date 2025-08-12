@@ -34,27 +34,27 @@ def cargar_pedidos():
         data_mat = payload.get("materiales")
 
         # --- 1. Insertar/validar materiales (si aplica) ------------
-        if data_mat and negocio != "nutresa":       
-            conn = conectar(); cur = conn.cursor()
-            cur.execute("CALL sp_cargar_materiales(%s, %s);",
-                        (json.dumps(data_mat), empresa))
-            # Verificar si quedaron materiales sin definir
-            cur.execute("SELECT fn_materiales_sin_definir(%s);", (empresa,))
-            sin_def = json.loads(cur.fetchone()[0] or "[]")
-            if sin_def:
-                listado = ", ".join(f"{m['codigo_pro']}:{m['producto']}" for m in sin_def)
-                raise ValueError(f"Materiales sin definir: {listado}")            
-            conn.commit()
-            cur.close(); conn.close()
+        if data_mat and negocio != "nutresa":
+            with conectar() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("CALL sp_cargar_materiales(%s, %s);",
+                                (json.dumps(data_mat), empresa))
+                    # Verificar si quedaron materiales sin definir
+                    cur.execute("SELECT fn_materiales_sin_definir(%s);", (empresa,))
+                    sin_def = json.loads(cur.fetchone()[0] or "[]")
+                    if sin_def:
+                        listado = ", ".join(f"{m['codigo_pro']}:{m['producto']}" for m in sin_def)
+                        raise ValueError(f"Materiales sin definir: {listado}")
+                    conn.commit()
 
-            # --- 2. Procesar inventario / generar pedidos --------------    
-        conn = conectar(); cur = conn.cursor()
-        cur.execute("CALL sp_etl_pedxrutaxprod_json(%s, %s);",
-                    (json.dumps(data_inv), empresa))
-        conn.commit()
-        cur.close(); conn.close()
+        # --- 2. Procesar inventario / generar pedidos --------------
+        with conectar() as conn:
+            with conn.cursor() as cur:
+                cur.execute("CALL sp_etl_pedxrutaxprod_json(%s, %s);",
+                            (json.dumps(data_inv), empresa))
+                conn.commit()
 
-            # --- 3. Construir el ZIP y devolverlo ----------------------
+        # --- 3. Construir el ZIP y devolverlo ----------------------
         zip_buf = _build_zip(empresa)
         nombre  = datetime.now().strftime("formatos_%Y%m%d_%H%M.zip")
         return send_file(zip_buf, as_attachment=True,
@@ -70,19 +70,18 @@ def cargar_pedidos():
 # Función auxiliar: consulta datos y arma el ZIP totalmente en RAM
 # ------------------------------------------------------------------
 def _build_zip(empresa: int) -> BytesIO:
-    conn = conectar(); cur = conn.cursor()
+    with conectar() as conn:
+        with conn.cursor() as cur:
+            # 1) JSON con repartición de inventario
+            cur.execute("SELECT fn_obtener_reparticion_inventario_json(%s);", (empresa,))
+            raw_rep = cur.fetchone()[0]
+            data_rep = json.loads(raw_rep) if isinstance(raw_rep, str) else (raw_rep or [])
 
-    # 1) JSON con repartición de inventario
-    cur.execute("SELECT fn_obtener_reparticion_inventario_json(%s);", (empresa,))
-    raw_rep = cur.fetchone()[0]
-    data_rep = json.loads(raw_rep) if isinstance(raw_rep, str) else (raw_rep or [])
+            # 2) JSON con pedidos por ruta
+            cur.execute("SELECT fn_obtener_pedidos_con_pedir_json(%s);", (empresa,))
+            raw_ped = cur.fetchone()[0]
+            data_ped = json.loads(raw_ped) if isinstance(raw_ped, str) else (raw_ped or [])
 
-    # 2) JSON con pedidos por ruta
-    cur.execute("SELECT fn_obtener_pedidos_con_pedir_json(%s);", (empresa,))
-    raw_ped = cur.fetchone()[0]
-    data_ped = json.loads(raw_ped) if isinstance(raw_ped, str) else (raw_ped or [])
-    cur.close(); conn.close()    
-    
     # 3) Crear ZIP en memoria
     zip_buf = BytesIO()
     with zipfile.ZipFile(zip_buf, "w") as zf:
