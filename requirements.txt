@@ -12,7 +12,7 @@ xlrd==2.0.1                          # Read legacy .xls files :contentReference[
 # Database & ORM
 SQLAlchemy==2.0.40                   # Core ORM toolkit :contentReference[oaicite:5]{index=5}
 Flask-SQLAlchemy==3.1.1              # Flask integration for SQLAlchemy :contentReference[oaicite:6]{index=6}
-psycopg2-binary==2.9.10              # PostgreSQL driver (binary wheel) :contentReference[oaicite:7]{index=7}
+psycopg[binary,pool]                 # PostgreSQL driver (binary wheel) :contentReference[oaicite:7]{index=7}
 
 # WSGI server
 gunicorn==23.0.0                     # Production WSGI server :contentReference[oaicite:8]{index=8}
