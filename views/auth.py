@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from functools import wraps
-from db import conexion   # ← así, importando desde db.py
+from db import conectar
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -18,7 +18,8 @@ def login():
         email    = request.form['email']
         password = request.form['password']
 
-        with conexion() as cur:
+        conn = conectar()
+        cur  = conn.cursor()
             cur.execute("""
                 SELECT id, email, negocio
                 FROM users
@@ -26,6 +27,9 @@ def login():
                   AND password_hash = crypt(%s, password_hash)
             """, (email, password))
             fila = cur.fetchone()
+        cur.close()
+        conn.close()
+        
 
         if fila:
             empresa = email.split('@')[1].split('.')[0]
