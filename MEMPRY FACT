@@ -157,9 +157,9 @@ BEGIN
   WITH cte AS (
   SELECT
     p_bd            AS bd,
-    split_part(r.codigo_ruta, '-', 1)::INTEGER AS codigo_ruta,
-    split_part(r.codigo_ruta, '-', 2)           AS dia,
-    split_part(r.codigo_cliente, '-', 1)        AS codigo_cliente
+    (regexp_split_to_array(r.codigo_ruta, '[- ]'))[1]::INTEGER AS codigo_ruta,
+  (regexp_split_to_array(r.codigo_ruta, '[- ]'))[2]          AS dia,
+  (regexp_split_to_array(r.codigo_cliente, '[- ]'))[1]       AS codigo_cliente
   FROM jsonb_to_recordset(p_rutas) AS r(
     codigo_cliente TEXT,
     codigo_ruta    TEXT
@@ -313,11 +313,7 @@ BEGIN
   GROUP BY bd, ruta, codigo_pro;
   GET DIAGNOSTICS r_inicial = ROW_COUNT;
 
-  IF r_inventario = 0 OR r_inicial = 0 THEN
-    RETURN;
-  END IF;
-
-  -- Actualizar particiones
+    -- Actualizar particiones
   UPDATE pedxrutaxprod p
   SET
     particiones = m.particion,
@@ -452,13 +448,13 @@ INSERT INTO users (
   membership_end,
   negocio
 ) VALUES (
-  'facturacion@vallecafe.com',
-  'DISTRIBUCIONES VALLECAFE AHL',
-  '901170076-6',
-  'admonvallecafeahl@gmail.com',
-  crypt('vallecafe123', gen_salt('bf')),
-  '2025-06-01',
-  '2026-06-30',
+  'facturacion@tiendasymarcas.com',
+  'TIENDAS Y MARCAS',
+  '900973932-9',
+  'contabilidad@tiendasymarcasejecafetero.com',
+  crypt('esteban123', gen_salt('bf')),
+  '2025-08-01',
+  '2026-08-30',
   'carnicos'
 );
 
