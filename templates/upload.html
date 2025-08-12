@@ -353,9 +353,10 @@ async function parseRutas(){
         
         /* ------ Enviar al backend y descargar resumen ------ */
         const encoder    = new TextEncoder();
-        const gz = pako.gzip(encoder.encode(JSON.stringify({ pedidos:dataPed, rutas:rutasDia })));
+        const packed = msgpack.encode({ pedidos: dataPed, rutas: rutasDia });
+        const gz = pako.gzip(packed);
         const res = await fetch(`/cargar-pedidos?dia=${encodeURIComponent(dia)}`, {
-          method:'POST', headers:{"Content-Encoding":"gzip","Content-Type":"application/json"},
+          method:'POST', headers:{"Content-Encoding":"gzip","Content-Type":"application/msgpack"},
           body:gz
         });
         if (!res.ok) { const err = await res.json().catch(() => ({error:`Error ${res.status}`})); throw new Error(err.error); }

@@ -1,4 +1,5 @@
 import gzip, json
+import msgpack
 from datetime import datetime
 from io import BytesIO
 import pandas as pd
@@ -18,9 +19,8 @@ from flask import request
 def _get_json_gzip_aware():
     raw = request.get_data()
     if request.headers.get("Content-Encoding") == "gzip":
-        raw = gzip.decompress(raw)
-    raw = raw.decode("utf-8", errors="replace")
-    return json.loads(raw or "{}")                    
+        raw = gzip.decompress(raw)    
+    return msgpack.unpackb(raw, raw=False)                    
 
 
 @upload_bp.route("/", methods=["GET","POST"])
