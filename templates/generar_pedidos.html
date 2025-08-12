@@ -100,8 +100,10 @@
   </div>
 </div>
 
-{# -------------------------- Dependencia XLSX.js --------------------------- #}
+{# -------------------------- Dependencias JS ---------------------------- #}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/msgpack-lite@0.1.26/dist/msgpack.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
 
 {# --------------------------- Lógica cliente JS --------------------------- #}
 <script>
@@ -267,10 +269,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* --- POST y descarga ZIP --- */
     try{
+      const packed = msgpack.encode(payload);
+      const gz = pako.gzip(packed);
       const res = await fetch('/generar-pedidos',{
         method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(payload)
+        headers:{'Content-Type':'application/msgpack','Content-Encoding':'gzip'},
+        body:gz
       });
       if(!res.ok){
         const err = await res.json().catch(()=>({error:`Error ${res.status}`}));
