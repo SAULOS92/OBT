@@ -23,4 +23,6 @@ python-dotenv==1.1.0                 # load .env files into env vars :contentRef
 # Browser automation
 selenium==4.21.0                    # Drive web interactions with Selenium
 
+msgpack==1.0.5                      # Efficient binary serialization :contentReference[oaicite:10]{index=10}
+
 
