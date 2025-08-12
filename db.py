@@ -3,32 +3,33 @@ import time
 from psycopg_pool import ConnectionPool
 from psycopg import OperationalError
 
-# URL de conexión desde variable de entorno o fija
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://usuario:password@host/dbname")
+# URL de conexión desde variable de entorno
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Configuración del pool optimizada para Neon free tier
+# Configuración del pool optimizada para Neon Free Tier
 pool = ConnectionPool(
     conninfo=DATABASE_URL,
-    min_size=0,       # No mantiene conexiones vivas si no hay uso
-    max_size=12,      # Hasta 12 conexiones concurrentes
-    max_idle=30,      # Cierra conexiones inactivas después de 30s
-    timeout=120,       # Espera máximo 10s por conexión libre
-    num_workers=3     # Trabajadores internos del pool
+    min_size=1,        # Mantiene siempre 1 conexión activa
+    max_size=12,       # Hasta 12 conexiones simultáneas
+    max_idle=30,       # Cierra conexiones inactivas después de 30s
+    timeout=30,        # Espera máx. 30s por una conexión libre
+    num_workers=3
 )
 
 def conectar(reintentos=3, espera=2):
     """
-    Devuelve una conexión del pool lista para usar con:
+    Obtiene una conexión del pool.
+    Uso:
         conn = conectar()
         cur = conn.cursor()
-    Si la base está dormida, reintenta automáticamente.
+        ...
+        liberar(conn)
     """
     for intento in range(1, reintentos + 1):
         try:
-            # ConnectionPool.connection() returns a context manager, which
-            # doesn't expose the cursor() method directly.  Use getconn()
-            # instead to obtain an actual connection object from the pool.
+            t0 = time.time()
             conn = pool.getconn()
+            print(f"[DB] Conexión obtenida en {time.time()-t0:.2f}s")
             return conn
         except OperationalError as e:
             if intento < reintentos:
@@ -37,4 +38,20 @@ def conectar(reintentos=3, espera=2):
             else:
                 print("[DB] No se pudo conectar a la base de datos.")
                 raise e
+
+def liberar(conn):
+    """
+    Devuelve una conexión al pool.
+    Siempre llamar en un bloque finally:
+        conn = None
+        try:
+            conn = conectar()
+            ...
+        finally:
+            liberar(conn)
+    """
+    if conn:
+        pool.putconn(conn)
+        print("[DB] Conexión liberada al pool")
+
 
