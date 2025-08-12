@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from functools import wraps
-from db import conectar   # ← así, importando desde db.py
+from db import conexion   # ← así, importando desde db.py
 
 auth_bp = Blueprint('auth', __name__)
 
