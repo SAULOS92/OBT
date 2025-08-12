@@ -40,7 +40,10 @@
         <td class="p-2"><input type="text" maxlength="10" value="{{ v.placa }}" class="placa-input w-full border rounded p-1"/></td>
         <td class="p-2 estado">{{ v.estado }}</td>
         <td class="p-2 paso">{{ v.paso or '' }}</td>
-        <td class="p-2"><button class="play-btn px-3 py-1 bg-green-600 text-white rounded">Play</button></td>
+        <td class="p-2">
+          <button class="play-btn px-3 py-1 bg-green-600 text-white rounded" {% if v.estado in ['ejecutando','en cola'] %}disabled{% endif %}>Play</button>
+          <button class="stop-btn px-3 py-1 bg-red-600 text-white rounded {% if v.estado not in ['ejecutando','en cola'] %}hidden{% endif %}">Stop</button>
+        </td>
       </tr>
     {% endfor %}
     </tbody>
@@ -75,17 +78,49 @@ function attachRowEvents(tr){
       body: JSON.stringify({bd: bd, ruta: parseInt(tr.dataset.ruta), usuario: usuario, contrasena: contrasena})
     }).then(r=>r.json()).then(res=>{
       if(res.success){
-        tr.querySelector('.estado').textContent = res.data.status;
-        tr.querySelector('.paso').textContent = '';
+        updateRow(tr, res.data.status, '', '');
       } else {
-        tr.querySelector('.estado').textContent = 'error';
-        tr.querySelector('.paso').textContent = '';
+        updateRow(tr, 'error', '', '');
+      }
+    });
+  });
+
+  tr.querySelector('.stop-btn').addEventListener('click', function(){
+    fetch('/vehiculos/stop', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({bd: bd, ruta: parseInt(tr.dataset.ruta)})
+    }).then(r=>r.json()).then(res=>{
+      if(res.success){
+        updateRow(tr, res.data.status, tr.querySelector('.paso').textContent, '');
       }
     });
   });
 }
 
-document.querySelectorAll('#tabla-vehiculos tr').forEach(tr => attachRowEvents(tr));
+function updateRow(tr, estado, paso, message){
+  tr.querySelector('.estado').textContent = estado;
+  tr.querySelector('.paso').textContent = paso || '';
+  const play = tr.querySelector('.play-btn');
+  const stop = tr.querySelector('.stop-btn');
+  if(['ejecutando','en cola'].includes(estado)){
+    play.disabled = true;
+    stop.classList.remove('hidden');
+  } else {
+    play.disabled = false;
+    stop.classList.add('hidden');
+  }
+  if(estado === 'error' && message){
+    tr.querySelector('.estado').title = message;
+  } else {
+    tr.querySelector('.estado').removeAttribute('title');
+  }
+}
+
+document.querySelectorAll('#tabla-vehiculos tr').forEach(tr => {
+  attachRowEvents(tr);
+  updateRow(tr, tr.querySelector('.estado').textContent.trim(), tr.querySelector('.paso').textContent.trim(), '');
+});
 
 document.getElementById('btn-add').addEventListener('click', function(){
   fetch('/vehiculos/add', {
@@ -102,9 +137,11 @@ document.getElementById('btn-add').addEventListener('click', function(){
         <td class="p-2"><input type="text" maxlength="10" value="" class="placa-input w-full border rounded p-1"/></td>
         <td class="p-2 estado">pendiente</td>
         <td class="p-2 paso"></td>
-        <td class="p-2"><button class="play-btn px-3 py-1 bg-green-600 text-white rounded">Play</button></td>`;
+        <td class="p-2"><button class="play-btn px-3 py-1 bg-green-600 text-white rounded">Play</button>
+            <button class="stop-btn px-3 py-1 bg-red-600 text-white rounded hidden">Stop</button></td>`;
       document.getElementById('tabla-vehiculos').appendChild(tr);
       attachRowEvents(tr);
+      updateRow(tr, 'pendiente', '', '');
     }
   });
 });
@@ -115,13 +152,7 @@ function poll(){
     fetch(`/vehiculos/estado?bd=${encodeURIComponent(bd)}&ruta=${ruta}`)
       .then(r=>r.json()).then(res=>{
         if(res.success){
-          tr.querySelector('.estado').textContent = res.data.status;
-          tr.querySelector('.paso').textContent = res.data.paso || '';
-          if(res.data.status === 'error'){
-            tr.querySelector('.estado').title = res.data.message || '';
-          } else {
-            tr.querySelector('.estado').removeAttribute('title');
-          }
+          updateRow(tr, res.data.status, res.data.paso, res.data.message);
         }
       });
   });

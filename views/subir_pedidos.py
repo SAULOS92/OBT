@@ -23,43 +23,67 @@ from views.auth import login_required
 
 subir_pedidos_bp = Blueprint("subir_pedidos", __name__, template_folder="../templates")
 
+
+class CancelledError(Exception):
+    """Señala que un job fue cancelado."""
+
+
+class JobControl:
+    def __init__(self):
+        self.cancel_event = threading.Event()
+        self.driver: Optional[webdriver.Chrome] = None
+
+
 # worker de un solo hilo y cola FIFO
-_job_queue: "queue.Queue[Tuple[str, int, str, str]]" = queue.Queue()
+_job_queue: "queue.Queue[Tuple[str, int, str, str, JobControl]]" = queue.Queue()
 _states_lock = threading.Lock()
 _job_states: Dict[Tuple[str, int], Dict[str, Optional[str]]] = {}
+_job_controls: Dict[Tuple[str, int], JobControl] = {}
 
 
 def _worker_loop() -> None:
     while True:
-        bd, ruta, usuario, password = _job_queue.get()
+        bd, ruta, usuario, password, control = _job_queue.get()
         with _states_lock:
+            st = _job_states.get((bd, ruta))
+            if st and st.get("status") == "cancelado":
+                _job_queue.task_done()
+                continue
             st = _job_states.setdefault(
                 (bd, ruta),
                 {
                     "status": "pendiente",
-                    "current_step": None,
+                    "paso_actual": None,
                     "started_at": "",
                     "ended_at": "",
                     "message": "",
                     "failed_step": None,
                 },
             )
-            st["status"] = "ejecutando"
-            st["started_at"] = datetime.utcnow().isoformat()
+            st.update({"status": "ejecutando", "paso_actual": None, "failed_step": None, "started_at": datetime.utcnow().isoformat(), "ended_at": "", "message": ""})
         try:
-            subir_pedidos_ruta(bd, ruta, usuario, password)
+            subir_pedidos_ruta(bd, ruta, usuario, password, control)
             with _states_lock:
                 st = _job_states[(bd, ruta)]
-                st["status"] = "exito"
+                st["ended_at"] = datetime.utcnow().isoformat()
+        except CancelledError:
+            with _states_lock:
+                st = _job_states[(bd, ruta)]
                 st["ended_at"] = datetime.utcnow().isoformat()
         except Exception as e:  # pragma: no cover - selenium/portal interaction
             with _states_lock:
                 st = _job_states[(bd, ruta)]
-                st["status"] = "error"
-                st["message"] = str(e)
-                st["failed_step"] = st.get("current_step")
-                st["ended_at"] = datetime.utcnow().isoformat()
+                st.update(
+                    {
+                        "status": "error",
+                        "message": str(e),
+                        "failed_step": st.get("paso_actual"),
+                        "ended_at": datetime.utcnow().isoformat(),
+                    }
+                )
         finally:
+            with _states_lock:
+                _job_controls.pop((bd, ruta), None)
             _job_queue.task_done()
 
 
@@ -133,8 +157,8 @@ def _get_vehiculos(bd: str):
             {
                 "ruta": r[0],
                 "placa": r[1],
-                "estado": _status_text(st.get("status", "pendiente")),
-                "paso": st.get("current_step"),
+                "estado": st.get("status", "pendiente"),
+                "paso": st.get("paso_actual"),
             }
         )
     return vehiculos
@@ -177,6 +201,7 @@ def _add_ruta(bd: str) -> Dict[str, int]:
 
 
 CONFIG = {
+    "login.url": "https://portal.gruponutresa.com/",
     "modulo.url": "https://portal.gruponutresa.com/p/nuevo/pedido-masivo/excel",
     "login.user": "#usuario",
     "login.pass": "#password",
@@ -197,23 +222,13 @@ CONFIG = {
 }
 
 
-def _status_text(status: str) -> str:
-    return {
-        "pendiente": "pendiente",
-        "en cola": "en cola",
-        "ejecutando": "ejecutando…",
-        "exito": "subido con éxito",
-        "error": "error",
-    }.get(status, status)
-
-
 def _set_state(bd: str, ruta: int, **kwargs) -> None:
     with _states_lock:
         st = _job_states.setdefault(
             (bd, ruta),
             {
                 "status": "pendiente",
-                "current_step": None,
+                "paso_actual": None,
                 "started_at": "",
                 "ended_at": "",
                 "message": "",
@@ -224,12 +239,26 @@ def _set_state(bd: str, ruta: int, **kwargs) -> None:
 
 
 def _set_step(bd: str, ruta: int, step: Optional[str]) -> None:
-    _set_state(bd, ruta, current_step=step)
+    _set_state(bd, ruta, paso_actual=step)
 
 
 def _current_step(bd: str, ruta: int) -> Optional[str]:
     with _states_lock:
-        return _job_states.get((bd, ruta), {}).get("current_step")
+        return _job_states.get((bd, ruta), {}).get("paso_actual")
+
+
+def check_cancel(control: JobControl) -> None:
+    if control.cancel_event.is_set():
+        raise CancelledError()
+
+
+def crear_excel(bd: str, ruta: int) -> pathlib.Path:
+    return selenium_crear_excel_pedidos(bd, ruta)
+
+
+def cleanup(path: pathlib.Path) -> None:
+    if path.exists():
+        os.remove(path)
 
 
 # ---------------------------------------------------------------------------
@@ -246,7 +275,7 @@ def build_driver() -> webdriver.Chrome:  # pragma: no cover - requiere driver
 
 
 def selenium_login(driver, config, usuario: str, password: str) -> None:
-    driver.get(config["modulo.url"])
+    driver.get(config["login.url"])
     WebDriverWait(driver, 30).until(
         EC.presence_of_element_located((By.CSS_SELECTOR, config["login.user"]))
     ).send_keys(usuario)
@@ -276,14 +305,14 @@ def selenium_crear_excel_pedidos(bd: str, ruta: int) -> pathlib.Path:
     return tmp
 
 
-def selenium_ir_modulo_carga(driver, config) -> None:
+def selenium_ingreso_modulo_de_carga(driver, config) -> None:
     driver.get(config["modulo.url"])
     WebDriverWait(driver, 30).until(
         EC.presence_of_element_located((By.CSS_SELECTOR, config["modulo.ok"]))
     )
 
 
-def selenium_cargar_excel(driver, config, xls_path) -> None:
+def selenium_cargando_el_archivo(driver, config, xls_path) -> None:
     try:
         driver.find_element(By.CSS_SELECTOR, config["carga.combo1"]).click()
         driver.find_element(By.CSS_SELECTOR, config["carga.combo2"]).click()
@@ -297,29 +326,29 @@ def selenium_cargar_excel(driver, config, xls_path) -> None:
     ).click()
 
 
-def selenium_set_canal(driver, config) -> None:
+def selenium_agregando_al_carrito(driver, config, placa: str) -> None:
     WebDriverWait(driver, 30).until(
         EC.presence_of_element_located((By.CSS_SELECTOR, config["canal.input"]))
     ).send_keys(config["canal.value"])
+    try:
+        WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, config["placa.input"]))
+        ).send_keys(placa)
+    except Exception:
+        driver.get("https://portal.gruponutresa.com/carrito/resumen")
+        WebDriverWait(driver, 30).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, config["placa.input"]))
+        ).send_keys(placa)
 
 
-def selenium_ir_carrito(driver, config) -> None:
+def selenium_aceptando_el_pedido(driver, config) -> None:
     driver.get("https://portal.gruponutresa.com/carrito/resumen")
 
 
-def selenium_anotar_placas(driver, config, placa: str) -> None:
-    WebDriverWait(driver, 30).until(
-        EC.presence_of_element_located((By.CSS_SELECTOR, config["placa.input"]))
-    ).send_keys(placa)
-
-
-def selenium_confirmar_pedido(driver, config) -> None:
+def selenium_confirmando_el_pedido(driver, config) -> Dict[str, str]:
     WebDriverWait(driver, 30).until(
         EC.element_to_be_clickable((By.CSS_SELECTOR, config["carrito.confirmar"]))
     ).click()
-
-
-def selenium_confirmar_respuesta(driver, config) -> Dict[str, str]:
     try:
         WebDriverWait(driver, 30).until(
             EC.element_to_be_clickable((By.CSS_SELECTOR, config["respuesta.aceptar"]))
@@ -334,42 +363,54 @@ def selenium_confirmar_respuesta(driver, config) -> Dict[str, str]:
 # ---------------------------------------------------------------------------
 
 
-def subir_pedidos_ruta(bd: str, ruta: int, usuario: str, password: str) -> None:
-    _set_step(bd, ruta, "crear_excel")
-    xls = selenium_crear_excel_pedidos(bd, ruta)
+def subir_pedidos_ruta(bd: str, ruta: int, usuario: str, password: str, control: JobControl) -> None:
+    _set_state(bd, ruta, status="ejecutando", paso_actual=None, failed_step=None)
+    xls = crear_excel(bd, ruta)
     driver = build_driver()
+    control.driver = driver
     try:
         _set_step(bd, ruta, "login")
+        check_cancel(control)
         selenium_login(driver, CONFIG, usuario, password)
 
-        _set_step(bd, ruta, "ir_modulo")
-        selenium_ir_modulo_carga(driver, CONFIG)
+        _set_step(bd, ruta, "ingreso_al_modulo_de_carga")
+        check_cancel(control)
+        selenium_ingreso_modulo_de_carga(driver, CONFIG)
 
-        _set_step(bd, ruta, "cargar_excel")
-        selenium_cargar_excel(driver, CONFIG, xls)
-
-        _set_step(bd, ruta, "set_canal")
-        selenium_set_canal(driver, CONFIG)
-
-        _set_step(bd, ruta, "ir_carrito")
-        selenium_ir_carrito(driver, CONFIG)
+        _set_step(bd, ruta, "cargando_el_archivo")
+        check_cancel(control)
+        selenium_cargando_el_archivo(driver, CONFIG, xls)
 
         placa = _obtener_placa(bd, ruta)
-        _set_step(bd, ruta, "anotar_placas")
-        selenium_anotar_placas(driver, CONFIG, placa)
+        _set_step(bd, ruta, "agregando_al_carrito")
+        check_cancel(control)
+        selenium_agregando_al_carrito(driver, CONFIG, placa)
 
-        _set_step(bd, ruta, "confirmar_pedido")
-        selenium_confirmar_pedido(driver, CONFIG)
+        _set_step(bd, ruta, "aceptando_el_pedido")
+        check_cancel(control)
+        selenium_aceptando_el_pedido(driver, CONFIG)
 
-        _set_step(bd, ruta, "confirmar_respuesta")
-        res = selenium_confirmar_respuesta(driver, CONFIG)
-        _set_state(bd, ruta, message=json.dumps(res))
+        _set_step(bd, ruta, "confirmando_el_pedido")
+        check_cancel(control)
+        res = selenium_confirmando_el_pedido(driver, CONFIG)
+        _set_state(bd, ruta, status="exito", message=json.dumps(res))
+    except CancelledError:
+        _set_state(bd, ruta, status="cancelado")
+        raise
+    except Exception as e:
+        _set_state(
+            bd,
+            ruta,
+            status="error",
+            failed_step=_current_step(bd, ruta),
+            message=str(e),
+        )
+        raise
     finally:  # pragma: no cover - cleanup
         try:
             driver.quit()
         finally:
-            if xls.exists():
-                os.remove(xls)
+            cleanup(xls)
 
 
 # ---------------------------------------------------------------------------
@@ -381,18 +422,20 @@ def _enqueue_job(bd: str, ruta: int, usuario: str, password: str) -> str:
     with _states_lock:
         st = _job_states.get((bd, ruta))
         if st and st.get("status") in {"ejecutando", "en cola"}:
-            return _status_text(st["status"])
+            return st["status"]
         status = "ejecutando" if _job_queue.empty() else "en cola"
         _job_states[(bd, ruta)] = {
             "status": status,
-            "current_step": None,
+            "paso_actual": None,
             "started_at": datetime.utcnow().isoformat() if status == "ejecutando" else "",
             "ended_at": "",
             "message": "",
             "failed_step": None,
         }
-    _job_queue.put((bd, ruta, usuario, password))
-    return _status_text(status)
+        control = JobControl()
+        _job_controls[(bd, ruta)] = control
+    _job_queue.put((bd, ruta, usuario, password, control))
+    return status
 
 
 # ---------------------------------------------------------------------------
@@ -451,6 +494,36 @@ def ejecutar_ruta():
         return jsonify(success=False, error=str(e)), 400
 
 
+@subir_pedidos_bp.route("/vehiculos/stop", methods=["POST"])
+@login_required
+def detener_ruta():
+    try:
+        data = request.get_json() or {}
+        bd = _get_bd()
+        ruta = int(data.get("ruta"))
+        with _states_lock:
+            st = _job_states.get((bd, ruta))
+            if not st:
+                return jsonify(success=True, data={"status": "pendiente"})
+            if st.get("status") == "en cola":
+                st["status"] = "cancelado"
+            elif st.get("status") == "ejecutando":
+                st["status"] = "cancelado"
+                control = _job_controls.get((bd, ruta))
+                if control:
+                    control.cancel_event.set()
+                    if control.driver:
+                        try:
+                            control.driver.quit()
+                        except Exception:
+                            pass
+        with _states_lock:
+            status = _job_states.get((bd, ruta), {}).get("status", "pendiente")
+        return jsonify(success=True, data={"status": status})
+    except Exception as e:
+        return jsonify(success=False, error=str(e)), 400
+
+
 @subir_pedidos_bp.route("/vehiculos/estado", methods=["GET"])
 @login_required
 def estado_ruta():
@@ -461,7 +534,7 @@ def estado_ruta():
             (bd, ruta),
             {
                 "status": "pendiente",
-                "current_step": None,
+                "paso_actual": None,
                 "message": "",
                 "failed_step": None,
             },
@@ -469,8 +542,8 @@ def estado_ruta():
     return jsonify(
         success=True,
         data={
-            "status": _status_text(st.get("status", "pendiente")),
-            "paso": st.get("current_step"),
+            "status": st.get("status", "pendiente"),
+            "paso": st.get("paso_actual"),
             "failed_step": st.get("failed_step"),
             "message": st.get("message", ""),
         },
