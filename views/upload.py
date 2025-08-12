@@ -8,62 +8,53 @@ from flask import (
     Blueprint, render_template, request,
     send_file, session, jsonify
 )
-from db import conectar
+from db import conexion
 from views.auth import login_required
 
 upload_bp = Blueprint("upload", __name__, template_folder="../templates")
 
-import gzip, json
-from flask import request
 
 def _get_json_gzip_aware():
     raw = request.get_data()
     if request.headers.get("Content-Encoding") == "gzip":
-        raw = gzip.decompress(raw)    
-    return msgpack.unpackb(raw, raw=False)                    
+        raw = gzip.decompress(raw)
+    return msgpack.unpackb(raw, raw=False)
 
 
-@upload_bp.route("/", methods=["GET","POST"])
-@upload_bp.route("/cargar-pedidos", methods=["GET","POST"])
+@upload_bp.route("/", methods=["GET", "POST"])
+@upload_bp.route("/cargar-pedidos", methods=["GET", "POST"])
 @login_required
 def upload_index():
     empresa = session.get("empresa")
-    
+
     if request.method == "POST":
         try:
-            conn = conectar()
-            cur = conn.cursor()
-            t0 = time.perf_counter()
-            # ---- 1) JSON proveniente del frontend --------------------
-            payload  = _get_json_gzip_aware()
-            pedidos = payload.get("pedidos", [])
-            rutas = payload.get("rutas")
-            p_dia    = request.args.get("dia", "").strip()      
+            with conexion() as cur:
+                t0 = time.perf_counter()
+                # ---- 1) JSON proveniente del frontend --------------------
+                payload = _get_json_gzip_aware()
+                pedidos = payload.get("pedidos", [])
+                rutas = payload.get("rutas")
+                p_dia = request.args.get("dia", "").strip()
 
-             # ---- 2) Procedimiento almacenado -------------------------
-            
-            
-            cur.execute(
-                "CALL etl_cargar_pedidos_y_rutas_masivo(%s, %s, %s, %s);",
-                (json.dumps(pedidos), json.dumps(rutas), p_dia, empresa)
-            )
-            cur.execute("SELECT fn_obtener_resumen_pedidos(%s);", (empresa,))
-            raw = cur.fetchone()[0]
-            conn.commit()
-            cur.close()
-            conn.close()
-            elapsed = time.perf_counter() - t0
-            print(f"[INFO] SP etl_cargar_pedidos_y_rutas_masivo demoró {elapsed:.2f}s "
-      f"(pedidos={len(pedidos)}, rutas={len(rutas)}, día={p_dia}, emp={empresa})")
+                # ---- 2) Procedimiento almacenado -------------------------
+                cur.execute(
+                    "CALL etl_cargar_pedidos_y_rutas_masivo(%s, %s, %s, %s);",
+                    (json.dumps(pedidos), json.dumps(rutas), p_dia, empresa)
+                )
+                cur.execute("SELECT fn_obtener_resumen_pedidos(%s);", (empresa,))
+                raw = cur.fetchone()[0]
+
+                elapsed = time.perf_counter() - t0
+                print(f"[INFO] SP etl_cargar_pedidos_y_rutas_masivo demoró {elapsed:.2f}s "
+                      f"(pedidos={len(pedidos)}, rutas={len(rutas)}, día={p_dia}, emp={empresa})")
 
             # ---- 3) Obtener resumen en JSON --------------------------
-          
-
             data_res = json.loads(raw) if isinstance(raw, str) else (raw or [])
-            cols = ["bd","codigo_cli","nombre","barrio","ciudad","asesor","total_pedidos","valor","ruta"]
+            cols = ["bd", "codigo_cli", "nombre", "barrio", "ciudad", "asesor", "total_pedidos", "valor", "ruta"]
             df_res = pd.DataFrame(data_res, columns=cols)
 
-            # ---- 4) Exportar a Excel 
+            # ---- 4) Exportar a Excel
             buf = BytesIO()
             with pd.ExcelWriter(buf, engine="openpyxl") as writer:
                 df_res.to_excel(writer, sheet_name="ResumenPedidos", index=False)
@@ -85,6 +76,7 @@ def upload_index():
 
     # GET: muestra formulario
     return render_template("upload.html")
+
 
 
 
