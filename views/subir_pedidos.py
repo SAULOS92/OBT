@@ -98,21 +98,19 @@ _worker_thread.start()
 
 def _ensure_table() -> None:
     """Crea la tabla vehiculos si no existe."""
-    conn = conectar()
-    cur = conn.cursor()
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS vehiculos (
-            bd   TEXT NOT NULL,
-            ruta INTEGER NOT NULL,
-            placa VARCHAR(10) NOT NULL DEFAULT '',
-            PRIMARY KEY (bd, ruta)
-        );
-        """
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
+    with conectar() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS vehiculos (
+                    bd   TEXT NOT NULL,
+                    ruta INTEGER NOT NULL,
+                    placa VARCHAR(10) NOT NULL DEFAULT '',
+                    PRIMARY KEY (bd, ruta)
+                );
+                """
+            )
+            conn.commit()
 
 
 def _get_bd() -> str:
@@ -123,32 +121,28 @@ def _get_bd() -> str:
 
 
 def _obtener_placa(bd: str, ruta: int) -> str:
-    conn = conectar()
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT placa FROM vehiculos WHERE bd=%s AND ruta=%s",
-        (bd, ruta),
-    )
-    row = cur.fetchone()
-    cur.close()
-    conn.close()
+    with conectar() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT placa FROM vehiculos WHERE bd=%s AND ruta=%s",
+                (bd, ruta),
+            )
+            row = cur.fetchone()
     return row[0] if row else ""
 
 
 def _get_vehiculos(bd: str):
-    conn = conectar()
-    cur = conn.cursor()
-    cur.execute("SELECT ruta, placa FROM vehiculos WHERE bd=%s ORDER BY ruta", (bd,))
-    rows = cur.fetchall()
-    if not rows:
-        cur.execute(
-            "INSERT INTO vehiculos (bd, ruta, placa) VALUES (%s, %s, %s)",
-            (bd, 1, ""),
-        )
-        conn.commit()
-        rows = [(1, "")]
-    cur.close()
-    conn.close()
+    with conectar() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT ruta, placa FROM vehiculos WHERE bd=%s ORDER BY ruta", (bd,))
+            rows = cur.fetchall()
+            if not rows:
+                cur.execute(
+                    "INSERT INTO vehiculos (bd, ruta, placa) VALUES (%s, %s, %s)",
+                    (bd, 1, ""),
+                )
+                conn.commit()
+                rows = [(1, "")]
     vehiculos = []
     for r in rows:
         with _states_lock:
@@ -165,33 +159,29 @@ def _get_vehiculos(bd: str):
 
 
 def _upsert_vehiculo(bd: str, ruta: int, placa: str) -> None:
-    conn = conectar()
-    cur = conn.cursor()
-    cur.execute(
-        """
-        INSERT INTO vehiculos (bd, ruta, placa)
-        VALUES (%s, %s, %s)
-        ON CONFLICT (bd, ruta) DO UPDATE SET placa = EXCLUDED.placa
-        """,
-        (bd, ruta, placa[:10]),
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
+    with conectar() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO vehiculos (bd, ruta, placa)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (bd, ruta) DO UPDATE SET placa = EXCLUDED.placa
+                """,
+                (bd, ruta, placa[:10]),
+            )
+            conn.commit()
 
 
 def _add_ruta(bd: str) -> Dict[str, int]:
-    conn = conectar()
-    cur = conn.cursor()
-    cur.execute("SELECT COALESCE(MAX(ruta),0)+1 FROM vehiculos WHERE bd=%s", (bd,))
-    next_ruta = cur.fetchone()[0]
-    cur.execute(
-        "INSERT INTO vehiculos (bd, ruta, placa) VALUES (%s, %s, %s)",
-        (bd, next_ruta, ""),
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
+    with conectar() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COALESCE(MAX(ruta),0)+1 FROM vehiculos WHERE bd=%s", (bd,))
+            next_ruta = cur.fetchone()[0]
+            cur.execute(
+                "INSERT INTO vehiculos (bd, ruta, placa) VALUES (%s, %s, %s)",
+                (bd, next_ruta, ""),
+            )
+            conn.commit()
     return {"ruta": next_ruta, "placa": "", "estado": "pendiente", "paso": None}
 
 
@@ -287,12 +277,10 @@ def selenium_login(driver, config, usuario: str, password: str) -> None:
 
 
 def selenium_crear_excel_pedidos(bd: str, ruta: int) -> pathlib.Path:
-    conn = conectar()
-    cur = conn.cursor()
-    cur.execute("SELECT fn_obtener_pedidos_con_pedir_json(%s);", (bd,))
-    pedidos = json.loads(cur.fetchone()[0])
-    cur.close()
-    conn.close()
+    with conectar() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT fn_obtener_pedidos_con_pedir_json(%s);", (bd,))
+            pedidos = json.loads(cur.fetchone()[0])
 
     registros = [p for p in pedidos if p["ruta"] == ruta]
     if not registros:

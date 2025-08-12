@@ -29,25 +29,27 @@ def upload_index():
 
     if request.method == "POST":
         try:
-            with conexion() as cur:
-                t0 = time.perf_counter()
-                # ---- 1) JSON proveniente del frontend --------------------
-                payload = _get_json_gzip_aware()
-                pedidos = payload.get("pedidos", [])
-                rutas = payload.get("rutas")
-                p_dia = request.args.get("dia", "").strip()
+            with conectar() as conn:
+                with conn.cursor() as cur:
+                    t0 = time.perf_counter()
+                    # ---- 1) JSON proveniente del frontend --------------------
+                    payload = _get_json_gzip_aware()
+                    pedidos = payload.get("pedidos", [])
+                    rutas = payload.get("rutas")
+                    p_dia = request.args.get("dia", "").strip()
 
-                # ---- 2) Procedimiento almacenado -------------------------
-                cur.execute(
-                    "CALL etl_cargar_pedidos_y_rutas_masivo(%s, %s, %s, %s);",
-                    (json.dumps(pedidos), json.dumps(rutas), p_dia, empresa)
-                )
-                cur.execute("SELECT fn_obtener_resumen_pedidos(%s);", (empresa,))
-                raw = cur.fetchone()[0]
+                    # ---- 2) Procedimiento almacenado -------------------------
+                    cur.execute(
+                        "CALL etl_cargar_pedidos_y_rutas_masivo(%s, %s, %s, %s);",
+                        (json.dumps(pedidos), json.dumps(rutas), p_dia, empresa)
+                    )
+                    cur.execute("SELECT fn_obtener_resumen_pedidos(%s);", (empresa,))
+                    raw = cur.fetchone()[0]
+                    conn.commit()
 
-                elapsed = time.perf_counter() - t0
-                print(f"[INFO] SP etl_cargar_pedidos_y_rutas_masivo demoró {elapsed:.2f}s "
-                      f"(pedidos={len(pedidos)}, rutas={len(rutas)}, día={p_dia}, emp={empresa})")
+                    elapsed = time.perf_counter() - t0
+                    print(f"[INFO] SP etl_cargar_pedidos_y_rutas_masivo demoró {elapsed:.2f}s "
+                          f"(pedidos={len(pedidos)}, rutas={len(rutas)}, día={p_dia}, emp={empresa})")
 
             # ---- 3) Obtener resumen en JSON --------------------------
             data_res = json.loads(raw) if isinstance(raw, str) else (raw or [])

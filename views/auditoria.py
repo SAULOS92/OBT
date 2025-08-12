@@ -20,15 +20,12 @@ def descargar_excel():
         return redirect(url_for('auditoria.auditoria_view'))
 
     try:
-        conn = db.conectar()
+        with db.conectar() as conn:
+            query1 = "SELECT * FROM PEDXCLIXPROD WHERE bd = %s"
+            df1 = pd.read_sql(query1, conn, params=(empresa,))
 
-        query1 = "SELECT * FROM PEDXCLIXPROD WHERE bd = %s"
-        df1 = pd.read_sql(query1, conn, params=(empresa,))
-
-        query2 = "SELECT * FROM pedxrutaxprod WHERE bd = %s"
-        df2 = pd.read_sql(query2, conn, params=(empresa,))
-
-        conn.close()
+            query2 = "SELECT * FROM pedxrutaxprod WHERE bd = %s"
+            df2 = pd.read_sql(query2, conn, params=(empresa,))
 
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
