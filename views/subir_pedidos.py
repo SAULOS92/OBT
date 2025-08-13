@@ -152,7 +152,7 @@ def _get_vehiculos(bd: str):
                 "ruta": r[0],
                 "placa": r[1],
                 "estado": st.get("status", "pendiente"),
-                "paso": st.get("paso_actual"),
+                "paso": _step_desc(st.get("paso_actual")),
             }
         )
     return vehiculos
@@ -235,6 +235,23 @@ def _set_step(bd: str, ruta: int, step: Optional[str]) -> None:
 def _current_step(bd: str, ruta: int) -> Optional[str]:
     with _states_lock:
         return _job_states.get((bd, ruta), {}).get("paso_actual")
+
+
+STEP_DESCRIPTIONS = {
+    "login": "Iniciando sesión",
+    "ingreso_al_modulo_de_carga": "Ingresando al módulo de carga",
+    "cargando_el_archivo": "Cargando el archivo",
+    "agregando_al_carrito": "Agregando al carrito",
+    "aceptando_el_pedido": "Aceptando el pedido",
+    "confirmando_el_pedido": "Confirmando el pedido",
+}
+
+
+def _step_desc(step: Optional[str]) -> Optional[str]:
+    """Traduce el nombre interno del paso a uno legible."""
+    if not step:
+        return None
+    return STEP_DESCRIPTIONS.get(step, step)
 
 
 def check_cancel(control: JobControl) -> None:
@@ -531,7 +548,7 @@ def estado_ruta():
         success=True,
         data={
             "status": st.get("status", "pendiente"),
-            "paso": st.get("paso_actual"),
+            "paso": _step_desc(st.get("paso_actual")),
             "failed_step": st.get("failed_step"),
             "message": st.get("message", ""),
         },
