@@ -1,3 +1,13 @@
+"""Automatiza la carga de pedidos al portal corporativo.
+
+El módulo está diseñado para ejecutarse de forma asincrónica mediante
+trabajos (jobs) que se colocan en una cola.  Cada job abre un navegador
+con Selenium, realiza el login en el portal de Nutresa y ejecuta los
+pasos necesarios para subir un archivo de pedidos.  El objetivo de esta
+documentación es que cualquier principiante pueda entender, a grandes
+rasgos, qué hace cada parte del archivo.
+"""
+
 import os
 import json
 import queue
@@ -33,8 +43,17 @@ class CancelledError(Exception):
 
 
 class JobControl:
+    """Guarda el estado de control de cada job.
+
+    Cada proceso de carga necesita saber si fue cancelado y cuál es el
+    driver de Selenium asociado.  Esta clase agrupa esa información para
+    manejarla de forma sencilla dentro de la cola de trabajos.
+    """
+
     def __init__(self):
+        # Evento que nos permite comunicar una cancelación entre hilos
         self.cancel_event = threading.Event()
+        # Referencia al navegador de Selenium para poder cerrarlo si es necesario
         self.driver: Optional[webdriver.Chrome] = None
 
 
@@ -46,8 +65,18 @@ _job_controls: Dict[Tuple[str, int], JobControl] = {}
 
 
 def _worker_loop() -> None:
+    """Hilo principal que procesa la cola de trabajos.
+
+    Toma un job de la cola, actualiza su estado y ejecuta la rutina
+    completa de subida de pedidos.  Si el job se cancela o falla se
+    refleja en el diccionario ``_job_states`` para poder consultarlo
+    desde la interfaz web.
+    """
+
     while True:
+        # Esperamos hasta obtener un nuevo trabajo
         bd, ruta, usuario, password, control = _job_queue.get()
+        # Protegemos el acceso a los estados con un lock
         with _states_lock:
             st = _job_states.get((bd, ruta))
             if st and st.get("status") == "cancelado":
@@ -65,15 +94,18 @@ def _worker_loop() -> None:
             )
             st.update({"status": "ejecutando", "paso_actual": None, "failed_step": None, "started_at": datetime.utcnow().isoformat(), "ended_at": ""})
         try:
+            # Ejecuta la lógica de carga de pedidos
             subir_pedidos_ruta(bd, ruta, usuario, password, control)
             with _states_lock:
                 st = _job_states[(bd, ruta)]
                 st["ended_at"] = datetime.utcnow().isoformat()
         except CancelledError:
+            # El job fue cancelado por el usuario
             with _states_lock:
                 st = _job_states[(bd, ruta)]
                 st["ended_at"] = datetime.utcnow().isoformat()
         except Exception:  # pragma: no cover - selenium/portal interaction
+            # Ante cualquier error se marca el job como fallido
             with _states_lock:
                 st = _job_states[(bd, ruta)]
                 st.update(
@@ -84,6 +116,7 @@ def _worker_loop() -> None:
                     }
                 )
         finally:
+            # El job termina: limpiamos su control y avisamos a la cola
             with _states_lock:
                 _job_controls.pop((bd, ruta), None)
             _job_queue.task_done()
@@ -116,6 +149,8 @@ def _ensure_table() -> None:
 
 
 def _get_bd() -> str:
+    """Obtiene de la sesión la base de datos seleccionada."""
+
     bd = session.get("empresa")
     if not bd:
         raise ValueError("Falta empresa en sesión")
@@ -123,6 +158,8 @@ def _get_bd() -> str:
 
 
 def _obtener_placa(bd: str, ruta: int) -> str:
+    """Consulta la placa asociada a una ruta en la tabla ``vehiculos``."""
+
     with conectar() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -134,10 +171,13 @@ def _obtener_placa(bd: str, ruta: int) -> str:
 
 
 def _get_vehiculos(bd: str):
+    """Devuelve todas las rutas y placas registradas para una empresa."""
+
     with conectar() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT ruta, placa FROM vehiculos WHERE bd=%s ORDER BY ruta", (bd,))
             rows = cur.fetchall()
+            # Si no hay registros, creamos uno por defecto
             if not rows:
                 cur.execute(
                     "INSERT INTO vehiculos (bd, ruta, placa) VALUES (%s, %s, %s)",
@@ -147,6 +187,7 @@ def _get_vehiculos(bd: str):
                 rows = [(1, "")]
     vehiculos = []
     for r in rows:
+        # Leemos el estado actual del job (si existe)
         with _states_lock:
             st = _job_states.get((bd, r[0]), {})
         vehiculos.append(
@@ -161,6 +202,8 @@ def _get_vehiculos(bd: str):
 
 
 def _upsert_vehiculo(bd: str, ruta: int, placa: str) -> None:
+    """Inserta o actualiza una placa para la ruta indicada."""
+
     with conectar() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -175,6 +218,8 @@ def _upsert_vehiculo(bd: str, ruta: int, placa: str) -> None:
 
 
 def _add_ruta(bd: str) -> Dict[str, int]:
+    """Agrega una nueva ruta vacía para la empresa dada."""
+
     with conectar() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT COALESCE(MAX(ruta),0)+1 FROM vehiculos WHERE bd=%s", (bd,))
@@ -192,6 +237,7 @@ def _add_ruta(bd: str) -> Dict[str, int]:
 # ---------------------------------------------------------------------------
 
 
+# Selectores CSS y URLs utilizadas durante la automatización
 CONFIG = {
     "login.url": "https://portal.gruponutresa.com/",
     "modulo.url": "https://portal.gruponutresa.com/p/nuevo/pedido-masivo/excel",
@@ -215,6 +261,8 @@ CONFIG = {
 
 
 def _set_state(bd: str, ruta: int, **kwargs) -> None:
+    """Actualiza la información de estado de un job."""
+
     with _states_lock:
         st = _job_states.setdefault(
             (bd, ruta),
@@ -230,10 +278,14 @@ def _set_state(bd: str, ruta: int, **kwargs) -> None:
 
 
 def _set_step(bd: str, ruta: int, step: Optional[str]) -> None:
+    """Registra el paso actual que está ejecutando el job."""
+
     _set_state(bd, ruta, paso_actual=step)
 
 
 def _current_step(bd: str, ruta: int) -> Optional[str]:
+    """Devuelve el nombre del paso en curso para una ruta."""
+
     with _states_lock:
         return _job_states.get((bd, ruta), {}).get("paso_actual")
 
@@ -260,15 +312,21 @@ def _step_desc(step: Optional[str]) -> Optional[str]:
 
 
 def check_cancel(control: JobControl) -> None:
+    """Lanza ``CancelledError`` si el usuario solicitó cancelar."""
+
     if control.cancel_event.is_set():
         raise CancelledError()
 
 
 def crear_excel(bd: str, ruta: int) -> pathlib.Path:
+    """Genera el archivo Excel de pedidos para una ruta."""
+
     return selenium_crear_excel_pedidos(bd, ruta)
 
 
 def cleanup(path: pathlib.Path) -> None:
+    """Elimina archivos temporales si existen."""
+
     if path.exists():
         os.remove(path)
 
@@ -279,12 +337,15 @@ def cleanup(path: pathlib.Path) -> None:
 
 
 def build_driver() -> webdriver.Chrome:  # pragma: no cover - requiere driver
+    """Configura y crea una instancia de Chrome para Selenium."""
+
     options = Options()
-    # options.add_argument("--headless")  # uncomment to see the UI
+    # Ejecutamos en modo headless para no abrir una ventana visible
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--window-size=1920,1080")
+    # Habilitamos los logs del navegador para depurar
     options.set_capability("goog:loggingPrefs", {"browser": "ALL"})
     log_name = f"chromedriver_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.log"
     service = Service(log_path=log_name)
@@ -292,18 +353,52 @@ def build_driver() -> webdriver.Chrome:  # pragma: no cover - requiere driver
 
 
 def selenium_login(driver, config, usuario: str, password: str) -> None:
+    """Realiza el login en el portal usando un script probado en el navegador.
+
+    El formulario del portal está hecho con React y no siempre responde a
+    ``send_keys``.  Para garantizar que los valores se carguen y se
+    disparen los eventos correspondientes inyectamos un pequeño script en
+    la página.  Las credenciales provienen de la interfaz del usuario y se
+    pasan como argumentos a este script, sin quedar hardcodeadas.
+    """
+
     driver.get(config["login.url"])
+    # Esperamos a que los campos estén presentes antes de ejecutar el script
     WebDriverWait(driver, 30).until(
         EC.presence_of_element_located((By.CSS_SELECTOR, config["login.user"]))
-    ).send_keys(usuario)
-    driver.find_element(By.CSS_SELECTOR, config["login.pass"]).send_keys(password)
-    driver.find_element(By.CSS_SELECTOR, config["login.submit"]).click()
+    )
+    script = """
+const [userSel, passSel, userVal, passVal] = arguments;
+const setReactValue = (sel, val) => {
+  const el = document.querySelector(sel);
+  if (!el) return;
+  el.focus();
+  const setter = Object.getOwnPropertyDescriptor(el, 'value')?.set ||
+                 Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+  const prev = el.value;
+  setter.call(el, val);
+  if (el._valueTracker) el._valueTracker.setValue(prev);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  el.blur();
+};
+
+setReactValue(userSel, userVal);
+setReactValue(passSel, passVal);
+const btn = document.querySelector('[data-testid="SignInButton"], button[type="submit"]');
+const form = btn?.closest('form');
+if (form?.requestSubmit) form.requestSubmit(btn);
+else btn?.click();
+"""
+    driver.execute_script(script, config["login.user"], config["login.pass"], usuario, password)
     WebDriverWait(driver, 30).until(
         EC.presence_of_element_located((By.CSS_SELECTOR, config["login.ok"]))
     )
 
 
 def selenium_crear_excel_pedidos(bd: str, ruta: int) -> pathlib.Path:
+    """Genera un Excel con los pedidos de la ruta indicada."""
+
     with conectar() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT fn_obtener_pedidos_con_pedir_json(%s);", (bd,))
@@ -314,13 +409,15 @@ def selenium_crear_excel_pedidos(bd: str, ruta: int) -> pathlib.Path:
         raise ValueError(f"Sin pedidos para ruta {ruta}")
 
     df = pd.DataFrame(registros)[["codigo_pro", "producto", "pedir"]]
-    df.insert(2, "UN", "UN")
+    df.insert(2, "UN", "UN")  # Columna requerida por el formato
     tmp = pathlib.Path(f"{ruta}.xlsx")
     df.to_excel(tmp, sheet_name="Pedidos", startrow=4, index=False, engine="openpyxl")
     return tmp
 
 
 def selenium_ingreso_modulo_de_carga(driver, config) -> None:
+    """Abre la página del módulo de carga de archivos."""
+
     driver.get(config["modulo.url"])
     WebDriverWait(driver, 30).until(
         EC.presence_of_element_located((By.CSS_SELECTOR, config["modulo.ok"]))
@@ -328,10 +425,13 @@ def selenium_ingreso_modulo_de_carga(driver, config) -> None:
 
 
 def selenium_cargando_el_archivo(driver, config, xls_path) -> None:
+    """Carga el archivo Excel en el formulario del portal."""
+
     try:
         driver.find_element(By.CSS_SELECTOR, config["carga.combo1"]).click()
         driver.find_element(By.CSS_SELECTOR, config["carga.combo2"]).click()
     except Exception:
+        # Algunos portales no muestran estos combos; los ignoramos si fallan
         pass
     file_input = driver.find_element(By.CSS_SELECTOR, config["carga.fileInput"])
     file_input.send_keys(str(xls_path))
@@ -342,6 +442,8 @@ def selenium_cargando_el_archivo(driver, config, xls_path) -> None:
 
 
 def selenium_agregando_al_carrito(driver, config, placa: str) -> None:
+    """Completa los datos del carrito, como canal y placa del vehículo."""
+
     WebDriverWait(driver, 30).until(
         EC.presence_of_element_located((By.CSS_SELECTOR, config["canal.input"]))
     ).send_keys(config["canal.value"])
@@ -350,6 +452,7 @@ def selenium_agregando_al_carrito(driver, config, placa: str) -> None:
             EC.presence_of_element_located((By.CSS_SELECTOR, config["placa.input"]))
         ).send_keys(placa)
     except Exception:
+        # Si no aparece el campo de la placa, vamos directamente al resumen
         driver.get("https://portal.gruponutresa.com/carrito/resumen")
         WebDriverWait(driver, 30).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, config["placa.input"]))
@@ -357,10 +460,14 @@ def selenium_agregando_al_carrito(driver, config, placa: str) -> None:
 
 
 def selenium_aceptando_el_pedido(driver, config) -> None:
+    """Navega a la vista de resumen del carrito."""
+
     driver.get("https://portal.gruponutresa.com/carrito/resumen")
 
 
 def selenium_confirmando_el_pedido(driver, config) -> Dict[str, str]:
+    """Finaliza el pedido aceptando las ventanas de confirmación."""
+
     WebDriverWait(driver, 30).until(
         EC.element_to_be_clickable((By.CSS_SELECTOR, config["carrito.confirmar"]))
     ).click()
@@ -369,6 +476,7 @@ def selenium_confirmando_el_pedido(driver, config) -> Dict[str, str]:
             EC.element_to_be_clickable((By.CSS_SELECTOR, config["respuesta.aceptar"]))
         ).click()
     except Exception:
+        # Si no aparece el botón de aceptar simplemente continuamos
         pass
     return {"status": "ok"}
 
@@ -399,6 +507,8 @@ def probe_reachability(config) -> Dict[str, Dict[str, str]]:
 
 
 def subir_pedidos_ruta(bd: str, ruta: int, usuario: str, password: str, control: JobControl) -> None:
+    """Ejecuta todos los pasos para subir los pedidos de una ruta."""
+
     _set_state(bd, ruta, status="ejecutando", paso_actual=None, failed_step=None)
 
     _set_step(bd, ruta, "preparando_excel")
@@ -480,6 +590,8 @@ def subir_pedidos_ruta(bd: str, ruta: int, usuario: str, password: str, control:
 
 
 def _enqueue_job(bd: str, ruta: int, usuario: str, password: str) -> str:
+    """Añade un nuevo job a la cola para procesar una ruta."""
+
     with _states_lock:
         st = _job_states.get((bd, ruta))
         if st and st.get("status") in {"ejecutando", "en cola"}:
@@ -506,6 +618,8 @@ def _enqueue_job(bd: str, ruta: int, usuario: str, password: str) -> str:
 @subir_pedidos_bp.route("/subir-pedidos", methods=["GET"])
 @login_required
 def subir_pedidos_index():
+    """Muestra la pantalla principal para gestionar la subida de pedidos."""
+
     _ensure_table()
     bd = _get_bd()
     vehiculos = _get_vehiculos(bd)
@@ -515,6 +629,8 @@ def subir_pedidos_index():
 @subir_pedidos_bp.route("/vehiculos/placa", methods=["POST"])
 @login_required
 def guardar_placa():
+    """Guarda la placa asociada a una ruta enviada desde el formulario."""
+
     try:
         data = request.get_json() or {}
         bd = _get_bd()
@@ -529,6 +645,8 @@ def guardar_placa():
 @subir_pedidos_bp.route("/vehiculos/add", methods=["POST"])
 @login_required
 def agregar_ruta():
+    """Crea una nueva ruta vacía y la devuelve al cliente."""
+
     try:
         bd = _get_bd()
         nuevo = _add_ruta(bd)
@@ -540,6 +658,8 @@ def agregar_ruta():
 @subir_pedidos_bp.route("/vehiculos/play", methods=["POST"])
 @login_required
 def ejecutar_ruta():
+    """Inicia el proceso de subida para una ruta específica."""
+
     try:
         data = request.get_json() or {}
         bd = _get_bd()
@@ -557,6 +677,8 @@ def ejecutar_ruta():
 @subir_pedidos_bp.route("/vehiculos/stop", methods=["POST"])
 @login_required
 def detener_ruta():
+    """Cancela un job en ejecución o en cola para una ruta dada."""
+
     try:
         data = request.get_json() or {}
         bd = _get_bd()
@@ -587,6 +709,8 @@ def detener_ruta():
 @subir_pedidos_bp.route("/vehiculos/estado", methods=["GET"])
 @login_required
 def estado_ruta():
+    """Devuelve el estado actual de un job para una ruta."""
+
     bd = request.args.get("bd") or _get_bd()
     ruta = int(request.args.get("ruta", 0))
     with _states_lock:
@@ -611,6 +735,8 @@ def estado_ruta():
 @subir_pedidos_bp.route("/vehiculos/diagnostico", methods=["GET"])
 @login_required
 def diagnostico_ruta():
+    """Realiza pruebas básicas de conectividad hacia el portal."""
+
     try:
         data = probe_reachability(CONFIG)
         return jsonify(success=True, data=data)
