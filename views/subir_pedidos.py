@@ -45,31 +45,6 @@ _job_states: Dict[Tuple[str, int], Dict[str, Optional[str]]] = {}
 _job_controls: Dict[Tuple[str, int], JobControl] = {}
 
 
-def _log(bd: str, ruta: int, msg: str) -> None:
-    ts = datetime.utcnow().isoformat()
-    with _states_lock:
-        st = _job_states.setdefault(
-            (bd, ruta),
-            {
-                "status": "pendiente",
-                "paso_actual": None,
-                "started_at": "",
-                "ended_at": "",
-                "message": "",
-                "failed_step": None,
-            },
-        )
-        st["message"] = (st.get("message", "") + f"[{ts}] {msg}\n")[:10000]
-
-
-def _screenshot(driver: webdriver.Chrome, ruta: int, tag: str) -> None:
-    fname = f"snap_{ruta}_{tag}.png"
-    try:
-        driver.save_screenshot(fname)
-    except Exception:
-        pass
-
-
 def _worker_loop() -> None:
     while True:
         bd, ruta, usuario, password, control = _job_queue.get()
@@ -85,11 +60,10 @@ def _worker_loop() -> None:
                     "paso_actual": None,
                     "started_at": "",
                     "ended_at": "",
-                    "message": "",
                     "failed_step": None,
                 },
             )
-            st.update({"status": "ejecutando", "paso_actual": None, "failed_step": None, "started_at": datetime.utcnow().isoformat(), "ended_at": "", "message": ""})
+            st.update({"status": "ejecutando", "paso_actual": None, "failed_step": None, "started_at": datetime.utcnow().isoformat(), "ended_at": ""})
         try:
             subir_pedidos_ruta(bd, ruta, usuario, password, control)
             with _states_lock:
@@ -99,8 +73,7 @@ def _worker_loop() -> None:
             with _states_lock:
                 st = _job_states[(bd, ruta)]
                 st["ended_at"] = datetime.utcnow().isoformat()
-        except Exception as e:  # pragma: no cover - selenium/portal interaction
-            _log(bd, ruta, f"Error en worker: {e}")
+        except Exception:  # pragma: no cover - selenium/portal interaction
             with _states_lock:
                 st = _job_states[(bd, ruta)]
                 st.update(
@@ -250,7 +223,6 @@ def _set_state(bd: str, ruta: int, **kwargs) -> None:
                 "paso_actual": None,
                 "started_at": "",
                 "ended_at": "",
-                "message": "",
                 "failed_step": None,
             },
         )
@@ -430,98 +402,67 @@ def subir_pedidos_ruta(bd: str, ruta: int, usuario: str, password: str, control:
     _set_state(bd, ruta, status="ejecutando", paso_actual=None, failed_step=None)
 
     _set_step(bd, ruta, "preparando_excel")
-    _log(bd, ruta, "Preparando Excel")
     xls = crear_excel(bd, ruta)
 
     _set_step(bd, ruta, "inicializando_driver")
-    _log(bd, ruta, "Inicializando driver")
     driver = build_driver()
     control.driver = driver
-    _screenshot(driver, ruta, "inicializando_driver")
 
     try:
         try:
             _set_step(bd, ruta, "login")
-            _log(bd, ruta, "Iniciando login")
             check_cancel(control)
             selenium_login(driver, CONFIG, usuario, password)
-            _screenshot(driver, ruta, "login")
-            _log(bd, ruta, "Login completado")
-        except Exception as e:
-            _screenshot(driver, ruta, "login_error")
-            _log(bd, ruta, f"Error en login: {e}")
+        except Exception:
             _set_state(bd, ruta, status="error", failed_step="login")
             raise
 
         try:
             _set_step(bd, ruta, "ingreso_al_modulo_de_carga")
-            _log(bd, ruta, "Ingresando al módulo de carga")
             check_cancel(control)
             selenium_ingreso_modulo_de_carga(driver, CONFIG)
-            _screenshot(driver, ruta, "ingreso_al_modulo_de_carga")
-        except Exception as e:
-            _screenshot(driver, ruta, "ingreso_al_modulo_de_carga_error")
-            _log(bd, ruta, f"Error ingresando al módulo de carga: {e}")
+        except Exception:
             _set_state(bd, ruta, status="error", failed_step="ingreso_al_modulo_de_carga")
             raise
 
         try:
             _set_step(bd, ruta, "cargando_el_archivo")
-            _log(bd, ruta, "Cargando el archivo")
             check_cancel(control)
             selenium_cargando_el_archivo(driver, CONFIG, xls)
-            _screenshot(driver, ruta, "cargando_el_archivo")
-        except Exception as e:
-            _screenshot(driver, ruta, "cargando_el_archivo_error")
-            _log(bd, ruta, f"Error cargando el archivo: {e}")
+        except Exception:
             _set_state(bd, ruta, status="error", failed_step="cargando_el_archivo")
             raise
 
         placa = _obtener_placa(bd, ruta)
         try:
             _set_step(bd, ruta, "agregando_al_carrito")
-            _log(bd, ruta, "Agregando al carrito")
             check_cancel(control)
             selenium_agregando_al_carrito(driver, CONFIG, placa)
-            _screenshot(driver, ruta, "agregando_al_carrito")
-        except Exception as e:
-            _screenshot(driver, ruta, "agregando_al_carrito_error")
-            _log(bd, ruta, f"Error agregando al carrito: {e}")
+        except Exception:
             _set_state(bd, ruta, status="error", failed_step="agregando_al_carrito")
             raise
 
         try:
             _set_step(bd, ruta, "aceptando_el_pedido")
-            _log(bd, ruta, "Aceptando el pedido")
             check_cancel(control)
             selenium_aceptando_el_pedido(driver, CONFIG)
-            _screenshot(driver, ruta, "aceptando_el_pedido")
-        except Exception as e:
-            _screenshot(driver, ruta, "aceptando_el_pedido_error")
-            _log(bd, ruta, f"Error aceptando el pedido: {e}")
+        except Exception:
             _set_state(bd, ruta, status="error", failed_step="aceptando_el_pedido")
             raise
 
         try:
             _set_step(bd, ruta, "confirmando_el_pedido")
-            _log(bd, ruta, "Confirmando el pedido")
             check_cancel(control)
-            res = selenium_confirmando_el_pedido(driver, CONFIG)
-            _screenshot(driver, ruta, "confirmando_el_pedido")
-            _log(bd, ruta, f"Pedido confirmado: {json.dumps(res)}")
+            selenium_confirmando_el_pedido(driver, CONFIG)
             _set_state(bd, ruta, status="exito")
-        except Exception as e:
-            _screenshot(driver, ruta, "confirmando_el_pedido_error")
-            _log(bd, ruta, f"Error confirmando el pedido: {e}")
+        except Exception:
             _set_state(bd, ruta, status="error", failed_step="confirmando_el_pedido")
             raise
 
     except CancelledError:
-        _log(bd, ruta, "Job cancelado")
         _set_state(bd, ruta, status="cancelado")
         raise
-    except Exception as e:
-        _log(bd, ruta, f"Error general: {e}")
+    except Exception:
         _set_state(bd, ruta, status="error", failed_step=_current_step(bd, ruta))
         raise
     finally:  # pragma: no cover - cleanup
@@ -549,7 +490,6 @@ def _enqueue_job(bd: str, ruta: int, usuario: str, password: str) -> str:
             "paso_actual": None,
             "started_at": datetime.utcnow().isoformat() if status == "ejecutando" else "",
             "ended_at": "",
-            "message": "",
             "failed_step": None,
         }
         control = JobControl()
@@ -655,7 +595,6 @@ def estado_ruta():
             {
                 "status": "pendiente",
                 "paso_actual": None,
-                "message": "",
                 "failed_step": None,
             },
         )
@@ -665,7 +604,6 @@ def estado_ruta():
             "status": st.get("status", "pendiente"),
             "paso": _step_desc(st.get("paso_actual")),
             "failed_step": st.get("failed_step"),
-            "message": st.get("message", ""),
         },
     )
 
@@ -678,15 +616,5 @@ def diagnostico_ruta():
         return jsonify(success=True, data=data)
     except Exception as e:
         return jsonify(success=False, error=str(e)), 500
-
-
-@subir_pedidos_bp.route("/vehiculos/log", methods=["GET"])
-@login_required
-def obtener_log():
-    bd = request.args.get("bd") or _get_bd()
-    ruta = int(request.args.get("ruta", 0))
-    with _states_lock:
-        msg = _job_states.get((bd, ruta), {}).get("message", "")
-    return jsonify(success=True, data={"message": msg})
 
 
