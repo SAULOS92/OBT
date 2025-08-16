@@ -17,6 +17,7 @@ from datetime import datetime
 import socket
 from urllib.parse import urlparse
 from typing import Dict, Tuple, Optional
+import logging
 
 import pandas as pd
 import requests
@@ -36,6 +37,9 @@ from views.auth import login_required
 # ---------------------------------------------------------------------------
 
 subir_pedidos_bp = Blueprint("subir_pedidos", __name__, template_folder="../templates")
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class CancelledError(Exception):
@@ -281,6 +285,8 @@ def _set_step(bd: str, ruta: int, step: Optional[str]) -> None:
     """Registra el paso actual que está ejecutando el job."""
 
     _set_state(bd, ruta, paso_actual=step)
+    if step:
+        logger.info("Ruta %s: %s", ruta, _step_desc(step))
 
 
 def _current_step(bd: str, ruta: int) -> Optional[str]:
