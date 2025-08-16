@@ -253,7 +253,7 @@ CONFIG = {
     "carga.guardar": "#root > div > section > article > section > section > form > footer > button.MuiButtonBase-root.MuiButton-root.MuiButton-text.MuiButton-textPrimary.MuiButton-sizeMedium.MuiButton-textSizeMedium.MuiButton-root.MuiButton-text.MuiButton-textPrimary.MuiButton-sizeMedium.MuiButton-textSizeMedium.mb2.admin__create-footer-save.w5-ns.css-kp69xf",
     "carga.continuar": "#root > div > section > article > section > article > footer > button:nth-child(3) > span.MuiButton-startIcon.MuiButton-iconSizeMedium.css-6xugel > svg",
     "canal.input": "#purchaseOrderNN13CANALT",
-    "canal.value": "14",
+    "canal.value": "20",
     "placa.input": "#formValue",
     "carrito.confirmar": "#root > div > section > article > section > section > section.cart__resume-options > button:nth-child(3)",
     "respuesta.aceptar": "#root > div > section > article > section > section > section > section.order__confirmation-products > article.order__confirmation-products-button > button",
@@ -425,59 +425,131 @@ def selenium_ingreso_modulo_de_carga(driver, config) -> None:
 
 
 def selenium_cargando_el_archivo(driver, config, xls_path) -> None:
-    """Carga el archivo Excel en el formulario del portal."""
+    """Carga el archivo Excel en el formulario del portal siguiendo el script proporcionado."""
 
-    try:
-        driver.find_element(By.CSS_SELECTOR, config["carga.combo1"]).click()
-        driver.find_element(By.CSS_SELECTOR, config["carga.combo2"]).click()
-    except Exception:
-        # Algunos portales no muestran estos combos; los ignoramos si fallan
-        pass
-    file_input = driver.find_element(By.CSS_SELECTOR, config["carga.fileInput"])
-    file_input.send_keys(str(xls_path))
-    driver.find_element(By.CSS_SELECTOR, config["carga.guardar"]).click()
-    WebDriverWait(driver, 30).until(
-        EC.presence_of_element_located((By.CSS_SELECTOR, config["carga.continuar"]))
-    ).click()
+    # Paso 3: seleccionar el tipo de carga
+    script = """
+(() => {
+  const trigger = document.querySelector(arguments[0]);
+  if (!trigger) return;
+  trigger.click();
+  const t0 = Date.now();
+  const id = setInterval(() => {
+    const opts = document.querySelectorAll("ul[role='listbox'] li[role='option']");
+    if (opts.length >= 2) {
+      opts[1].click();
+      clearInterval(id);
+    } else if (Date.now() - t0 > 3000) {
+      clearInterval(id);
+    }
+  }, 100);
+})();
+"""
+    driver.execute_script(script, config["modulo.ok"])
+
+    # Paso 4: habilitar el input de archivo y cargar el formato
+    script = """
+(() => {
+  const input = document.querySelector(arguments[0]);
+  if (!input) return;
+  input.removeAttribute('disabled');
+  input.style.display = 'block';
+  input.style.visibility = 'visible';
+  input.style.opacity = 1;
+})();
+"""
+    driver.execute_script(script, config["carga.fileInput"])
+    driver.find_element(By.CSS_SELECTOR, config["carga.fileInput"]).send_keys(str(xls_path))
+
+    # Paso 5: guardar el formato
+    script = """
+(() => {
+  const btn = document.querySelector(arguments[0]);
+  if (!btn) return;
+  btn.removeAttribute('disabled');
+  btn.classList.remove('Mui-disabled');
+  btn.click();
+})();
+"""
+    driver.execute_script(script, config["carga.guardar"])
+
+    # Paso 6: agregar productos al carrito
+    script = """
+(() => {
+  const btn = document.querySelector(arguments[0]);
+  if (!btn) return;
+  btn.removeAttribute('disabled');
+  btn.classList.remove('Mui-disabled');
+  btn.click();
+})();
+"""
+    driver.execute_script(script, config["carga.continuar"])
 
 
 def selenium_agregando_al_carrito(driver, config, placa: str) -> None:
-    """Completa los datos del carrito, como canal y placa del vehículo."""
+    """Abre el carrito y completa la orden de compra y la placa."""
 
-    WebDriverWait(driver, 30).until(
-        EC.presence_of_element_located((By.CSS_SELECTOR, config["canal.input"]))
-    ).send_keys(config["canal.value"])
-    try:
-        WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, config["placa.input"]))
-        ).send_keys(placa)
-    except Exception:
-        # Si no aparece el campo de la placa, vamos directamente al resumen
-        driver.get("https://portal.gruponutresa.com/carrito/resumen")
-        WebDriverWait(driver, 30).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, config["placa.input"]))
-        ).send_keys(placa)
+    # Paso 7: ir al resumen del carrito
+    driver.get("https://portal.gruponutresa.com/carrito/resumen")
+
+    # Paso 8 y 9: rellenar orden de compra y placa
+    script = """
+(() => {
+  const el = document.querySelector(arguments[0]);
+  if (!el) return;
+  el.focus();
+  const setter = Object.getOwnPropertyDescriptor(el, 'value')?.set ||
+                 Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+  const prev = el.value;
+  setter.call(el, arguments[1]);
+  if (el._valueTracker) el._valueTracker.setValue(prev);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  el.blur();
+})();
+"""
+    driver.execute_script(script, config["canal.input"], config["canal.value"])
+    driver.execute_script(script, config["placa.input"], placa)
 
 
 def selenium_aceptando_el_pedido(driver, config) -> None:
-    """Navega a la vista de resumen del carrito."""
+    """Confirma el carrito antes de finalizar el pedido."""
 
-    driver.get("https://portal.gruponutresa.com/carrito/resumen")
+    script = """
+(() => {
+  const btn = document.querySelector(arguments[0]);
+  if (!btn) return;
+  btn.removeAttribute('disabled');
+  btn.classList.remove('Mui-disabled');
+  btn.click();
+  const key = Object.keys(btn).find(k => k.startsWith('__reactProps$'));
+  const props = key && btn[key];
+  if (props?.onClick) {
+    props.onClick({ type: 'click', preventDefault(){}, stopPropagation(){} });
+  }
+})();
+"""
+    driver.execute_script(script, config["carrito.confirmar"])
 
 
 def selenium_confirmando_el_pedido(driver, config) -> Dict[str, str]:
-    """Finaliza el pedido aceptando las ventanas de confirmación."""
+    """Confirma definitivamente el pedido."""
 
-    WebDriverWait(driver, 30).until(
-        EC.element_to_be_clickable((By.CSS_SELECTOR, config["carrito.confirmar"]))
-    ).click()
-    try:
-        WebDriverWait(driver, 30).until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, config["respuesta.aceptar"]))
-        ).click()
-    except Exception:
-        # Si no aparece el botón de aceptar simplemente continuamos
-        pass
+    script = """
+(() => {
+  const btn = document.querySelector(arguments[0]);
+  if (!btn) return;
+  btn.removeAttribute('disabled');
+  btn.classList.remove('Mui-disabled');
+  btn.click();
+  const key = Object.keys(btn).find(k => k.startsWith('__reactProps$'));
+  const props = key && btn[key];
+  if (props?.onClick) {
+    props.onClick({ type: 'click', preventDefault(){}, stopPropagation(){} });
+  }
+})();
+"""
+    driver.execute_script(script, config["respuesta.aceptar"])
     return {"status": "ok"}
 
 
