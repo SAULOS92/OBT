@@ -59,6 +59,7 @@
           <option value="VI">Viernes (VI)</option>
           <option value="SA">Sábado (SA)</option>
           <option value="DO">Domingo (DO)</option>
+          <option value="dinamico">DINAMICO</option>
         </select>
       </div>
       <div>
@@ -100,7 +101,7 @@
   /* --------------- Definición de columnas ----------- */
     const PED_HEADERS = ["numero_pedido","cliente","nombre","barrio","ciudad","asesor","codigo_pro","producto","cantidad","valor","tipo_pro","estado"];
     const RUT_HEADERS = ["codigo_cliente","codigo_ruta"];
-    const DIAS_VALIDOS = ["LU","MA","MI","JU","VI","SA","DO"];
+    const DIAS_VALIDOS = ["LU","MA","MI","JU","VI","SA","DO","dinamico"];
 
      /* mapas sinónimos → canónico */
     const PED_COL_MAP = {
@@ -348,7 +349,9 @@ async function parseRutas(){
         await Promise.all([parsePedidos(), parseRutas()]);
         if(!dataPed || !dataRut) throw new Error('Archivos aún en procesamiento');
 
-        const rutasDia = dataRut.filter(r=>r.codigo_ruta && r.codigo_ruta.includes(dia));
+        const rutasDia = dia === 'dinamico'
+          ? dataRut
+          : dataRut.filter(r=>r.codigo_ruta && r.codigo_ruta.includes(dia));
         
         
         /* ------ Enviar al backend y descargar resumen ------ */
