@@ -1,11 +1,9 @@
-import os
 import pandas as pd
 from io import BytesIO
 from datetime import datetime
 from flask import (
     Blueprint, render_template, request,
-    flash, redirect, url_for, send_file,
-    current_app, session
+    flash, redirect, url_for, send_file
 )
 from views.auth import login_required
 
@@ -78,9 +76,6 @@ ECOM_COLUMNS = list(ECOM_COLUMN_SPEC.keys())
 @consolidar_bp.route("/consolidar-compras", methods=["GET", "POST"])
 @login_required
 def consolidar_compras_index():
-    empresa = session.get('empresa')
-    download_filename = None
-
     if request.method == "POST":
         f = request.files.get("archivo")
         orden_compra = request.form.get("orden_compra", "").strip()
@@ -146,56 +141,18 @@ def consolidar_compras_index():
                 df_out.to_excel(writer, index=False)
             buf.seek(0)
 
-            tmp_dir = os.path.join(current_app.root_path, "tmp")
-            os.makedirs(tmp_dir, exist_ok=True)
-
-           # --- Guardar Excel en tmp ---
-            path = os.path.join(tmp_dir, filename)
-            with open(path, "wb") as out:
-                out.write(buf.getvalue())
-
-            # Generar CSV adicional para e-com
-            csv_df = pd.DataFrame({
-               "bodega":          ["01"] * len(df_out),
-               "codigo_producto": df_out["Material"],
-               "cantidad":        df_out["Cantidad_facturada"],
-               "costo":           0
-            })
-            csv_filename = f"cargue_sugerido_{hoy}.csv"
-            csv_path     = os.path.join(tmp_dir, csv_filename)
-            csv_df.to_csv(csv_path, index=False)
-
-            # exponer ambos archivos
-            download_filename = [filename, csv_filename]
-            flash("Consolidado generado con éxito.", "success")
+            return send_file(
+                buf,
+                as_attachment=True,
+                download_name=filename,
+                mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
         except Exception as e:
             flash(f"Error procesando informe: {e}", "error")
 
     return render_template(
-        "consolidar_compras.html",
-        download_filename=download_filename
-    )
-
-
-@consolidar_bp.route("/consolidar-compras/download/<filename>")
-@login_required  
-def descargar_archivo_file(filename):
-    tmp_dir = os.path.join(current_app.root_path, "tmp")
-    path    = os.path.join(tmp_dir, filename)
-    if not os.path.exists(path):
-        flash("El archivo ya no está disponible.", "error")
-        return redirect(url_for(".consolidar_compras_index"))
-    mimetype = (
-        "text/csv"
-        if filename.lower().endswith(".csv")
-        else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-    return send_file(
-        path,
-        as_attachment=True,
-        download_name=filename,
-        mimetype=mimetype
+        "consolidar_compras.html"
     )
 
 

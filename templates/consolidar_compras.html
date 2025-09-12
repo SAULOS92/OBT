@@ -75,18 +75,6 @@
       </button>
     </form>
 
-    {% if download_filename %}
-  <div id="download-section" class="mt-6 text-center space-y-2">
-      {% for fn in download_filename %}
-        <a href="{{ url_for('consolidar_compras.descargar_archivo_file', filename=fn) }}"
-
-           class="inline-block px-6 py-3 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700">
-          Descargar {{ fn.endswith('.csv') and 'CSV' or 'Excel' }}
-        </a>
-      {% endfor %}
-  </div>
-{% endif %}
-
 
   </div>
 </div>
