@@ -84,14 +84,41 @@
     const form    = document.getElementById('cons-form');
     const overlay = document.getElementById('loading-overlay');
 
-    // Mostrar spinner al enviar
-    form.addEventListener('submit', () => {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
       overlay.classList.remove('hidden');
-    });
 
-    // Ocultar spinner tras recarga (errores o éxito)
-    window.addEventListener('load', () => {
-      overlay.classList.add('hidden');
+      try {
+        const formData = new FormData(form);
+        const res = await fetch(form.action, {
+          method: 'POST',
+          body: formData
+        });
+
+        const disposition = res.headers.get('Content-Disposition') || '';
+        if (disposition.includes('attachment')) {
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const fn = disposition.match(/filename="?([^";]+)"?/i)?.[1] || `consolidado_${Date.now()}.xlsx`;
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = fn;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+        } else {
+          const html = await res.text();
+          document.open();
+          document.write(html);
+          document.close();
+        }
+      } catch (err) {
+        alert('Error al procesar la solicitud.');
+        console.error(err);
+      } finally {
+        overlay.classList.add('hidden');
+      }
     });
   });
 </script>
