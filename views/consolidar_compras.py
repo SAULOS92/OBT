@@ -83,8 +83,12 @@ def consolidar_compras_index():
 
     if request.method == "POST":
         f = request.files.get("archivo")
+        orden_compra = request.form.get("orden_compra", "").strip()
         if not f:
             flash("Sube un Excel.", "error")
+            return redirect(url_for(".consolidar_compras_index"))
+        if not orden_compra.isdigit():
+            flash("Ingresa un número válido para la orden de compra.", "error")
             return redirect(url_for(".consolidar_compras_index"))
 
         try:
@@ -115,6 +119,8 @@ def consolidar_compras_index():
                 if cfg["action"] == "static":
                     agg[col] = cfg["static_value"]
 
+            agg["Orden de compra"] = orden_compra
+
             # --- Generar df_out y filename ---
             hoy = datetime.now().strftime("%Y%m%d")
             # cálculo Valor_neto
@@ -131,6 +137,7 @@ def consolidar_compras_index():
                 )
                 for new_col, spec in ECOM_COLUMN_SPEC.items()
             })[ECOM_COLUMNS]
+            df_out["Orden_de_compra"] = orden_compra
             filename = f"consolidado_ecom_{hoy}.xlsx"
 
             # --- Guardar Excel en buffer ---
