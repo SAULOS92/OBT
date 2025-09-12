@@ -95,7 +95,8 @@ def _build_zip(empresa: int) -> BytesIO:
         df_rep.to_excel(buf, index=False, sheet_name="Reparticion", engine="openpyxl")
         buf.seek(0); zf.writestr("reparticion_inventario.xlsx", buf.read())
 
-        # ---- Un .xlsx por cada ruta ------------------------------
+        # ---- Un .xlsx y un .csv por cada ruta --------------------
+        csv_acumulado = []
         for ruta in sorted({r["ruta"] for r in data_ped}):
             df = pd.DataFrame(
                 [r for r in data_ped if r["ruta"] == ruta],
@@ -106,6 +107,24 @@ def _build_zip(empresa: int) -> BytesIO:
                 df.to_excel(xlsx, index=False, startrow=3, sheet_name=f"Ruta_{ruta}")
             buf.seek(0)
             zf.writestr(f"pedidos_ruta_{ruta}.xlsx", buf.read())
+
+            # CSV con estructura similar a consolidar_compras
+            csv_df = pd.DataFrame({
+                "bodega": ["01"] * len(df),
+                "codigo_producto": df["codigo_pro"],
+                "cantidad": df["pedir"],
+                "costo": 0
+            })
+            zf.writestr(f"cargue_sugerido_ruta_{ruta}.csv",
+                        csv_df.to_csv(index=False))
+            csv_acumulado.append(csv_df)
+
+        # CSV consolidado de todas las rutas
+        if csv_acumulado:
+            total_df = pd.concat(csv_acumulado, ignore_index=True)
+        else:
+            total_df = pd.DataFrame(columns=["bodega", "codigo_producto", "cantidad", "costo"])
+        zf.writestr("cargue_sugerido_total.csv", total_df.to_csv(index=False))
 
     zip_buf.seek(0)
     return zip_buf
