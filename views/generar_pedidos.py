@@ -122,8 +122,16 @@ def _build_zip(empresa: int) -> BytesIO:
         # CSV consolidado de todas las rutas
         if csv_acumulado:
             total_df = pd.concat(csv_acumulado, ignore_index=True)
+            total_df = (
+                total_df.groupby("codigo_producto", as_index=False)["cantidad"].sum()
+            )
+            total_df["bodega"] = "01"
+            total_df["costo"] = 0
+            total_df = total_df[["bodega", "codigo_producto", "cantidad", "costo"]]
         else:
-            total_df = pd.DataFrame(columns=["bodega", "codigo_producto", "cantidad", "costo"])
+            total_df = pd.DataFrame(
+                columns=["bodega", "codigo_producto", "cantidad", "costo"]
+            )
         zf.writestr("cargue_sugerido_total.csv", total_df.to_csv(index=False))
 
     zip_buf.seek(0)
