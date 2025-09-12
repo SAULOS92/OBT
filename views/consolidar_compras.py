@@ -82,10 +82,9 @@ def consolidar_compras_index():
     download_filename = None
 
     if request.method == "POST":
-        fmt = request.form.get("format")
-        f   = request.files.get("archivo")
-        if not f or fmt not in ("celluweb", "ecom"):
-            flash("Sube un Excel y elige un formato válido.", "error")
+        f = request.files.get("archivo")
+        if not f:
+            flash("Sube un Excel.", "error")
             return redirect(url_for(".consolidar_compras_index"))
 
         try:
@@ -102,8 +101,7 @@ def consolidar_compras_index():
                     df[col] = df[col].replace("", "0").astype(float)
 
             # --- Prefiltrado ECOM (excluir ZCMM y ZCM2) ---
-            if fmt == "ecom":
-                df = df[~df["Tipo Pos"].isin(["ZCMM", "ZCM2"])]
+            df = df[~df["Tipo Pos"].isin(["ZCMM", "ZCM2"])]
 
             # --- Preparar agrupación ---
             group_cols = [c for c, cfg in COLUMN_CONFIG.items() if cfg["action"] == "group"]
@@ -119,25 +117,21 @@ def consolidar_compras_index():
 
             # --- Generar df_out y filename ---
             hoy = datetime.now().strftime("%Y%m%d")
-            if fmt == "celluweb":
-                df_out   = agg[list(COLUMN_CONFIG.keys())]
-                filename = f"consolidado_celuweb_{hoy}.xlsx"
-            else:
-                # cálculo Valor_neto
-                s0, s1 = ECOM_COLUMN_SPEC["Valor_neto"]["sources"]
-                agg["Valor_neto"] = agg[s0] * agg[s1]
-                # construir df_out
-                df_out = pd.DataFrame({
-                    new_col: (
-                        agg[spec["source"]]
-                        if spec["type"] == "agg" else
-                        (spec["static_value"]
-                         if spec["type"] == "static" else
-                         agg["Valor_neto"])
-                    )
-                    for new_col, spec in ECOM_COLUMN_SPEC.items()
-                })[ECOM_COLUMNS]
-                filename = f"consolidado_ecom_{hoy}.xlsx"
+            # cálculo Valor_neto
+            s0, s1 = ECOM_COLUMN_SPEC["Valor_neto"]["sources"]
+            agg["Valor_neto"] = agg[s0] * agg[s1]
+            # construir df_out
+            df_out = pd.DataFrame({
+                new_col: (
+                    agg[spec["source"]]
+                    if spec["type"] == "agg" else
+                    (spec["static_value"]
+                     if spec["type"] == "static" else
+                     agg["Valor_neto"])
+                )
+                for new_col, spec in ECOM_COLUMN_SPEC.items()
+            })[ECOM_COLUMNS]
+            filename = f"consolidado_ecom_{hoy}.xlsx"
 
             # --- Guardar Excel en buffer ---
             buf = BytesIO()
@@ -153,27 +147,23 @@ def consolidar_compras_index():
             with open(path, "wb") as out:
                 out.write(buf.getvalue())
 
-            if fmt == "ecom":
-                # (1) Generar CSV adicional para e-com
-                csv_df = pd.DataFrame({
-                   "bodega":          ["01"] * len(df_out),
-                   "codigo_producto": df_out["Material"],
-                   "cantidad":        df_out["Cantidad_facturada"],
-                   "costo":           0
-                })
-                csv_filename = f"cargue_sugerido_{hoy}.csv"
-                csv_path     = os.path.join(tmp_dir, csv_filename)
-                csv_df.to_csv(csv_path, index=False)
+            # Generar CSV adicional para e-com
+            csv_df = pd.DataFrame({
+               "bodega":          ["01"] * len(df_out),
+               "codigo_producto": df_out["Material"],
+               "cantidad":        df_out["Cantidad_facturada"],
+               "costo":           0
+            })
+            csv_filename = f"cargue_sugerido_{hoy}.csv"
+            csv_path     = os.path.join(tmp_dir, csv_filename)
+            csv_df.to_csv(csv_path, index=False)
 
-                # exponer ambos archivos
-                download_filename = [filename, csv_filename]
-            else:
-                # solo celluweb
-                download_filename = filename
+            # exponer ambos archivos
+            download_filename = [filename, csv_filename]
             flash("Consolidado generado con éxito.", "success")
 
         except Exception as e:
-            flash(f"Error procesando informe {fmt}: {e}", "error")
+            flash(f"Error procesando informe: {e}", "error")
 
     return render_template(
         "consolidar_compras.html",

@@ -35,7 +35,7 @@ Este documento describe los endpoints expuestos por la aplicación Flask, junto 
 - **`POST /consolidar-compras`** (`consolidar_compras_index`):
   1. Lee un Excel cargado por el usuario.
   2. Valida y agrupa columnas según `COLUMN_CONFIG`.
-  3. Genera un Excel consolidado para `celluweb` o `ecom` y opcionalmente un CSV adicional.
+  3. Genera un Excel consolidado para `ecom` y un CSV adicional.
   4. Guarda los archivos en un directorio temporal para su descarga posterior.
 - **`GET /consolidar-compras/download/<filename>`** (`descargar_archivo_file`): envía el archivo previamente generado.
 
