@@ -158,30 +158,21 @@ BEGIN
   WHERE x.tipo_pro   = 'N'
   AND x.estado = 'Sin Descargar' OR x.estado = 'Sin facturar';
   BEGIN
-    IF p_dia = 'dinamico' THEN
-      INSERT INTO rutas (bd, codigo_ruta, dia, codigo_cliente)
-      SELECT p_bd, r.codigo_ruta::INTEGER, p_dia, r.codigo_cliente
+    WITH cte AS (
+      SELECT
+        p_bd            AS bd,
+        (regexp_split_to_array(r.codigo_ruta, '[- ]'))[1]::INTEGER AS codigo_ruta,
+        (regexp_split_to_array(r.codigo_ruta, '[- ]'))[2]          AS dia,
+        (regexp_split_to_array(r.codigo_cliente, '[- ]'))[1]       AS codigo_cliente
       FROM jsonb_to_recordset(p_rutas) AS r(
         codigo_cliente TEXT,
-        codigo_ruta    INTEGER
-      );
-    ELSE
-      WITH cte AS (
-        SELECT
-          p_bd            AS bd,
-          (regexp_split_to_array(r.codigo_ruta, '[- ]'))[1]::INTEGER AS codigo_ruta,
-          (regexp_split_to_array(r.codigo_ruta, '[- ]'))[2]          AS dia,
-          (regexp_split_to_array(r.codigo_cliente, '[- ]'))[1]       AS codigo_cliente
-        FROM jsonb_to_recordset(p_rutas) AS r(
-          codigo_cliente TEXT,
-          codigo_ruta    TEXT
-        )
+        codigo_ruta    TEXT
       )
-      INSERT INTO rutas (bd, codigo_ruta, dia, codigo_cliente)
-      SELECT bd, codigo_ruta, dia, codigo_cliente
-      FROM cte
-      WHERE dia = p_dia;
-    END IF;
+    )
+    INSERT INTO rutas (bd, codigo_ruta, dia, codigo_cliente)
+    SELECT bd, codigo_ruta, dia, codigo_cliente
+    FROM cte
+    WHERE dia = p_dia;
 
   EXCEPTION
     WHEN unique_violation THEN
@@ -189,18 +180,11 @@ BEGIN
   END;
 
 
-  IF p_dia = 'dinamico' THEN
-    UPDATE pedxclixprod p
-    SET ruta = r.codigo_ruta
-    FROM rutas r
-    WHERE p.codigo_cli = r.codigo_cliente;
-  ELSE
-    UPDATE pedxclixprod p
-    SET ruta = r.codigo_ruta
-    FROM rutas r
-    WHERE p.codigo_cli   = r.codigo_cliente
-      AND r.dia           = p_dia;
-  END IF;
+  UPDATE pedxclixprod p
+  SET ruta = r.codigo_ruta
+  FROM rutas r
+  WHERE p.codigo_cli   = r.codigo_cliente
+    AND r.dia           = p_dia;
 END;
 $$;
 -- VALIDACION DE PRODUCTOS BIG
