@@ -30,6 +30,8 @@ def cargar_pedidos():
         payload  = _get_msgpack_payload() or {}
         data_inv = payload.get("inventario") or []
         data_mat = payload.get("materiales")
+        carro1   = payload.get("carro1")
+        carro2   = payload.get("carro2")
 
         # --- 1. Insertar/validar materiales (si aplica) ------------
         if data_mat and negocio != "nutresa":
@@ -48,8 +50,8 @@ def cargar_pedidos():
         # --- 2. Procesar inventario / generar pedidos --------------
         with conectar() as conn:
             with conn.cursor() as cur:
-                cur.execute("CALL sp_etl_pedxrutaxprod_json(%s, %s);",
-                            (json.dumps(data_inv), empresa))
+                cur.execute("CALL sp_etl_pedxrutaxprod_json(%s, %s, %s, %s);",
+                            (json.dumps(data_inv), empresa, carro1, carro2))
                 conn.commit()
 
         # --- 3. Construir el ZIP y devolverlo ----------------------

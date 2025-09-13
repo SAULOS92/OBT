@@ -279,7 +279,9 @@ $$;
 ----PRDOCEDIMIENTO PARA GENERAR EL CONSOLIDADO DE LOS PEDIDOS
 CREATE OR REPLACE PROCEDURE sp_etl_pedxrutaxprod_json(
   p_inventario JSONB,
-  p_empresa TEXT
+  p_empresa   TEXT,
+  p_carro1    INTEGER DEFAULT NULL,
+  p_carro2    INTEGER DEFAULT NULL
 )
 LANGUAGE plpgsql
 AS $$
@@ -331,6 +333,10 @@ BEGIN
     SELECT DISTINCT ruta
     FROM pedxrutaxprod
     WHERE bd = p_empresa
+      AND (
+        (p_carro1 IS NULL AND p_carro2 IS NULL)
+        OR ruta = p_carro1 OR ruta = p_carro2
+      )
     ORDER BY ruta
   LOOP
     UPDATE pedxrutaxprod p
