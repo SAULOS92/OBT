@@ -20,7 +20,7 @@ Este documento describe los endpoints expuestos por la aplicación Flask, junto 
 ### Endpoints
 - **`GET /generar-pedidos`** (`generar_pedidos_index`): Renderiza la plantilla principal indicando el negocio en sesión.
 - **`POST /generar-pedidos`** (`cargar_pedidos`):
-  1. Recibe inventario y materiales en JSON.
+  1. Recibe inventario y materiales en JSON. Opcionalmente admite `carro1` y `carro2` para limitar la repartición a esos vehículos.
   2. Si llegan materiales y el negocio no es `nutresa`, ejecuta `sp_cargar_materiales` y valida que no queden sin definir.
   3. Ejecuta `sp_etl_pedxrutaxprod_json` para procesar el inventario.
   4. Construye un archivo ZIP en memoria mediante `_build_zip` y lo envía como descarga.

@@ -23,6 +23,12 @@
   </div>
 
   <div class="max-w-lg mx-auto bg-white p-8 rounded-3xl shadow-xl space-y-6">
+    <div class="flex justify-end space-x-2">
+      <input type="number" name="carro1" min="0" placeholder="O1"
+             class="w-16 px-2 py-1 border rounded text-sm" />
+      <input type="number" name="carro2" min="0" placeholder="O2"
+             class="w-16 px-2 py-1 border rounded text-sm" />
+    </div>
     <h1 class="text-3xl font-extrabold text-center">🚀 Generar Pedidos</h1>
 
     {# ------------------------ Bloque de instrucciones ---------------------- #}
@@ -49,8 +55,7 @@
       {% if messages %}
         <div class="space-y-2">
           {% for cat, msg in messages %}
-            <div class="px-4 py-2 rounded-lg
-                        {% if cat=='success' %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %}">
+            <div class="px-4 py-2 rounded-lg {% if cat=='success' %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %}">
               {{ msg }}
             </div>
           {% endfor %}
@@ -111,6 +116,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const fMat    = document.querySelector('input[name="materiales"]');
   const fInv    = document.querySelector('input[name="inventario"]');
   const btn     = form.querySelector('button[type="submit"]');
+  const fCar1   = document.querySelector('input[name="carro1"]');
+  const fCar2   = document.querySelector('input[name="carro2"]');
 
   /* --------------- Definición de columnas --------------------- */
   const GEN_HEADERS = {
@@ -137,10 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* --------------- Helpers UI ------------------------------- */
   function showMsg(type,msg){
-    flash.innerHTML = `<div class="px-4 py-2 rounded-lg
-        ${type==='success'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}">
-        ${Array.isArray(msg)?'<ul>'+msg.map(m=>`<li>${m}</li>`).join('')+'</ul>':msg}
-      </div>`;
+    flash.innerHTML = `<div class="px-4 py-2 rounded-lg ${type==='success'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}">${Array.isArray(msg)?'<ul>'+msg.map(m=>`<li>${m}</li>`).join('')+'</ul>':msg}</div>`;
   }
 
   /* --------------- Elimina la columna 'Estado' --------------- */
@@ -179,12 +183,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }));
   }
   function normalizeInventarioFilas(rows){
-  rows.forEach(r => {    
+  rows.forEach(r => {
     let v = String(r.stock ?? '').trim();
     if (v === '') v = '0';
     r.stock = parseInt(parseFloat(v), 10);
   });
-}
+ }
 
   /* --------------- Validación reactiva ----------------------- */
   async function validate(){
@@ -252,9 +256,12 @@ document.addEventListener('DOMContentLoaded', () => {
       dataMat = extractCanonicalRows(matRows,MAT_COL_MAP,GEN_HEADERS.materiales);
       normalizeNumericosFilas(dataMat);
     }
-
+    const c1 = fCar1.value.trim();
+    const c2 = fCar2.value.trim();
     const payload = {inventario:dataInv};
     if(dataMat) payload.materiales=dataMat;
+    if(c1) payload.carro1 = parseInt(c1,10);
+    if(c2) payload.carro2 = parseInt(c2,10);
 
     /* --- POST y descarga ZIP --- */
     try{
@@ -270,7 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       const blob = await res.blob();
       const cd   = res.headers.get('Content-Disposition');
-      const fn   = cd?.match(/filename="?([^"]+)"?/)?.[1]||`Report_${Date.now()}.zip`;
+      const fn   = cd?.match(/filename="?([^"\n]+)"?/)?.[1]||`Report_${Date.now()}.zip`;
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob); a.download = fn;
       document.body.appendChild(a); a.click(); a.remove();
@@ -296,7 +303,3 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 {% endblock %}
-
-
-
-
