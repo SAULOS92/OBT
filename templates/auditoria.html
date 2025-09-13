@@ -63,12 +63,34 @@
     const form = document.getElementById('export-form');
     const overlay = document.getElementById('loading-overlay');
 
-    form.addEventListener('submit', () => {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
       overlay.classList.remove('hidden');
-    });
 
-    window.addEventListener('load', () => {
-      overlay.classList.add('hidden');
+      try {
+        const response = await fetch(form.action, {
+          method: 'POST',
+          credentials: 'same-origin'
+        });
+
+        if (!response.ok) {
+          throw new Error('Error al descargar');
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'auditoria.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        overlay.classList.add('hidden');
+      }
     });
   });
 </script>
