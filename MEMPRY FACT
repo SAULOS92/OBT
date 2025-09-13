@@ -70,10 +70,11 @@ CREATE TABLE PEDXCLIXPROD (
   asesor VARCHAR(20),
   codigo_pro VARCHAR(25),        
   producto VARCHAR(80),   
-  cantidad INTEGER,        
-  valor NUMERIC(14,2),   
-  tip_pro VARCHAR(2),        
-  estado VARCHAR(15)   
+  cantidad INTEGER,
+  valor NUMERIC(14,2),
+  tip_pro VARCHAR(2),
+  estado VARCHAR(15),
+  codigo_pideky TEXT
 );
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -110,7 +111,7 @@ BEGIN
     bd,
     numero_pedido,
     codigo_cli,
-    ruta,        
+    ruta,
     nombre,
     barrio,
     ciudad,
@@ -120,7 +121,8 @@ BEGIN
     cantidad,
     valor,
     tip_pro,
-    estado
+    estado,
+    codigo_pideky
   )
   SELECT
     p_bd,
@@ -136,9 +138,10 @@ BEGIN
     x.cantidad,
     x.valor,
     x.tipo_pro,
-    x.estado
+    x.estado,
+    x.codigo_pideky
   FROM jsonb_to_recordset(p_pedidos) AS x(
-    numero_pedido TEXT,    
+    numero_pedido TEXT,
     cliente       TEXT,
     nombre        TEXT,
     barrio        TEXT,
@@ -149,7 +152,8 @@ BEGIN
     cantidad      INTEGER,
     valor         NUMERIC,
     tipo_pro      TEXT,
-    estado        TEXT
+    estado        TEXT,
+    codigo_pideky TEXT
   )
   WHERE x.tipo_pro   = 'N'
   AND x.estado = 'Sin Descargar' OR x.estado = 'Sin facturar';
@@ -241,6 +245,7 @@ AS $$
       barrio,
       ciudad,
       asesor,
+      MAX(codigo_pideky) AS codigo_pideky,
       COUNT(DISTINCT numero_pedido) AS total_pedidos,
       SUM(valor) AS valor,
       ruta
@@ -249,7 +254,7 @@ AS $$
     GROUP BY
       barrio,
       codigo_cli,
-      bd,     
+      bd,
       nombre,
       ciudad,
       asesor,
