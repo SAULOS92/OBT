@@ -51,8 +51,20 @@ def upload_index():
 
             # ---- 3) Obtener resumen en JSON --------------------------
             data_res = json.loads(raw) if isinstance(raw, str) else (raw or [])
-            cols = ["bd", "codigo_cli", "nombre", "barrio", "ciudad", "asesor", "total_pedidos", "valor", "ruta"]
+            cols = [
+                "bd",
+                "codigo_cli",
+                "nombre",
+                "barrio",
+                "ciudad",
+                "asesor",
+                "codigo_pideky",
+                "total_pedidos",
+                "valor",
+                "ruta",
+            ]
             df_res = pd.DataFrame(data_res, columns=cols)
+            df_res["codigo_pideky"] = df_res["codigo_pideky"].astype(str)
 
             # ---- 4) Exportar a Excel
             buf = BytesIO()

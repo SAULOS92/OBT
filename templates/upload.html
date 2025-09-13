@@ -89,7 +89,7 @@
     const flash   = document.getElementById('flash-messages');
     const form    = document.getElementById('upload-form');
   /* --------------- Definición de columnas ----------- */
-    const PED_HEADERS = ["numero_pedido","cliente","nombre","barrio","ciudad","asesor","codigo_pro","producto","cantidad","valor","tipo_pro","estado"];
+    const PED_HEADERS = ["numero_pedido","cliente","nombre","barrio","ciudad","asesor","codigo_pideky","codigo_pro","producto","cantidad","valor","tipo_pro","estado"];
     const RUT_HEADERS = ["codigo_cliente","codigo_ruta"];
     const DIAS_VALIDOS = ["LU","MA","MI","JU","VI","SA","DO","dinamico"];
 
@@ -105,6 +105,8 @@
       'Ciudad':'ciudad',
       'Asesor':'asesor',
       'codVendedor':'asesor',
+      'Codigo Pideky':'codigo_pideky',
+      'Código Pideky':'codigo_pideky',
       'Cod.Prod':'codigo_pro',
       'codProducto':'codigo_pro',
       'Producto':'producto',
@@ -195,7 +197,11 @@
       // Copio todas las columnas excepto tipo_pro
       normHead.forEach((hdr, i) => {
         if (PED_HEADERS.includes(hdr) && hdr !== 'tipo_pro') {
-          o[hdr] = vals[i];
+          let val = vals[i];
+          if (hdr === 'codigo_pideky' && val != null) {
+            val = String(val);
+          }
+          o[hdr] = val;
         }
       });
       // Inyecto tipo_pro según corresponda
