@@ -1,9 +1,10 @@
+import base64
 import pandas as pd
-from io import BytesIO
+from io import BytesIO, StringIO
 from datetime import datetime
 from flask import (
     Blueprint, render_template, request,
-    flash, redirect, url_for, send_file
+    flash, redirect, url_for, send_file, jsonify
 )
 from views.auth import login_required
 
@@ -136,13 +137,50 @@ def consolidar_compras_index():
             filename = f"consolidado_ecom_{hoy}.xlsx"
 
             # --- Guardar Excel en buffer ---
-            buf = BytesIO()
-            with pd.ExcelWriter(buf, engine="openpyxl") as writer:
-                df_out.to_excel(writer, index=False)
-            buf.seek(0)
+            # --- CSV consolidado estilo "cargue sugerido" ---
+            if agg.empty:
+                csv_df = pd.DataFrame(
+                    columns=["bodega", "codigo_producto", "cantidad", "costo"]
+                )
+            else:
+                csv_df = agg.groupby("Material", as_index=False)["Cantidad Entrega"].sum()
+                csv_df.rename(columns={
+                    "Material": "codigo_producto",
+                    "Cantidad Entrega": "cantidad"
+                }, inplace=True)
+                csv_df.insert(0, "bodega", "01")
+                csv_df["costo"] = 0
+                csv_df = csv_df[["bodega", "codigo_producto", "cantidad", "costo"]]
 
+            # --- Serializar archivos en memoria ---
+            excel_buffer = BytesIO()
+            with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+                df_out.to_excel(writer, index=False)
+            excel_bytes = excel_buffer.getvalue()
+
+            csv_buffer = StringIO()
+            csv_df.to_csv(csv_buffer, index=False)
+            csv_bytes = csv_buffer.getvalue().encode("utf-8")
+
+            csv_filename = f"cargue_con_sugerido_{hoy}.csv"
+
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return jsonify({
+                    "excel": {
+                        "filename": filename,
+                        "content": base64.b64encode(excel_bytes).decode("ascii"),
+                        "mimetype": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    },
+                    "csv": {
+                        "filename": csv_filename,
+                        "content": base64.b64encode(csv_bytes).decode("ascii"),
+                        "mimetype": "text/csv"
+                    }
+                })
+
+            excel_buffer.seek(0)
             return send_file(
-                buf,
+                excel_buffer,
                 as_attachment=True,
                 download_name=filename,
                 mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
