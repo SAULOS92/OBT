@@ -84,6 +84,25 @@
     const form    = document.getElementById('cons-form');
     const overlay = document.getElementById('loading-overlay');
 
+    const triggerDownload = ({ filename, content, mimetype }) => {
+      if (!content || !filename) return;
+      const binary = atob(content);
+      const len    = binary.length;
+      const bytes  = new Uint8Array(len);
+      for (let i = 0; i < len; i += 1) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: mimetype || 'application/octet-stream' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    };
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       overlay.classList.remove('hidden');
@@ -92,11 +111,28 @@
         const formData = new FormData(form);
         const res = await fetch(form.action, {
           method: 'POST',
-          body: formData
+          body: formData,
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+          }
         });
 
+        if (!res.ok) {
+          throw new Error('Error en la respuesta del servidor');
+        }
+
         const disposition = res.headers.get('Content-Disposition') || '';
-        if (disposition.includes('attachment')) {
+        const contentType = res.headers.get('Content-Type') || '';
+
+        if (contentType.includes('application/json')) {
+          const payload = await res.json();
+          if (payload?.excel) {
+            triggerDownload(payload.excel);
+          }
+          if (payload?.csv) {
+            triggerDownload(payload.csv);
+          }
+        } else if (disposition.includes('attachment')) {
           const blob = await res.blob();
           const url = URL.createObjectURL(blob);
           const fn = disposition.match(/filename="?([^";]+)"?/i)?.[1] || `consolidado_${Date.now()}.xlsx`;
