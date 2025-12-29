@@ -41,6 +41,16 @@ subir_pedidos_bp = Blueprint("subir_pedidos", __name__, template_folder="../temp
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+DEFAULT_LOGIN_URL = "https://portal.gruponutresa.com/"
+DEFAULT_SUCCESS_SELECTOR = (
+    "#root > div > section > header > section > section > "
+    "article.customer-header__my-business > section > button > img"
+)
+LOGIN_USER_SELECTOR = "#usuario"
+LOGIN_PASS_SELECTOR = "#password"
+LOGIN_SUBMIT_SELECTOR = "[data-testid='SignInButton'], button[type='submit']"
+CHROME_BINARY = "/usr/bin/chromium"
+
 
 class CancelledError(Exception):
     """Señala que un job fue cancelado."""
@@ -66,6 +76,7 @@ _job_queue: "queue.Queue[Tuple[str, int, str, str, JobControl]]" = queue.Queue()
 _states_lock = threading.Lock()
 _job_states: Dict[Tuple[str, int], Dict[str, Optional[str]]] = {}
 _job_controls: Dict[Tuple[str, int], JobControl] = {}
+_login_task_lock = threading.Lock()
 
 
 def _worker_loop() -> None:
@@ -335,6 +346,127 @@ def cleanup(path: pathlib.Path) -> None:
 
     if path.exists():
         os.remove(path)
+
+
+# ---------------------------------------------------------------------------
+# Login on-demand (headless)
+# ---------------------------------------------------------------------------
+
+
+def make_driver() -> webdriver.Chrome:  # pragma: no cover - selenium/portal interaction
+    """Crea un driver de Chrome configurado para Render."""
+
+    options = Options()
+    options.binary_location = CHROME_BINARY
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1280,720")
+    service = Service()
+    return webdriver.Chrome(options=options, service=service)
+
+
+def set_react_value(driver: webdriver.Chrome, selector: str, value: str) -> bool:
+    """Establece un valor en un input de React disparando eventos."""
+
+    script = """
+const [sel, val] = arguments;
+const el = document.querySelector(sel);
+if (!el) { return false; }
+const setter = Object.getOwnPropertyDescriptor(el, 'value')?.set ||
+  Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value')?.set ||
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+const prev = el.value;
+el.focus();
+setter.call(el, val);
+if (el._valueTracker) { el._valueTracker.setValue(prev); }
+el.dispatchEvent(new Event('input', { bubbles: true }));
+el.dispatchEvent(new Event('change', { bubbles: true }));
+el.blur();
+return true;
+"""
+    return bool(driver.execute_script(script, selector, value))
+
+
+def login(driver: webdriver.Chrome, user: str, password: str) -> None:
+    """Ejecuta el flujo de login usando Selenium y React value setter."""
+
+    login_url = os.getenv("LOGIN_URL", DEFAULT_LOGIN_URL)
+    driver.get(login_url)
+    wait = WebDriverWait(driver, 30)
+    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, LOGIN_USER_SELECTOR)))
+    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, LOGIN_PASS_SELECTOR)))
+    if not set_react_value(driver, LOGIN_USER_SELECTOR, user):
+        raise ValueError("No se encontró el input de usuario")
+    if not set_react_value(driver, LOGIN_PASS_SELECTOR, password):
+        raise ValueError("No se encontró el input de contraseña")
+    submit = wait.until(
+        EC.element_to_be_clickable((By.CSS_SELECTOR, LOGIN_SUBMIT_SELECTOR))
+    )
+    driver.execute_script(
+        """
+const btn = arguments[0];
+if (!btn) return;
+const form = btn.closest('form');
+if (form && typeof form.requestSubmit === 'function') {
+  form.requestSubmit(btn);
+} else {
+  btn.click();
+}
+""",
+        submit,
+    )
+
+
+def assert_login_success(driver: webdriver.Chrome) -> bool:
+    """Espera el selector configurado de éxito y devuelve True si aparece."""
+
+    selector = os.getenv("SUCCESS_SELECTOR", DEFAULT_SUCCESS_SELECTOR)
+    wait = WebDriverWait(driver, 30)
+    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
+    return True
+
+
+def run_login_task() -> Dict[str, Optional[str]]:
+    """Orquesta el login headless y devuelve el resultado serializable."""
+
+    result: Dict[str, Optional[str]] = {
+        "passed": False,
+        "url": None,
+        "title": None,
+        "error": None,
+        "screenshot": None,
+    }
+    driver: Optional[webdriver.Chrome] = None
+    try:
+        user = os.getenv("LOGIN_USER")
+        password = os.getenv("LOGIN_PASS")
+        if not user or not password:
+            raise ValueError("LOGIN_USER o LOGIN_PASS no configurados")
+        driver = make_driver()
+        login(driver, user, password)
+        assert_login_success(driver)
+        result.update({
+            "passed": True,
+            "url": driver.current_url,
+            "title": driver.title,
+        })
+    except Exception as exc:  # pragma: no cover - selenium/portal interaction
+        result.update({"error": str(exc)})
+        if driver:
+            result["url"] = driver.current_url
+            result["title"] = driver.title
+            screenshot_path = f"/tmp/error_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.png"
+            try:
+                driver.save_screenshot(screenshot_path)
+                result["screenshot"] = screenshot_path
+            except Exception:
+                result["screenshot"] = None
+    finally:
+        if driver:
+            driver.quit()
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -808,6 +940,40 @@ def estado_ruta():
             "failed_step": st.get("failed_step"),
         },
     )
+
+
+@subir_pedidos_bp.route("/subir-pedidos/login-check", methods=["POST"])
+def login_check():
+    """Ejecuta el login on-demand protegido por token."""
+
+    run_token = os.getenv("RUN_TOKEN")
+    if not run_token:
+        return jsonify(success=False, error="RUN_TOKEN no configurado"), 500
+    if request.headers.get("X-Run-Token") != run_token:
+        return jsonify(success=False, error="Token inválido"), 401
+    if not os.getenv("LOGIN_USER") or not os.getenv("LOGIN_PASS"):
+        return (
+            jsonify(success=False, error="LOGIN_USER o LOGIN_PASS no configurados"),
+            500,
+        )
+    if not _login_task_lock.acquire(blocking=False):
+        return jsonify(success=False, error="Ya existe una ejecución en curso"), 429
+
+    try:
+        result = run_login_task()
+        status_code = 200 if result.get("passed") else 500
+        payload = {
+            "success": bool(result.get("passed")),
+            "passed": bool(result.get("passed")),
+            "url": result.get("url"),
+            "title": result.get("title"),
+            "error": result.get("error"),
+        }
+        if result.get("screenshot"):
+            payload["screenshot"] = result["screenshot"]
+        return jsonify(payload), status_code
+    finally:
+        _login_task_lock.release()
 
 
 @subir_pedidos_bp.route("/vehiculos/diagnostico", methods=["GET"])
