@@ -363,7 +363,8 @@ def make_driver() -> webdriver.Chrome:  # pragma: no cover - selenium/portal int
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1280,720")
-    service = Service()
+    options.set_capability("goog:loggingPrefs", {"browser": "ALL"})
+    service = Service(executable_path="/usr/bin/chromedriver")
     return webdriver.Chrome(options=options, service=service)
 
 
@@ -428,6 +429,38 @@ def assert_login_success(driver: webdriver.Chrome) -> bool:
     return True
 
 
+def do_login_or_raise(driver: webdriver.Chrome) -> None:
+    """Ejecuta el login con credenciales fijas y valida el selector de éxito."""
+
+    wait = WebDriverWait(driver, 30)
+    driver.get(DEFAULT_LOGIN_URL)
+    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, LOGIN_USER_SELECTOR)))
+    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, LOGIN_PASS_SELECTOR)))
+    if not set_react_value(driver, LOGIN_USER_SELECTOR, "10318624"):
+        raise RuntimeError("No se encontró el campo de usuario")
+    if not set_react_value(driver, LOGIN_PASS_SELECTOR, "Abril2025*"):
+        raise RuntimeError("No se encontró el campo de contraseña")
+    submit = wait.until(
+        EC.element_to_be_clickable((By.CSS_SELECTOR, LOGIN_SUBMIT_SELECTOR))
+    )
+    driver.execute_script(
+        """
+const btn = arguments[0];
+if (!btn) return;
+const form = btn.closest('form');
+if (form && typeof form.requestSubmit === 'function') {
+  form.requestSubmit(btn);
+} else {
+  btn.click();
+}
+""",
+        submit,
+    )
+    wait.until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, DEFAULT_SUCCESS_SELECTOR))
+    )
+
+
 def run_login_task() -> Dict[str, Optional[str]]:
     """Orquesta el login headless y devuelve el resultado serializable."""
 
@@ -472,22 +505,6 @@ def run_login_task() -> Dict[str, Optional[str]]:
 # ---------------------------------------------------------------------------
 # Funciones Selenium por paso
 # ---------------------------------------------------------------------------
-
-
-def build_driver() -> webdriver.Chrome:  # pragma: no cover - requiere driver
-    """Configura y crea una instancia de Chrome para Selenium."""
-
-    options = Options()
-    # Ejecutamos en modo headless para no abrir una ventana visible
-    options.add_argument("--headless=new")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--window-size=1920,1080")
-    # Habilitamos los logs del navegador para depurar
-    options.set_capability("goog:loggingPrefs", {"browser": "ALL"})
-    log_name = f"chromedriver_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.log"
-    service = Service(log_path=log_name)
-    return webdriver.Chrome(options=options, service=service)
 
 
 def selenium_login(driver, config, usuario: str, password: str) -> None:
@@ -725,7 +742,7 @@ def subir_pedidos_ruta(bd: str, ruta: int, usuario: str, password: str, control:
     xls = crear_excel(bd, ruta)
 
     _set_step(bd, ruta, "inicializando_driver")
-    driver = build_driver()
+    driver = make_driver()
     control.driver = driver
 
     try:
@@ -877,11 +894,40 @@ def ejecutar_ruta():
         usuario = data.get("usuario")
         password = data.get("contrasena")
         if not usuario or not password:
-            return jsonify(success=False, error="Credenciales requeridas"), 400
+            return jsonify(success=False, error="Credenciales requeridas", login_ok=False), 400
+        login_ok = False
+        driver = None
+        try:
+            driver = make_driver()
+            do_login_or_raise(driver)
+            login_ok = True
+        except Exception as exc:
+            payload = {"success": False, "login_ok": False, "login_error": str(exc)}
+            if driver:
+                payload["current_url"] = driver.current_url
+                payload["title"] = driver.title
+                screenshot_path = "/tmp/login_error.png"
+                try:
+                    driver.save_screenshot(screenshot_path)
+                    payload["screenshot"] = screenshot_path
+                except Exception:
+                    pass
+            if driver:
+                try:
+                    driver.quit()
+                except Exception:
+                    pass
+            return jsonify(payload), 500
+        finally:
+            if driver:
+                try:
+                    driver.quit()
+                except Exception:
+                    pass
         status = _enqueue_job(bd, ruta, usuario, password)
-        return jsonify(success=True, data={"status": status})
+        return jsonify(success=True, data={"status": status}, login_ok=True)
     except Exception as e:
-        return jsonify(success=False, error=str(e)), 400
+        return jsonify(success=False, error=str(e), login_ok=login_ok), 400
 
 
 @subir_pedidos_bp.route("/vehiculos/stop", methods=["POST"])
