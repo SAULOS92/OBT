@@ -1,5 +1,6 @@
 """Vistas para gestionar rutas y placas de vehículos."""
 
+import time
 import traceback
 
 from flask import Blueprint, jsonify, render_template, request, session
@@ -175,6 +176,29 @@ def login_portal_grupo_nutresa(
         "#root > div > section > header > section > section "
         "> article.customer-header__my-business > section > button > img"
     )
+    SEL_ERROR_DIALOG = (
+        "body > div.MuiDialog-root.MuiModal-root.css-126xj0f > "
+        "div.MuiDialog-container.MuiDialog-scrollPaper.css-ekeie0 > div "
+        "> div.MuiDialogContent-root.css-1ty026z"
+    )
+
+    def _wait_for_login_result(page, total_timeout_ms: int = 20_000):
+        """Devuelve True si se ve el selector de éxito, False si aparece el diálogo de error.
+
+        Si no se detecta nada dentro del tiempo configurado retorna ``None`` para que la
+        llamada decida cómo manejar el escenario.
+        """
+
+        deadline = time.time() + (total_timeout_ms / 1000)
+
+        while time.time() < deadline:
+            if page.query_selector(SEL_SUCCESS_IMG):
+                return True
+            if page.query_selector(SEL_ERROR_DIALOG):
+                return False
+            page.wait_for_timeout(300)
+
+        return None
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless, args=["--no-sandbox"])
@@ -216,8 +240,15 @@ def login_portal_grupo_nutresa(
                 [username, password],
             )
 
-            page.wait_for_selector(SEL_SUCCESS_IMG, timeout=60_000)
-            return True
+            result = _wait_for_login_result(page, total_timeout_ms=20_000)
+            if result is True:
+                return True
+            if result is False:
+                return False
+
+            # No se detectó ni éxito ni error: captura para diagnóstico y responde False.
+            page.screenshot(path=screenshot_path, full_page=True)
+            return False
 
         except PWTimeout:
             page.screenshot(path=screenshot_path, full_page=True)
