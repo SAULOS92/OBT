@@ -36,6 +36,7 @@
       <span>Play</span>
     </button>
     <span id="login-status" class="text-gray-600"></span>
+    <div id="login-logs" class="text-gray-700 whitespace-pre-wrap text-left"></div>
   </div>
 </div>
 
@@ -131,6 +132,7 @@ document.getElementById('btn-add').addEventListener('click', function(){
 
 const btnPlay = document.getElementById('btn-play-login');
 const statusEl = document.getElementById('login-status');
+const logEl = document.getElementById('login-logs');
 
 btnPlay.addEventListener('click', function(){
   const usuario = document.getElementById('usuario-login').value;
@@ -138,6 +140,7 @@ btnPlay.addEventListener('click', function(){
 
   statusEl.textContent = 'Ejecutando login...';
   statusEl.className = 'text-gray-600';
+  logEl.textContent = '';
   btnPlay.disabled = true;
   btnPlay.classList.add('opacity-70');
 
@@ -148,6 +151,11 @@ btnPlay.addEventListener('click', function(){
   }).then(r => r.json()).then(res => {
     statusEl.textContent = res.message || 'Sin respuesta';
     statusEl.className = res.success ? 'text-green-700' : 'text-red-700';
+    const logs = Array.isArray(res.logs) ? res.logs : [];
+    logEl.textContent = logs.map((l, idx) => `${idx + 1}. ${l}`).join('\n');
+    if(res.screenshot){
+      logEl.textContent += `\nCaptura: ${res.screenshot}`;
+    }
   }).catch(() => {
     statusEl.textContent = 'Error al ejecutar la automatización';
     statusEl.className = 'text-red-700';
