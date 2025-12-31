@@ -21,7 +21,8 @@ gunicorn==23.0.0                     # Production WSGI server :contentReference[
 python-dotenv==1.1.0                 # load .env files into env vars :contentReference[oaicite:9]{index=9}
 
 # Browser automation
-playwright==1.49.0                    # Drive web interactions
+selenium==4.21.0                    # Drive web interactions with Selenium
+playwright==1.49.0                  # Headless browser automation used en SUBIRPEDIDOS
 
 # HTTP client
 requests==2.32.3                    # HTTP library for outbound requests :contentReference[oaicite:11]{index=11}
