@@ -152,8 +152,8 @@ def eliminar_ruta():
 
 
 def login_portal_grupo_nutresa(
-    username: str = "PON_TU_USUARIO_AQUI",
-    password: str = "PON_TU_PASSWORD_AQUI",
+    username: str = "",
+    password: str = "",
     base_url: str = "https://portal.gruponutresa.com",
     screenshot_path: str = "login_error.png",
     headless: bool = True,
