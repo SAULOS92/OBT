@@ -440,27 +440,7 @@ def probar_login_portal():
         return jsonify(success=False, message="Usuario y contraseña son obligatorios."), 400
 
     try:
-        # Primero validar el login como en la versión original.
-        login_ok = login_portal_grupo_nutresa(
-            username=username,
-            password=password,
-            base_url="https://portal.gruponutresa.com",
-            headless=True,
-        )
-
-        if not login_ok:
-            return jsonify(
-                success=False,
-                message="Fallo el login: revisa credenciales o selectores",
-                logs=["No se pudo autenticar en el portal"],
-            )
-
-        # Si el login funcionó, continuar con la automatización completa.
-        resultado = ejecutar_flujo_pedido_masivo(
-            username=username,
-            password=password,
-            logs=["Login confirmado, continuando con la carga masiva"],
-        )
+        resultado = ejecutar_flujo_pedido_masivo(username=username, password=password)
         return jsonify(
             success=resultado.success,
             message=resultado.message,
