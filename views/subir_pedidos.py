@@ -85,6 +85,17 @@ def _add_ruta(bd: str):
     return {"ruta": next_ruta, "placa": ""}
 
 
+def _delete_ruta(bd: str, ruta: int) -> bool:
+    """Elimina la ruta indicada. Devuelve True si alguna fila fue borrada."""
+
+    with conectar() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM vehiculos WHERE bd=%s AND ruta=%s", (bd, ruta))
+            deleted = cur.rowcount > 0
+            conn.commit()
+    return deleted
+
+
 @subir_pedidos_bp.route("/subir-pedidos", methods=["GET"])
 @login_required
 def subir_pedidos_index():
@@ -121,6 +132,21 @@ def agregar_ruta():
         bd = _get_bd()
         nuevo = _add_ruta(bd)
         return jsonify(success=True, data=nuevo)
+    except Exception as e:
+        return jsonify(success=False, error=str(e)), 400
+
+
+@subir_pedidos_bp.route("/vehiculos/delete", methods=["POST"])
+@login_required
+def eliminar_ruta():
+    """Elimina una ruta específica."""
+
+    try:
+        data = request.get_json() or {}
+        bd = _get_bd()
+        ruta = int(data.get("ruta"))
+        deleted = _delete_ruta(bd, ruta)
+        return jsonify(success=deleted, data={"ruta": ruta})
     except Exception as e:
         return jsonify(success=False, error=str(e)), 400
 
@@ -202,4 +228,24 @@ def login_portal_grupo_nutresa(
         finally:
             context.close()
             browser.close()
+
+
+@subir_pedidos_bp.route("/subir-pedidos/login-portal", methods=["POST"])
+@login_required
+def probar_login_portal():
+    """Ejecuta la automatización de login con las credenciales ingresadas."""
+
+    data = request.get_json() or {}
+    username = (data.get("usuario") or "").strip()
+    password = data.get("contrasena") or ""
+
+    if not username or not password:
+        return jsonify(success=False, message="Usuario y contraseña son obligatorios."), 400
+
+    try:
+        ok = login_portal_grupo_nutresa(username=username, password=password)
+        message = "Login exitoso" if ok else "Fallo el login: revisa credenciales o selectores"
+        return jsonify(success=ok, message=message)
+    except Exception as e:
+        return jsonify(success=False, message="Error al ejecutar la automatización", error=str(e)), 500
 
