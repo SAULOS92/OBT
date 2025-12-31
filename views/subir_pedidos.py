@@ -284,11 +284,10 @@ def ejecutar_flujo_pedido_masivo(
     password: str,
     base_url: str = "https://portal.gruponutresa.com",
     headless: bool = True,
-    logs: Optional[List[str]] = None,
 ) -> PortalFlowResult:
     """Ejecuta el login y luego los pasos de carga masiva descritos por el usuario."""
 
-    logs = logs or []
+    logs: List[str] = []
     screenshot_path = Path(tempfile.gettempdir()) / "pedido_masivo_error.png"
 
     def log(msg: str) -> None:
