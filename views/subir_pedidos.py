@@ -1,5 +1,7 @@
 """Vistas para gestionar rutas y placas de vehículos."""
 
+import traceback
+
 from flask import Blueprint, jsonify, render_template, request, session
 from playwright.sync_api import TimeoutError as PWTimeout
 from playwright.sync_api import sync_playwright
@@ -247,5 +249,12 @@ def probar_login_portal():
         message = "Login exitoso" if ok else "Fallo el login: revisa credenciales o selectores"
         return jsonify(success=ok, message=message)
     except Exception as e:
-        return jsonify(success=False, message="Error al ejecutar la automatización", error=str(e)), 500
+        tb = traceback.format_exc()
+        print("ERROR PLAYWRIGHT LOGIN\n", tb)
+        return jsonify(
+            success=False,
+            message="Error al ejecutar la automatización",
+            error=str(e),
+            traceback=tb,
+        ), 500
 
