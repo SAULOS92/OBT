@@ -1,28 +1,15 @@
-"""Gestión simple de rutas y captura de credenciales para subir pedidos."""
+"""Vistas para gestionar rutas y placas de vehículos."""
 
-from typing import Dict, Optional, Tuple
-import threading
-
-from flask import Blueprint, render_template, request, session, jsonify
+from flask import Blueprint, jsonify, render_template, request, session
 
 from db import conectar
 from views.auth import login_required
 
 subir_pedidos_bp = Blueprint("subir_pedidos", __name__, template_folder="../templates")
 
-# Estados básicos por ruta
-_states_lock = threading.Lock()
-_job_states: Dict[Tuple[str, int], Dict[str, Optional[str]]] = {}
-_credentials: Dict[Tuple[str, int], Dict[str, str]] = {}
-
-
-# ---------------------------------------------------------------------------
-# Helpers BD
-# ---------------------------------------------------------------------------
-
 
 def _ensure_table() -> None:
-    """Crea la tabla vehiculos si no existe."""
+    """Crea la tabla `vehiculos` si aún no existe."""
 
     with conectar() as conn:
         with conn.cursor() as cur:
@@ -40,7 +27,7 @@ def _ensure_table() -> None:
 
 
 def _get_bd() -> str:
-    """Obtiene de la sesión la base de datos seleccionada."""
+    """Obtiene la empresa activa desde la sesión."""
 
     bd = session.get("empresa")
     if not bd:
@@ -62,19 +49,7 @@ def _get_vehiculos(bd: str):
                 )
                 conn.commit()
                 rows = [(1, "")]
-    vehiculos = []
-    for r in rows:
-        with _states_lock:
-            st = _job_states.get((bd, r[0]), {})
-        vehiculos.append(
-            {
-                "ruta": r[0],
-                "placa": r[1],
-                "estado": st.get("status", "pendiente"),
-                "paso": None,
-            }
-        )
-    return vehiculos
+    return [{"ruta": r, "placa": p} for r, p in rows]
 
 
 def _upsert_vehiculo(bd: str, ruta: int, placa: str) -> None:
@@ -93,8 +68,8 @@ def _upsert_vehiculo(bd: str, ruta: int, placa: str) -> None:
             conn.commit()
 
 
-def _add_ruta(bd: str) -> Dict[str, int]:
-    """Agrega una nueva ruta vacía para la empresa dada."""
+def _add_ruta(bd: str):
+    """Crea una nueva ruta vacía y la devuelve."""
 
     with conectar() as conn:
         with conn.cursor() as cur:
@@ -105,18 +80,13 @@ def _add_ruta(bd: str) -> Dict[str, int]:
                 (bd, next_ruta, ""),
             )
             conn.commit()
-    return {"ruta": next_ruta, "placa": "", "estado": "pendiente", "paso": None}
-
-
-# ---------------------------------------------------------------------------
-# Rutas
-# ---------------------------------------------------------------------------
+    return {"ruta": next_ruta, "placa": ""}
 
 
 @subir_pedidos_bp.route("/subir-pedidos", methods=["GET"])
 @login_required
 def subir_pedidos_index():
-    """Muestra la pantalla principal para gestionar rutas y credenciales."""
+    """Pantalla principal para consultar y editar placas."""
 
     _ensure_table()
     bd = _get_bd()
@@ -127,7 +97,7 @@ def subir_pedidos_index():
 @subir_pedidos_bp.route("/vehiculos/placa", methods=["POST"])
 @login_required
 def guardar_placa():
-    """Guarda la placa asociada a una ruta enviada desde el formulario."""
+    """Guarda la placa asociada a una ruta enviada desde la tabla."""
 
     try:
         data = request.get_json() or {}
@@ -152,60 +122,3 @@ def agregar_ruta():
     except Exception as e:
         return jsonify(success=False, error=str(e)), 400
 
-
-@subir_pedidos_bp.route("/vehiculos/play", methods=["POST"])
-@login_required
-def ejecutar_ruta():
-    """Captura las credenciales enviadas desde el formulario."""
-
-    try:
-        data = request.get_json() or {}
-        bd = _get_bd()
-        ruta = int(data.get("ruta"))
-        usuario = data.get("usuario")
-        password = data.get("contrasena")
-        if not usuario or not password:
-            return jsonify(success=False, error="Credenciales requeridas"), 400
-        with _states_lock:
-            _credentials[(bd, ruta)] = {"usuario": usuario, "contrasena": password}
-            _job_states[(bd, ruta)] = {"status": "credenciales_recibidas", "paso_actual": None}
-        return jsonify(success=True, data={"status": "credenciales_recibidas"})
-    except Exception as e:
-        return jsonify(success=False, error=str(e)), 400
-
-
-@subir_pedidos_bp.route("/vehiculos/stop", methods=["POST"])
-@login_required
-def detener_ruta():
-    """Limpia las credenciales y marca la ruta como cancelada."""
-
-    try:
-        data = request.get_json() or {}
-        bd = _get_bd()
-        ruta = int(data.get("ruta"))
-        with _states_lock:
-            _credentials.pop((bd, ruta), None)
-            _job_states[(bd, ruta)] = {"status": "cancelado", "paso_actual": None}
-            status = _job_states[(bd, ruta)]["status"]
-        return jsonify(success=True, data={"status": status})
-    except Exception as e:
-        return jsonify(success=False, error=str(e)), 400
-
-
-@subir_pedidos_bp.route("/vehiculos/estado", methods=["GET"])
-@login_required
-def estado_ruta():
-    """Devuelve el estado actual de una ruta."""
-
-    bd = request.args.get("bd") or _get_bd()
-    ruta = int(request.args.get("ruta", 0))
-    with _states_lock:
-        st = _job_states.get((bd, ruta), {"status": "pendiente", "paso_actual": None})
-    return jsonify(
-        success=True,
-        data={
-            "status": st.get("status", "pendiente"),
-            "paso": st.get("paso_actual"),
-            "failed_step": st.get("failed_step"),
-        },
-    )
