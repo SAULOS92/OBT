@@ -232,7 +232,7 @@ def ejecutar_flujo_playwright(
     base_url: str,
     selector_exito: str,
     selector_error: Optional[str] = None,
-    screenshot_path: str = "playwright_error.png",
+    notificar_estado=None,
     headless: bool = True,
     espera_resultado_ms: int = 20_000,
 ) -> bool:
@@ -247,7 +247,7 @@ def ejecutar_flujo_playwright(
         base_url: URL inicial a la que se debe navegar.
         selector_exito: Selector CSS que indica que el flujo terminó bien.
         selector_error: Selector opcional que indica un estado de error visible.
-        screenshot_path: Ruta donde guardar una captura si algo falla.
+        notificar_estado: Función opcional para informar el avance del flujo.
         headless: Indica si el navegador se abre en modo headless.
         espera_resultado_ms: Tiempo máximo para esperar el selector de éxito/error.
 
@@ -260,6 +260,10 @@ def ejecutar_flujo_playwright(
         Exception: Propaga excepciones de Playwright una vez tomada la captura.
     """
 
+    def _emit(mensaje: str) -> None:
+        if notificar_estado:
+            notificar_estado(mensaje)
+
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=headless, args=["--no-sandbox"])
         context = browser.new_context()
@@ -267,6 +271,8 @@ def ejecutar_flujo_playwright(
 
         try:
             page.goto(base_url, wait_until="domcontentloaded", timeout=60_000)
+
+            _emit(f"{nombre_flujo} - Navegador listo")
 
             for paso in pasos:
                 nombre_paso = paso.get("nombre", "Paso sin nombre")
@@ -279,6 +285,8 @@ def ejecutar_flujo_playwright(
 
                 # Esperamos a que el elemento esté presente antes de interactuar.
                 page.wait_for_selector(selector, timeout=30_000)
+
+                _emit(f"{nombre_flujo} - {nombre_paso}")
 
                 if tipo == "campo":
                     _set_react_value(page, selector, str(valor))
@@ -301,19 +309,14 @@ def ejecutar_flujo_playwright(
             )
 
             if resultado is None:
-                # No apareció nada: guardamos evidencia para depurar.
-                page.screenshot(path=screenshot_path, full_page=True)
                 return False
 
             return bool(resultado)
 
         except PWTimeout:
-            page.screenshot(path=screenshot_path, full_page=True)
             return False
 
         except Exception:
-            # Ante cualquier otra excepción, dejamos la captura y re-lanzamos.
-            page.screenshot(path=screenshot_path, full_page=True)
             raise
 
         finally:
@@ -325,7 +328,7 @@ def login_portal_grupo_nutresa(
     username: str = "",
     password: str = "",
     base_url: str = "https://portal.gruponutresa.com",
-    screenshot_path: str = "login_error.png",
+    notificar_estado=None,
     headless: bool = True,
 ) -> bool:
     """Automatiza el inicio de sesión en el portal de Grupo Nutresa.
@@ -372,7 +375,7 @@ def login_portal_grupo_nutresa(
         base_url=base_url,
         selector_exito=selector_exito,
         selector_error=selector_error,
-        screenshot_path=screenshot_path,
+        notificar_estado=notificar_estado,
         headless=headless,
     )
 
@@ -390,9 +393,13 @@ def probar_login_portal():
         return jsonify(success=False, message="Usuario y contraseña son obligatorios."), 400
 
     try:
-        ok = login_portal_grupo_nutresa(username=username, password=password)
+        avances: List[str] = []
+
+        ok = login_portal_grupo_nutresa(
+            username=username, password=password, notificar_estado=avances.append
+        )
         message = "Login exitoso" if ok else "Fallo el login: revisa credenciales o selectores"
-        return jsonify(success=ok, message=message)
+        return jsonify(success=ok, message=message, avances=avances)
     except Exception as e:
         tb = traceback.format_exc()
         print("ERROR PLAYWRIGHT LOGIN\n", tb)
