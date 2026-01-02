@@ -6,8 +6,6 @@ quienes recién empiezan) pueda leerlo y entenderlo: por eso se agregaron
 explicaciones paso a paso y nombres de variables descriptivos.
 """
 
-import os
-import tempfile
 import time
 import traceback
 from typing import Any, Dict, List, Optional
@@ -15,7 +13,6 @@ from typing import Any, Dict, List, Optional
 from flask import Blueprint, jsonify, render_template, request, session
 from playwright.sync_api import TimeoutError as PWTimeout
 from playwright.sync_api import sync_playwright
-from openpyxl import Workbook
 
 from db import conectar
 from views.auth import login_required
@@ -228,39 +225,6 @@ def _esperar_resultado(
     return None
 
 
-def _seleccionar_opcion(page, selector: str, valor: str) -> None:
-    """Selecciona una opción en un ``<select>``.
-
-    Si ``valor`` es "segunda opcion" se escoge el índice 1 (segunda posición).
-    En cualquier otro caso se pasa el valor directamente a ``select_option``.
-    """
-
-    valor_normalizado = valor.strip().lower()
-    if valor_normalizado == "segunda opcion":
-        page.select_option(selector, index=1)
-    else:
-        page.select_option(selector, str(valor))
-
-
-def _adjuntar_archivo(page, selector: str, ruta_archivo: str) -> None:
-    """Sube un archivo usando el selector indicado.
-
-    El selector puede apuntar directamente a un ``input[type=file]`` o a un
-    contenedor; en este último caso se busca un input de archivo dentro.
-    """
-
-    element = page.query_selector(selector)
-    if not element:
-        raise ValueError(f"No se encontró el selector {selector}")
-
-    input_file = element.query_selector("input[type='file']") or page.query_selector(
-        f"{selector} input[type='file']"
-    )
-
-    destino = input_file or element
-    destino.set_input_files(ruta_archivo)
-
-
 def ejecutar_flujo_playwright(
     pasos: List[Dict[str, Any]],
     *,
@@ -327,9 +291,8 @@ def ejecutar_flujo_playwright(
                 if tipo == "campo":
                     _set_react_value(page, selector, str(valor))
                 elif tipo == "campo de seleccion":
-                    _seleccionar_opcion(page, selector, str(valor))
-                elif tipo == "ingreso archivo":
-                    _adjuntar_archivo(page, selector, str(valor))
+                    # Para selects estándar Playwright ofrece select_option.
+                    page.select_option(selector, str(valor))
                 elif tipo == "click":
                     page.click(selector)
                 else:
@@ -417,109 +380,6 @@ def login_portal_grupo_nutresa(
     )
 
 
-def _construir_excel_pedido() -> str:
-    """Crea un archivo XLSX igual al de la referencia y devuelve su ruta."""
-
-    wb = Workbook()
-    ws = wb.active
-
-    # Dos filas en blanco para emular el espaciado de la captura.
-    ws.append([])
-    ws.append([])
-    ws.append(["codigo_producto", "producto", "UN", "pedir"])
-    ws.append([1015235, "2 SALCH. SUN", "", 1])
-
-    archivo_temporal = tempfile.NamedTemporaryFile(
-        suffix=".xlsx", delete=False, prefix="pedido_"
-    )
-    wb.save(archivo_temporal.name)
-    archivo_temporal.close()
-    return archivo_temporal.name
-
-
-def ejecutar_cargar_pedido(*, notificar_estado=None, headless: bool = True) -> bool:
-    """Corre el flujo "Cargar pedido" con el archivo generado automáticamente."""
-
-    excel_path = _construir_excel_pedido()
-    pasos_carga = [
-        {
-            "nombre": "Seleccionar tipo plantilla",
-            "tipo": "campo de seleccion",
-            "selector": (
-                "#root > div > section > article > section > section > form > div "
-                "> fieldset > article > div > div"
-            ),
-            "valor": "segunda opcion",
-        },
-        {
-            "nombre": "Ingresar contraseña",
-            "tipo": "ingreso archivo",
-            "selector": (
-                "#root > div > section > article > section > section > form > section "
-                "> label > section.file-input__upload"
-            ),
-            "valor": excel_path,
-        },
-        {
-            "nombre": "enviar archivo",
-            "tipo": "click",
-            "selector": (
-                "#root > div > section > article > section > section > form > footer "
-                "> button.MuiButtonBase-root.MuiButton-root.MuiButton-text.MuiButton-"
-                "textPrimary.MuiButton-sizeMedium.MuiButton-textSizeMedium.MuiButton-"
-                "root.MuiButton-text.MuiButton-textPrimary.MuiButton-sizeMedium."
-                "MuiButton-textSizeMedium.mb2.admin__create-footer-save.w5-ns.css-"
-                "kp69xf"
-            ),
-        },
-    ]
-
-    try:
-        return ejecutar_flujo_playwright(
-            pasos_carga,
-            nombre_flujo="Cargar pedido",
-            base_url="https://portal.gruponutresa.com/p/nuevo/pedido-masivo/excel",
-            selector_exito=(
-                "#root > div > section > article > section > article > footer > "
-                "button:nth-child(3)"
-            ),
-            selector_error=(
-                "body > div.MuiDialog-root.MuiModal-root.css-126xj0f > div.MuiDialog-"
-                "container.MuiDialog-scrollPaper.css-ekeie0 > div > div.MuiDialogContent-"
-                "root.css-1ty026z"
-            ),
-            notificar_estado=notificar_estado,
-            headless=headless,
-        )
-    finally:
-        if os.path.exists(excel_path):
-            os.remove(excel_path)
-
-
-def ejecutar_login_y_cargar_pedido(
-    *, username: str, password: str, notificar_estado=None, headless: bool = True
-) -> bool:
-    """Ejecuta el login y, si es exitoso, lanza el flujo de carga de pedido."""
-
-    ok_login = login_portal_grupo_nutresa(
-        username=username,
-        password=password,
-        notificar_estado=notificar_estado,
-        headless=headless,
-    )
-
-    if not ok_login:
-        return False
-
-    if notificar_estado:
-        notificar_estado("Cargar pedido - Navegando a la pantalla de carga")
-
-    return ejecutar_cargar_pedido(
-        notificar_estado=notificar_estado,
-        headless=headless,
-    )
-
-
 @subir_pedidos_bp.route("/subir-pedidos/login-portal", methods=["POST"])
 @login_required
 def probar_login_portal():
@@ -535,16 +395,10 @@ def probar_login_portal():
     try:
         avances: List[str] = []
 
-        ok = ejecutar_login_y_cargar_pedido(
-            username=username,
-            password=password,
-            notificar_estado=avances.append,
+        ok = login_portal_grupo_nutresa(
+            username=username, password=password, notificar_estado=avances.append
         )
-        message = (
-            "Flujo completo exitoso"
-            if ok
-            else "Fallo el flujo: revisa credenciales, selectores o la carga de archivo"
-        )
+        message = "Login exitoso" if ok else "Fallo el login: revisa credenciales o selectores"
         return jsonify(success=ok, message=message, avances=avances)
     except Exception as e:
         tb = traceback.format_exc()
