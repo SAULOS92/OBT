@@ -225,6 +225,22 @@ def _esperar_resultado(
     return None
 
 
+def _seleccionar_segunda_opcion(page, selector: str) -> None:
+    """Selecciona la segunda opción disponible de un elemento <select>."""
+
+    option_value = page.evaluate(
+        """(sel) => {
+            const element = document.querySelector(sel);
+            if (!element) throw new Error(`No se encontró el selector ${sel}`);
+            const segunda = element.options?.[1];
+            if (!segunda) throw new Error('No existe una segunda opción en el select');
+            return segunda.value;
+        }""",
+        selector,
+    )
+    page.select_option(selector, option_value)
+
+
 def ejecutar_flujo_playwright(
     pasos: List[Dict[str, Any]],
     *,
@@ -240,9 +256,11 @@ def ejecutar_flujo_playwright(
 
     Args:
         pasos: Lista de instrucciones. Cada elemento es un diccionario con las
-            claves ``nombre`` (texto descriptivo), ``tipo`` ("click", "campo" o
-            "campo de seleccion"), ``selector`` (CSS del elemento objetivo) y
-            ``valor`` (texto a escribir u opción a seleccionar cuando aplique).
+            claves ``nombre`` (texto descriptivo), ``tipo`` ("click", "campo",
+            "campo de seleccion" o "ingreso archivo"), ``selector`` (CSS del
+            elemento objetivo) y ``valor`` (texto a escribir u opción a
+            seleccionar cuando aplique, o un callable que devuelva la ruta de
+            archivo a subir).
         nombre_flujo: Nombre amistoso utilizado para mensajes de error.
         base_url: URL inicial a la que se debe navegar.
         selector_exito: Selector CSS que indica que el flujo terminó bien.
@@ -288,17 +306,28 @@ def ejecutar_flujo_playwright(
 
                 _emit(f"{nombre_flujo} - {nombre_paso}")
 
+                valor_resuelto = valor() if callable(valor) else valor
+
                 if tipo == "campo":
-                    _set_react_value(page, selector, str(valor))
+                    _set_react_value(page, selector, str(valor_resuelto))
                 elif tipo == "campo de seleccion":
-                    # Para selects estándar Playwright ofrece select_option.
-                    page.select_option(selector, str(valor))
+                    if str(valor_resuelto).lower() == "segunda opcion":
+                        _seleccionar_segunda_opcion(page, selector)
+                    else:
+                        # Para selects estándar Playwright ofrece select_option.
+                        page.select_option(selector, str(valor_resuelto))
+                elif tipo == "ingreso archivo":
+                    if not valor_resuelto:
+                        raise ValueError(
+                            "El paso de ingreso de archivo requiere una ruta o un constructor"
+                        )
+                    page.set_input_files(selector, valor_resuelto)
                 elif tipo == "click":
                     page.click(selector)
                 else:
                     raise ValueError(
-                        "Tipo de paso inválido: debe ser 'click', 'campo' o "
-                        "'campo de seleccion'"
+                        "Tipo de paso inválido: debe ser 'click', 'campo', "
+                        "'campo de seleccion' o 'ingreso archivo'"
                     )
 
             resultado = _esperar_resultado(
@@ -380,6 +409,102 @@ def login_portal_grupo_nutresa(
     )
 
 
+def construir_archivo_carga_pedido() -> str:
+    """Construye un Excel con el formato esperado por el portal."""
+
+    from tempfile import NamedTemporaryFile
+
+    from openpyxl import Workbook
+
+    workbook = Workbook()
+    sheet = workbook.active
+
+    # Dejar dos filas iniciales vacías para replicar la plantilla del portal.
+    sheet.append([None])
+    sheet.append([None])
+    sheet.append(["codigo_pro", "producto", "UN", "pedir"])
+    sheet.append(["1015235", "2 SALCH. SUN", None, 1])
+
+    tmp = NamedTemporaryFile(delete=False, suffix=".xlsx")
+    workbook.save(tmp.name)
+    return tmp.name
+
+
+def cargar_pedido_masivo(
+    *,
+    notificar_estado=None,
+    headless: bool = True,
+) -> bool:
+    """Ejecuta el flujo de carga masiva de pedidos en el portal."""
+
+    archivo_temporal = {"path": None}
+
+    def _crear_archivo():
+        archivo_temporal["path"] = construir_archivo_carga_pedido()
+        return archivo_temporal["path"]
+
+    pasos_carga = [
+        {
+            "nombre": "Seleccionar tipo plantilla",
+            "tipo": "campo de seleccion",
+            "selector": (
+                "#root > div > section > article > section > section > form > "
+                "div > fieldset > article > div > div"
+            ),
+            "valor": "segunda opcion",
+        },
+        {
+            "nombre": "Ingresar contraseña",
+            "tipo": "ingreso archivo",
+            "selector": (
+                "#root > div > section > article > section > section > form > "
+                "section > label > section.file-input__upload"
+            ),
+            "valor": _crear_archivo,
+        },
+        {
+            "nombre": "enviar archivo",
+            "tipo": "click",
+            "selector": (
+                "#root > div > section > article > section > section > form > "
+                "footer > button.MuiButtonBase-root.MuiButton-root.MuiButton-text."
+                "MuiButton-textPrimary.MuiButton-sizeMedium.MuiButton-textSizeMedium."
+                "MuiButton-root.MuiButton-text.MuiButton-textPrimary.MuiButton-"
+                "sizeMedium.MuiButton-textSizeMedium.mb2.admin__create-footer-save."
+                "w5-ns.css-kp69xf"
+            ),
+        },
+    ]
+
+    selector_exito = (
+        "#root > div > section > article > section > article > footer > button:nth-child(3)"
+    )
+    selector_error = (
+        "body > div.MuiDialog-root.MuiModal-root.css-126xj0f > "
+        "div.MuiDialog-container.MuiDialog-scrollPaper.css-ekeie0 > div > "
+        "div.MuiDialogContent-root.css-1ty026z"
+    )
+
+    try:
+        return ejecutar_flujo_playwright(
+            pasos_carga,
+            nombre_flujo="Cargar pedido",
+            base_url="https://portal.gruponutresa.com/p/nuevo/pedido-masivo/excel",
+            selector_exito=selector_exito,
+            selector_error=selector_error,
+            notificar_estado=notificar_estado,
+            headless=headless,
+        )
+    finally:
+        if archivo_temporal["path"]:
+            try:
+                import os
+
+                os.unlink(archivo_temporal["path"])
+            except OSError:
+                pass
+
+
 @subir_pedidos_bp.route("/subir-pedidos/login-portal", methods=["POST"])
 @login_required
 def probar_login_portal():
@@ -395,11 +520,22 @@ def probar_login_portal():
     try:
         avances: List[str] = []
 
-        ok = login_portal_grupo_nutresa(
+        ok_login = login_portal_grupo_nutresa(
             username=username, password=password, notificar_estado=avances.append
         )
-        message = "Login exitoso" if ok else "Fallo el login: revisa credenciales o selectores"
-        return jsonify(success=ok, message=message, avances=avances)
+
+        ok_carga = False
+        if ok_login:
+            ok_carga = cargar_pedido_masivo(notificar_estado=avances.append)
+
+        if ok_login and ok_carga:
+            message = "Login y carga de pedido exitosos"
+        elif ok_login and not ok_carga:
+            message = "Login exitoso pero falló la carga de pedido"
+        else:
+            message = "Fallo el login: revisa credenciales o selectores"
+
+        return jsonify(success=ok_login and ok_carga, message=message, avances=avances)
     except Exception as e:
         tb = traceback.format_exc()
         print("ERROR PLAYWRIGHT LOGIN\n", tb)
