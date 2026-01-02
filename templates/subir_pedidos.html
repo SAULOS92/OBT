@@ -136,18 +136,41 @@ btnPlay.addEventListener('click', function(){
   const usuario = document.getElementById('usuario-login').value;
   const contrasena = document.getElementById('contrasena-login').value;
 
-  statusEl.textContent = 'Ejecutando login...';
+  statusEl.textContent = 'Levantando el navegador...';
   statusEl.className = 'text-gray-600';
   btnPlay.disabled = true;
   btnPlay.classList.add('opacity-70');
+
+  function mostrarProgreso(avances){
+    if(!Array.isArray(avances) || !avances.length){
+      return Promise.resolve();
+    }
+
+    return new Promise(resolve => {
+      let index = 0;
+      statusEl.textContent = avances[index];
+      const interval = setInterval(() => {
+        index += 1;
+        if(index >= avances.length){
+          clearInterval(interval);
+          resolve();
+          return;
+        }
+        statusEl.textContent = avances[index];
+      }, 700);
+    });
+  }
 
   fetch('/subir-pedidos/login-portal', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({usuario, contrasena})
   }).then(r => r.json()).then(res => {
-    statusEl.textContent = res.message || 'Sin respuesta';
-    statusEl.className = res.success ? 'text-green-700' : 'text-red-700';
+    const avances = res.avances || [];
+    mostrarProgreso(avances).then(() => {
+      statusEl.textContent = res.message || 'Sin respuesta';
+      statusEl.className = res.success ? 'text-green-700' : 'text-red-700';
+    });
   }).catch(() => {
     statusEl.textContent = 'Error al ejecutar la automatización';
     statusEl.className = 'text-red-700';
