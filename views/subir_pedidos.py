@@ -1,7 +1,14 @@
-"""Vistas para gestionar rutas y placas de vehículos."""
+"""Vistas para gestionar rutas y placas de vehículos.
+
+Este módulo contiene la lógica de Flask que administra rutas/placas y una
+automatización con Playwright. El objetivo es que cualquier persona (incluso
+quienes recién empiezan) pueda leerlo y entenderlo: por eso se agregaron
+explicaciones paso a paso y nombres de variables descriptivos.
+"""
 
 import time
 import traceback
+from typing import Any, Dict, List, Optional
 
 from flask import Blueprint, jsonify, render_template, request, session
 from playwright.sync_api import TimeoutError as PWTimeout
@@ -154,6 +161,166 @@ def eliminar_ruta():
         return jsonify(success=False, error=str(e)), 400
 
 
+def _set_react_value(page, selector: str, value: str) -> None:
+    """Escribe en un campo HTML disparando eventos de React.
+
+    Playwright cuenta con :meth:`page.fill`, pero algunos formularios hechos con
+    React no detectan el cambio de valor a menos que se disparen manualmente los
+    eventos ``input`` y ``change``. Este helper hace exactamente eso.
+    """
+
+    page.evaluate(
+        """([sel, val]) => {
+            const element = document.querySelector(sel);
+            if (!element) {
+                throw new Error(`No se encontró el selector ${sel}`);
+            }
+
+            element.focus();
+
+            // Se obtiene el setter nativo para escribir en el input.
+            const setter =
+              Object.getOwnPropertyDescriptor(element, 'value')?.set ||
+              Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+
+            const previous = element.value;
+            setter.call(element, val);
+
+            // React almacena el valor anterior en _valueTracker; lo actualizamos.
+            if (element._valueTracker) {
+                element._valueTracker.setValue(previous);
+            }
+
+            // Disparamos eventos para que cualquier listener se ejecute.
+            element.dispatchEvent(new Event('input',  { bubbles: true }));
+            element.dispatchEvent(new Event('change', { bubbles: true }));
+            element.blur();
+        }""",
+        [selector, value],
+    )
+
+
+def _esperar_resultado(
+    page,
+    selector_exito: str,
+    selector_error: Optional[str],
+    total_timeout_ms: int = 20_000,
+) -> Optional[bool]:
+    """Espera a que aparezca un selector de éxito o error.
+
+    Devuelve ``True`` si se detecta el selector de éxito, ``False`` si aparece el de
+    error. Si no aparece ninguno durante el tiempo límite devuelve ``None`` para que
+    el llamador decida cómo continuar.
+    """
+
+    deadline = time.time() + (total_timeout_ms / 1000)
+
+    while time.time() < deadline:
+        if page.query_selector(selector_exito):
+            return True
+        if selector_error and page.query_selector(selector_error):
+            return False
+        page.wait_for_timeout(300)
+
+    return None
+
+
+def ejecutar_flujo_playwright(
+    pasos: List[Dict[str, Any]],
+    *,
+    nombre_flujo: str,
+    base_url: str,
+    selector_exito: str,
+    selector_error: Optional[str] = None,
+    screenshot_path: str = "playwright_error.png",
+    headless: bool = True,
+    espera_resultado_ms: int = 20_000,
+) -> bool:
+    """Ejecuta un flujo de Playwright definido por pasos.
+
+    Args:
+        pasos: Lista de instrucciones. Cada elemento es un diccionario con las
+            claves ``nombre`` (texto descriptivo), ``tipo`` ("click", "campo" o
+            "campo de seleccion"), ``selector`` (CSS del elemento objetivo) y
+            ``valor`` (texto a escribir u opción a seleccionar cuando aplique).
+        nombre_flujo: Nombre amistoso utilizado para mensajes de error.
+        base_url: URL inicial a la que se debe navegar.
+        selector_exito: Selector CSS que indica que el flujo terminó bien.
+        selector_error: Selector opcional que indica un estado de error visible.
+        screenshot_path: Ruta donde guardar una captura si algo falla.
+        headless: Indica si el navegador se abre en modo headless.
+        espera_resultado_ms: Tiempo máximo para esperar el selector de éxito/error.
+
+    Returns:
+        ``True`` si se detecta el selector de éxito. ``False`` si se detecta el de
+        error o si el tiempo de espera se agota.
+
+    Raises:
+        ValueError: Si alguno de los pasos no tiene el formato esperado.
+        Exception: Propaga excepciones de Playwright una vez tomada la captura.
+    """
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=headless, args=["--no-sandbox"])
+        context = browser.new_context()
+        page = context.new_page()
+
+        try:
+            page.goto(base_url, wait_until="domcontentloaded", timeout=60_000)
+
+            for paso in pasos:
+                nombre_paso = paso.get("nombre", "Paso sin nombre")
+                tipo = str(paso.get("tipo", "")).strip().lower()
+                selector = paso.get("selector")
+                valor = paso.get("valor", "")
+
+                if not selector:
+                    raise ValueError(f"El paso '{nombre_paso}' no tiene selector")
+
+                # Esperamos a que el elemento esté presente antes de interactuar.
+                page.wait_for_selector(selector, timeout=30_000)
+
+                if tipo == "campo":
+                    _set_react_value(page, selector, str(valor))
+                elif tipo == "campo de seleccion":
+                    # Para selects estándar Playwright ofrece select_option.
+                    page.select_option(selector, str(valor))
+                elif tipo == "click":
+                    page.click(selector)
+                else:
+                    raise ValueError(
+                        "Tipo de paso inválido: debe ser 'click', 'campo' o "
+                        "'campo de seleccion'"
+                    )
+
+            resultado = _esperar_resultado(
+                page,
+                selector_exito=selector_exito,
+                selector_error=selector_error,
+                total_timeout_ms=espera_resultado_ms,
+            )
+
+            if resultado is None:
+                # No apareció nada: guardamos evidencia para depurar.
+                page.screenshot(path=screenshot_path, full_page=True)
+                return False
+
+            return bool(resultado)
+
+        except PWTimeout:
+            page.screenshot(path=screenshot_path, full_page=True)
+            return False
+
+        except Exception:
+            # Ante cualquier otra excepción, dejamos la captura y re-lanzamos.
+            page.screenshot(path=screenshot_path, full_page=True)
+            raise
+
+        finally:
+            context.close()
+            browser.close()
+
+
 def login_portal_grupo_nutresa(
     username: str = "",
     password: str = "",
@@ -161,106 +328,53 @@ def login_portal_grupo_nutresa(
     screenshot_path: str = "login_error.png",
     headless: bool = True,
 ) -> bool:
-    """Automatiza el inicio de sesión en el portal de Grupo Nutresa con Playwright.
+    """Automatiza el inicio de sesión en el portal de Grupo Nutresa.
 
-    El flujo replica el snippet recibido: completa los campos de usuario/contraseña con
-    eventos compatibles con React, envía el formulario y valida la presencia de un
-    selector inequívoco de éxito. Devuelve ``True`` si el login se confirma, ``False``
-    en caso contrario.
+    Esta función construye un arreglo de pasos entendible para alguien que recién
+    comienza con Playwright y lo envía a :func:`ejecutar_flujo_playwright`. Cada
+    paso indica qué hacer (escribir, seleccionar o clickear) y sobre qué
+    elemento.
     """
 
-    SEL_USER = "#usuario"
-    SEL_PASS = "#password"
-    SEL_SUBMIT = "[data-testid='SignInButton'], button[type='submit']"
-    SEL_SUCCESS_IMG = (
+    pasos_login = [
+        {
+            "nombre": "Ingresar usuario",
+            "tipo": "campo",
+            "selector": "#usuario",
+            "valor": username,
+        },
+        {
+            "nombre": "Ingresar contraseña",
+            "tipo": "campo",
+            "selector": "#password",
+            "valor": password,
+        },
+        {
+            "nombre": "Enviar formulario",
+            "tipo": "click",
+            "selector": "[data-testid='SignInButton'], button[type='submit']",
+        },
+    ]
+
+    selector_exito = (
         "#root > div > section > header > section > section "
         "> article.customer-header__my-business > section > button > img"
     )
-    SEL_ERROR_DIALOG = (
+    selector_error = (
         "body > div.MuiDialog-root.MuiModal-root.css-126xj0f > "
         "div.MuiDialog-container.MuiDialog-scrollPaper.css-ekeie0 > div "
         "> div.MuiDialogContent-root.css-1ty026z"
     )
 
-    def _wait_for_login_result(page, total_timeout_ms: int = 20_000):
-        """Devuelve True si se ve el selector de éxito, False si aparece el diálogo de error.
-
-        Si no se detecta nada dentro del tiempo configurado retorna ``None`` para que la
-        llamada decida cómo manejar el escenario.
-        """
-
-        deadline = time.time() + (total_timeout_ms / 1000)
-
-        while time.time() < deadline:
-            if page.query_selector(SEL_SUCCESS_IMG):
-                return True
-            if page.query_selector(SEL_ERROR_DIALOG):
-                return False
-            page.wait_for_timeout(300)
-
-        return None
-
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=headless, args=["--no-sandbox"])
-        context = browser.new_context()
-        page = context.new_page()
-
-        try:
-            page.goto(base_url, wait_until="domcontentloaded", timeout=60_000)
-
-            page.wait_for_selector(SEL_USER, timeout=30_000)
-            page.wait_for_selector(SEL_PASS, timeout=30_000)
-
-            page.evaluate(
-                """([user, passw]) => {
-                    const setReactValue = (sel, val) => {
-                        const el = document.querySelector(sel);
-                        if (!el) return;
-                        el.focus();
-                        const setter =
-                          Object.getOwnPropertyDescriptor(el, 'value')?.set ||
-                          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-                        const prev = el.value;
-                        setter.call(el, val);
-                        if (el._valueTracker) el._valueTracker.setValue(prev);
-                        el.dispatchEvent(new Event('input',  { bubbles: true }));
-                        el.dispatchEvent(new Event('change', { bubbles: true }));
-                        el.blur();
-                    };
-
-                    setReactValue('#usuario', user);
-                    setReactValue('#password', passw);
-
-                    const btn =
-                      document.querySelector("[data-testid='SignInButton'], button[type='submit']");
-                    const form = btn?.closest('form');
-                    if (form?.requestSubmit) form.requestSubmit(btn);
-                    else btn?.click();
-                }""",
-                [username, password],
-            )
-
-            result = _wait_for_login_result(page, total_timeout_ms=20_000)
-            if result is True:
-                return True
-            if result is False:
-                return False
-
-            # No se detectó ni éxito ni error: captura para diagnóstico y responde False.
-            page.screenshot(path=screenshot_path, full_page=True)
-            return False
-
-        except PWTimeout:
-            page.screenshot(path=screenshot_path, full_page=True)
-            return False
-
-        except Exception:
-            page.screenshot(path=screenshot_path, full_page=True)
-            raise
-
-        finally:
-            context.close()
-            browser.close()
+    return ejecutar_flujo_playwright(
+        pasos_login,
+        nombre_flujo="Login Portal Grupo Nutresa",
+        base_url=base_url,
+        selector_exito=selector_exito,
+        selector_error=selector_error,
+        screenshot_path=screenshot_path,
+        headless=headless,
+    )
 
 
 @subir_pedidos_bp.route("/subir-pedidos/login-portal", methods=["POST"])
