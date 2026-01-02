@@ -1,7 +1,9 @@
 """Vistas para gestionar rutas y placas de vehículos."""
 
+import tempfile
 import time
 import traceback
+from pathlib import Path
 
 from flask import Blueprint, jsonify, render_template, request, session
 from playwright.sync_api import TimeoutError as PWTimeout
@@ -9,6 +11,7 @@ from playwright.sync_api import sync_playwright
 
 from db import conectar
 from views.auth import login_required
+from openpyxl import Workbook
 
 subir_pedidos_bp = Blueprint("subir_pedidos", __name__, template_folder="../templates")
 
@@ -160,13 +163,15 @@ def login_portal_grupo_nutresa(
     base_url: str = "https://portal.gruponutresa.com",
     screenshot_path: str = "login_error.png",
     headless: bool = True,
+    ejecutar_carga: bool = False,
+    excel_path: str | None = None,
 ) -> bool:
     """Automatiza el inicio de sesión en el portal de Grupo Nutresa con Playwright.
 
     El flujo replica el snippet recibido: completa los campos de usuario/contraseña con
     eventos compatibles con React, envía el formulario y valida la presencia de un
-    selector inequívoco de éxito. Devuelve ``True`` si el login se confirma, ``False``
-    en caso contrario.
+    selector inequívoco de éxito. Devuelve ``True`` si el login se confirma (y, en su
+    caso, la carga masiva se ejecuta sin errores), ``False`` en caso contrario.
     """
 
     SEL_USER = "#usuario"
@@ -199,6 +204,8 @@ def login_portal_grupo_nutresa(
             page.wait_for_timeout(300)
 
         return None
+
+    success = False
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless, args=["--no-sandbox"])
@@ -242,17 +249,20 @@ def login_portal_grupo_nutresa(
 
             result = _wait_for_login_result(page, total_timeout_ms=20_000)
             if result is True:
-                return True
-            if result is False:
-                return False
-
-            # No se detectó ni éxito ni error: captura para diagnóstico y responde False.
-            page.screenshot(path=screenshot_path, full_page=True)
-            return False
+                success = True
+                if ejecutar_carga:
+                    excel_final = excel_path or str(_crear_archivo_muestra_excel())
+                    success = _ejecutar_carga_masiva_pedidos(page, excel_final)
+            elif result is False:
+                success = False
+            else:
+                # No se detectó ni éxito ni error: captura para diagnóstico y responde False.
+                page.screenshot(path=screenshot_path, full_page=True)
+                success = False
 
         except PWTimeout:
             page.screenshot(path=screenshot_path, full_page=True)
-            return False
+            success = False
 
         except Exception:
             page.screenshot(path=screenshot_path, full_page=True)
@@ -261,6 +271,117 @@ def login_portal_grupo_nutresa(
         finally:
             context.close()
             browser.close()
+
+    return success
+
+
+def _crear_archivo_muestra_excel() -> Path:
+    """Genera el archivo XLSX con las primeras tres filas en blanco y datos de ejemplo."""
+
+    tmp = Path(tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False).name)
+    wb = Workbook()
+    ws = wb.active
+
+    # Tres filas iniciales en blanco
+    ws.append([])
+    ws.append([])
+    ws.append([])
+
+    # Encabezados y datos de ejemplo
+    ws.append(["codigo_pro", "producto", "UN", "pedir"])
+    ws.append([1015235, "2 SALCH. SP. RANCHERA X 120G", "UN", 1])
+    ws.append([1075657, "CHORIZO RICA X 175 G", "UN", 5])
+
+    wb.save(tmp)
+    return tmp
+
+
+def _ejecutar_carga_masiva_pedidos(page, excel_path: str) -> bool:
+    """Ejecuta el flujo de carga masiva en el portal sobre la sesión ya autenticada."""
+
+    MASSIVE_UPLOAD_URL = "https://portal.gruponutresa.com/p/nuevo/pedido-masivo/excel"
+    FILE_INPUT_SELECTOR = "#root form input[type='file']"
+
+    try:
+        page.goto(MASSIVE_UPLOAD_URL, wait_until="domcontentloaded", timeout=60_000)
+        page.wait_for_timeout(500)
+
+        page.evaluate(
+            """() => {
+                const trigger = document.querySelector("#root > div > section > article > section > section > form > div > fieldset > article > div > div");
+                if (!trigger) return console.log("❌ combo no encontrado");
+                trigger.click();
+
+                const t0 = Date.now();
+                const id = setInterval(() => {
+                    const opts = document.querySelectorAll("ul[role='listbox'] li[role='option']");
+                    if (opts.length >= 2) {
+                        opts[1].click();
+                        clearInterval(id);
+                        console.log("✅ segunda opción:", opts[1].innerText.trim());
+                    } else if (Date.now() - t0 > 3000) {
+                        clearInterval(id);
+                        console.log("⚠️ no apareció la segunda opción");
+                    }
+                }, 100);
+            }""",
+        )
+
+        page.wait_for_timeout(500)
+        page.wait_for_selector(FILE_INPUT_SELECTOR, timeout=30_000)
+
+        page.evaluate(
+            """(sel) => {
+                const input = document.querySelector(sel);
+                if (!input) return console.log("❌ no encontré el input file");
+
+                input.removeAttribute("disabled");
+                input.style.display = "block";
+                input.style.visibility = "visible";
+                input.style.opacity = 1;
+
+                input.click();
+                console.log("✅ click en input[file], debería abrir el diálogo");
+            }""",
+            FILE_INPUT_SELECTOR,
+        )
+
+        page.set_input_files(FILE_INPUT_SELECTOR, excel_path)
+
+        page.evaluate(
+            """() => {
+                const btn = document.querySelector(
+                  "#root > div > section > article > section > section > form > footer > button.MuiButtonBase-root.MuiButton-root.MuiButton-text.MuiButton-textPrimary.MuiButton-sizeMedium.MuiButton-textSizeMedium.MuiButton-root.MuiButton-text.MuiButton-textPrimary.MuiButton-sizeMedium.MuiButton-textSizeMedium.mb2.admin__create-footer-save.w5-ns.css-kp69xf"
+                );
+                if (!btn) return console.log("❌ Botón Guardar no encontrado");
+
+                btn.removeAttribute("disabled");
+                btn.classList.remove("Mui-disabled");
+                btn.click();
+
+                console.log("✅ Click forzado en el botón Guardar");
+            }""",
+        )
+
+        page.evaluate(
+            """() => {
+                const btn = document.querySelector(
+                  "#root > div > section > article > section > article > footer > button:nth-child(3)"
+                );
+                if (!btn) return console.log("❌ Botón 'Agregar al carrito' no encontrado");
+
+                btn.removeAttribute("disabled");
+                btn.classList.remove("Mui-disabled");
+
+                btn.click();
+                console.log("✅ Click en 'Agregar al carrito'");
+            }""",
+        )
+
+        return True
+
+    except Exception:
+        return False
 
 
 @subir_pedidos_bp.route("/subir-pedidos/login-portal", methods=["POST"])
@@ -276,8 +397,16 @@ def probar_login_portal():
         return jsonify(success=False, message="Usuario y contraseña son obligatorios."), 400
 
     try:
-        ok = login_portal_grupo_nutresa(username=username, password=password)
-        message = "Login exitoso" if ok else "Fallo el login: revisa credenciales o selectores"
+        ok = login_portal_grupo_nutresa(
+            username=username,
+            password=password,
+            ejecutar_carga=True,
+        )
+        message = (
+            "Login y carga masiva completados"
+            if ok
+            else "Fallo el login o la carga masiva: revisa credenciales o selectores"
+        )
         return jsonify(success=ok, message=message)
     except Exception as e:
         tb = traceback.format_exc()
