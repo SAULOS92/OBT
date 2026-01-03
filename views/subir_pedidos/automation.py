@@ -2,7 +2,7 @@
 
 import time
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from playwright.sync_api import TimeoutError as PWTimeout
 from playwright.sync_api import sync_playwright
@@ -90,53 +90,17 @@ def ejecutar_flujo_playwright(
 ) -> bool:
     """Ejecuta un flujo de Playwright definido por pasos."""
 
-    def _emit(mensaje: str) -> None:
-        if notificar_estado:
-            notificar_estado(mensaje)
-
     try:
         with iniciar_navegador(headless=headless) as page:
-            _emit(f"{nombre_flujo} - Navegador listo")
-
-            for paso in pasos:
-                nombre_paso = paso.get("nombre", "Paso sin nombre")
-                tipo = str(paso.get("tipo", "")).strip().lower()
-                selector = paso.get("selector")
-                valor = paso.get("valor", "")
-
-                if tipo != "navegar" and not selector:
-                    raise ValueError(f"El paso '{nombre_paso}' no tiene selector")
-
-                _emit(f"{nombre_flujo} - {nombre_paso}")
-
-                if tipo == "navegar":
-                    page.goto(str(valor), wait_until="domcontentloaded", timeout=60_000)
-                elif tipo == "campo":
-                    page.wait_for_selector(selector, timeout=30_000)
-                    _set_react_value(page, selector, str(valor))
-                elif tipo == "campo de seleccion":
-                    page.wait_for_selector(selector, timeout=30_000)
-                    page.select_option(selector, str(valor))
-                elif tipo == "click":
-                    page.wait_for_selector(selector, timeout=30_000)
-                    page.click(selector)
-                else:
-                    raise ValueError(
-                        "Tipo de paso inválido: debe ser 'navegar', 'click', "
-                        "'campo' o 'campo de seleccion'"
-                    )
-
-            resultado = _esperar_resultado(
+            return ejecutar_flujo_en_pagina(
                 page,
+                pasos,
+                nombre_flujo=nombre_flujo,
                 selector_exito=selector_exito,
                 selector_error=selector_error,
-                total_timeout_ms=espera_resultado_ms,
+                notificar_estado=notificar_estado,
+                espera_resultado_ms=espera_resultado_ms,
             )
-
-            if resultado is None:
-                return False
-
-            return bool(resultado)
 
     except PWTimeout:
         return False
@@ -145,12 +109,72 @@ def ejecutar_flujo_playwright(
         raise
 
 
+def ejecutar_flujo_en_pagina(
+    page,
+    pasos: List[Dict[str, Any]],
+    *,
+    nombre_flujo: str,
+    selector_exito: str,
+    selector_error: Optional[str] = None,
+    notificar_estado: Optional[Callable[[str], None]] = None,
+    espera_resultado_ms: int = 20_000,
+) -> bool:
+    """Ejecuta un flujo reutilizando una página ya abierta."""
+
+    def _emit(mensaje: str) -> None:
+        if notificar_estado:
+            notificar_estado(mensaje)
+
+    _emit(f"{nombre_flujo} - Navegador listo")
+
+    for paso in pasos:
+        nombre_paso = paso.get("nombre", "Paso sin nombre")
+        tipo = str(paso.get("tipo", "")).strip().lower()
+        selector = paso.get("selector")
+        valor = paso.get("valor", "")
+
+        if tipo != "navegar" and not selector:
+            raise ValueError(f"El paso '{nombre_paso}' no tiene selector")
+
+        _emit(f"{nombre_flujo} - {nombre_paso}")
+
+        if tipo == "navegar":
+            page.goto(str(valor), wait_until="domcontentloaded", timeout=60_000)
+        elif tipo == "campo":
+            page.wait_for_selector(selector, timeout=30_000)
+            _set_react_value(page, selector, str(valor))
+        elif tipo == "campo de seleccion":
+            page.wait_for_selector(selector, timeout=30_000)
+            page.select_option(selector, str(valor))
+        elif tipo == "click":
+            page.wait_for_selector(selector, timeout=30_000)
+            page.click(selector)
+        else:
+            raise ValueError(
+                "Tipo de paso inválido: debe ser 'navegar', 'click', "
+                "'campo' o 'campo de seleccion'"
+            )
+
+    resultado = _esperar_resultado(
+        page,
+        selector_exito=selector_exito,
+        selector_error=selector_error,
+        total_timeout_ms=espera_resultado_ms,
+    )
+
+    if resultado is None:
+        return False
+
+    return bool(resultado)
+
+
 def login_portal_grupo_nutresa(
     username: str = "",
     password: str = "",
     base_url: str = "https://portal.gruponutresa.com",
     notificar_estado=None,
     headless: bool = True,
+    page=None,
 ) -> bool:
     """Automatiza el inicio de sesión en el portal de Grupo Nutresa."""
 
@@ -188,6 +212,17 @@ def login_portal_grupo_nutresa(
         "div.MuiDialog-container.MuiDialog-scrollPaper.css-ekeie0 > div "
         "> div.MuiDialogContent-root.css-1ty026z"
     )
+
+    if page:
+        return ejecutar_flujo_en_pagina(
+            page,
+            pasos_login,
+            nombre_flujo="Login Portal Grupo Nutresa",
+            selector_exito=selector_exito,
+            selector_error=selector_error,
+            notificar_estado=notificar_estado,
+            espera_resultado_ms=20_000,
+        )
 
     return ejecutar_flujo_playwright(
         pasos_login,
