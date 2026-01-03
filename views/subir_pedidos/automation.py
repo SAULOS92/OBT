@@ -132,8 +132,10 @@ def ejecutar_flujo_en_pagina(
         tipo = str(paso.get("tipo", "")).strip().lower()
         selector = paso.get("selector")
         valor = paso.get("valor", "")
+        script = paso.get("script")
 
-        if tipo != "navegar" and not selector:
+        requiere_selector = tipo not in {"navegar", "campo de seleccion", "archivo"}
+        if requiere_selector and not selector:
             raise ValueError(f"El paso '{nombre_paso}' no tiene selector")
 
         _emit(f"{nombre_flujo} - {nombre_paso}")
@@ -144,15 +146,38 @@ def ejecutar_flujo_en_pagina(
             page.wait_for_selector(selector, timeout=30_000)
             _set_react_value(page, selector, str(valor))
         elif tipo == "campo de seleccion":
-            page.wait_for_selector(selector, timeout=30_000)
-            page.select_option(selector, str(valor))
+            if script:
+                # Permite ejecutar lógica personalizada de selección
+                # (por ejemplo, abrir combos y elegir opciones dinámicas).
+                page.evaluate(script)
+            else:
+                if not selector:
+                    raise ValueError(
+                        f"El paso '{nombre_paso}' no tiene selector ni script para seleccionar"
+                    )
+                page.wait_for_selector(selector, timeout=30_000)
+                page.select_option(selector, str(valor))
         elif tipo == "click":
             page.wait_for_selector(selector, timeout=30_000)
             page.click(selector)
+        elif tipo == "archivo":
+            ruta_archivo = paso.get("archivo") or valor
+            if not ruta_archivo:
+                raise ValueError(f"El paso '{nombre_paso}' no tiene ruta de archivo")
+
+            input_selector = selector or "input[type='file']"
+            page.wait_for_selector(input_selector, timeout=30_000)
+
+            # Algunos portales ocultan/deshabilitan el input; el script permite
+            # habilitarlo/mostrarlo antes de adjuntar el archivo si es necesario.
+            if script:
+                page.evaluate(script)
+
+            page.set_input_files(input_selector, ruta_archivo)
         else:
             raise ValueError(
                 "Tipo de paso inválido: debe ser 'navegar', 'click', "
-                "'campo' o 'campo de seleccion'"
+                "'campo', 'campo de seleccion' o 'archivo'"
             )
 
     resultado = _esperar_resultado(
