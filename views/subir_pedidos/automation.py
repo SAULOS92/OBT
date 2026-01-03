@@ -1,6 +1,7 @@
 """Funciones de automatización basadas en Playwright."""
 
 import time
+from contextlib import contextmanager
 from typing import Any, Dict, List, Optional
 
 from playwright.sync_api import TimeoutError as PWTimeout
@@ -61,11 +62,26 @@ def _esperar_resultado(
     return None
 
 
+@contextmanager
+def iniciar_navegador(*, headless: bool = True):
+    """Inicializa y entrega una página de navegador lista para usar."""
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=headless, args=["--no-sandbox"])
+        context = browser.new_context()
+        page = context.new_page()
+
+        try:
+            yield page
+        finally:
+            context.close()
+            browser.close()
+
+
 def ejecutar_flujo_playwright(
     pasos: List[Dict[str, Any]],
     *,
     nombre_flujo: str,
-    base_url: str,
     selector_exito: str,
     selector_error: Optional[str] = None,
     notificar_estado=None,
@@ -78,14 +94,8 @@ def ejecutar_flujo_playwright(
         if notificar_estado:
             notificar_estado(mensaje)
 
-    with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=headless, args=["--no-sandbox"])
-        context = browser.new_context()
-        page = context.new_page()
-
-        try:
-            page.goto(base_url, wait_until="domcontentloaded", timeout=60_000)
-
+    try:
+        with iniciar_navegador(headless=headless) as page:
             _emit(f"{nombre_flujo} - Navegador listo")
 
             for paso in pasos:
@@ -94,23 +104,26 @@ def ejecutar_flujo_playwright(
                 selector = paso.get("selector")
                 valor = paso.get("valor", "")
 
-                if not selector:
+                if tipo != "navegar" and not selector:
                     raise ValueError(f"El paso '{nombre_paso}' no tiene selector")
-
-                page.wait_for_selector(selector, timeout=30_000)
 
                 _emit(f"{nombre_flujo} - {nombre_paso}")
 
-                if tipo == "campo":
+                if tipo == "navegar":
+                    page.goto(str(valor), wait_until="domcontentloaded", timeout=60_000)
+                elif tipo == "campo":
+                    page.wait_for_selector(selector, timeout=30_000)
                     _set_react_value(page, selector, str(valor))
                 elif tipo == "campo de seleccion":
+                    page.wait_for_selector(selector, timeout=30_000)
                     page.select_option(selector, str(valor))
                 elif tipo == "click":
+                    page.wait_for_selector(selector, timeout=30_000)
                     page.click(selector)
                 else:
                     raise ValueError(
-                        "Tipo de paso inválido: debe ser 'click', 'campo' o "
-                        "'campo de seleccion'"
+                        "Tipo de paso inválido: debe ser 'navegar', 'click', "
+                        "'campo' o 'campo de seleccion'"
                     )
 
             resultado = _esperar_resultado(
@@ -125,15 +138,11 @@ def ejecutar_flujo_playwright(
 
             return bool(resultado)
 
-        except PWTimeout:
-            return False
+    except PWTimeout:
+        return False
 
-        except Exception:
-            raise
-
-        finally:
-            context.close()
-            browser.close()
+    except Exception:
+        raise
 
 
 def login_portal_grupo_nutresa(
@@ -146,6 +155,11 @@ def login_portal_grupo_nutresa(
     """Automatiza el inicio de sesión en el portal de Grupo Nutresa."""
 
     pasos_login = [
+        {
+            "nombre": "Ir al portal",
+            "tipo": "navegar",
+            "valor": base_url,
+        },
         {
             "nombre": "Ingresar usuario",
             "tipo": "campo",
@@ -178,7 +192,6 @@ def login_portal_grupo_nutresa(
     return ejecutar_flujo_playwright(
         pasos_login,
         nombre_flujo="Login Portal Grupo Nutresa",
-        base_url=base_url,
         selector_exito=selector_exito,
         selector_error=selector_error,
         notificar_estado=notificar_estado,
