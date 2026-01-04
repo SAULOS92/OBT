@@ -8,7 +8,12 @@ from flask import jsonify, render_template, request, session
 from views.auth import login_required
 
 from . import subir_pedidos_bp
-from .automation import iniciar_navegador, login_portal_grupo_nutresa
+from .automation import (
+    cargar_pedido_masivo_excel,
+    crear_archivo_pedido_masivo,
+    iniciar_navegador,
+    login_portal_grupo_nutresa,
+)
 from .vehiculos import add_ruta, delete_ruta, ensure_table, get_vehiculos, upsert_vehiculo
 
 
@@ -90,15 +95,32 @@ def probar_login_portal():
 
     try:
         avances: List[str] = []
-
         with iniciar_navegador() as page:
-            ok = login_portal_grupo_nutresa(
+            login_ok = login_portal_grupo_nutresa(
                 username=username,
                 password=password,
                 notificar_estado=avances.append,
                 page=page,
             )
-        message = "Login exitoso" if ok else "Fallo el login: revisa credenciales o selectores"
+
+            carga_ok = False
+            if login_ok:
+                archivo = crear_archivo_pedido_masivo("/tmp/pedido_masivo.xlsx")
+                avances.append("Login exitoso, iniciando carga de pedidos")
+                carga_ok = cargar_pedido_masivo_excel(
+                    archivo,
+                    notificar_estado=avances.append,
+                    page=page,
+                )
+
+        ok = login_ok and carga_ok
+        if ok:
+            message = "Login y carga de pedidos completados"
+        elif login_ok:
+            message = "Login exitoso pero falló la carga de pedidos"
+        else:
+            message = "Fallo el login: revisa credenciales o selectores"
+
         return jsonify(success=ok, message=message, avances=avances)
     except Exception as e:
         tb = traceback.format_exc()
