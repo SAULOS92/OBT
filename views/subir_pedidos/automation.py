@@ -69,7 +69,15 @@ def iniciar_navegador(*, headless: bool = True):
     """Inicializa y entrega una página de navegador lista para usar."""
 
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=headless, args=["--no-sandbox"])
+        browser = playwright.chromium.launch(
+            headless=headless,
+            args=[
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+                "--no-zygote",
+            ],
+        )
         context = browser.new_context()
         page = context.new_page()
 
