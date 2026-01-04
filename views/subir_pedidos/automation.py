@@ -168,8 +168,16 @@ def ejecutar_flujo_en_pagina(
                 page.wait_for_selector(selector, timeout=30_000)
                 page.select_option(selector, str(valor))
         elif tipo == "click":
-            page.wait_for_selector(selector, timeout=30_000)
-            page.click(selector)
+            selector_fallback = paso.get("selector_fallback")
+            try:
+                page.wait_for_selector(selector, timeout=5_000)
+                page.click(selector, timeout=30_000)
+            except PWTimeout:
+                if selector_fallback:
+                    page.wait_for_selector(selector_fallback, timeout=30_000)
+                    page.click(selector_fallback, timeout=30_000)
+                else:
+                    raise
         elif tipo == "archivo":
             ruta_archivo = paso.get("archivo") or valor
             if not ruta_archivo:
@@ -177,11 +185,6 @@ def ejecutar_flujo_en_pagina(
 
             input_selector = selector or "input[type='file']"
             page.wait_for_selector(input_selector, timeout=30_000)
-
-            # Algunos portales ocultan/deshabilitan el input; el script permite
-            # habilitarlo/mostrarlo antes de adjuntar el archivo si es necesario.
-            if script:
-                page.evaluate(script)
 
             page.set_input_files(input_selector, ruta_archivo)
         else:
@@ -217,80 +220,37 @@ def construir_flujo_cargar_pedido(ruta_archivo: str) -> Dict[str, Any]:
             "valor": "https://portal.gruponutresa.com/p/nuevo/pedido-masivo/excel",
         },
         {
-            "nombre": "Seleccionar tipo plantilla",
-            "tipo": "campo de seleccion",
+            "nombre": "Seleccionar tipo plantilla - abrir combo",
+            "tipo": "click",
             "selector": (
-                "#root > div > section > article > section > section > form > "
-                "div > fieldset > article > div > div"
+                "div[role='button'][aria-haspopup='listbox']:has-text('Seleccione el tipo de plantilla')"
             ),
-            "script": """
-(() => {
-  const trigger = document.querySelector("#root > div > section > article > section > section > form > div > fieldset > article > div > div");
-  if (!trigger) return console.log("❌ combo no encontrado");
-  trigger.click();
-
-  const t0 = Date.now();
-  const id = setInterval(() => {
-    const opts = document.querySelectorAll("ul[role='listbox'] li[role='option']");
-    if (opts.length >= 2) {
-      opts[1].click();
-      clearInterval(id);
-      console.log("✅ segunda opción:", opts[1].innerText.trim());
-    } else if (Date.now() - t0 > 3000) {
-      clearInterval(id);
-      console.log("⚠️ no apareció la segunda opción");
-    }
-  }, 100);
-})();
-            """,
+        },
+        {
+            "nombre": "Seleccionar tipo plantilla - elegir plantilla estándar",
+            "tipo": "click",
+            "selector": (
+                "ul[role='listbox'] li[role='option']:has-text('Plantilla estándar')"
+            ),
+            "selector_fallback": "ul[role='listbox'] li[role='option']:nth-child(2)",
         },
         {
             "nombre": "Seleccionar archivo",
             "tipo": "archivo",
-            "selector": (
-                "#root > div > section > article > section > section > form > "
-                "section > label > section.file-input__upload"
-            ),
+            "selector": "#file",
             "valor": ruta_archivo,
-            "script": """
-(() => {
-  // busca el input de tipo file dentro del form
-  const input = document.querySelector("#root form input[type='file']");
-  if (!input) return console.log("❌ no encontré el input file");
-
-  // habilitarlo por si está oculto/deshabilitado
-  input.removeAttribute("disabled");
-  input.style.display = "block";
-  input.style.visibility = "visible";
-  input.style.opacity = 1;
-
-  // forzar click → abre el diálogo de archivos
-  input.click();
-  console.log("✅ click en input[file], debería abrir el diálogo");
-})();
-            """,
         },
         {
             "nombre": "enviar archivo",
             "tipo": "click",
             "selector": (
-                "#root > div > section > article > section > section > form > footer "
-                "> button.MuiButtonBase-root.MuiButton-root.MuiButton-text.MuiButton-textPrimary."
-                "MuiButton-sizeMedium.MuiButton-textSizeMedium.MuiButton-root."
-                "MuiButton-text.MuiButton-textPrimary.MuiButton-sizeMedium."
-                "MuiButton-textSizeMedium.mb2.admin__create-footer-save.w5-ns.css-kp69xf"
+                "button[type='submit'][data-testid='LoadingButton']:has-text('Guardar')"
             ),
         },
     ]
 
-    selector_exito = (
-        "#root > div > section > article > section > article > footer > button:nth-child(3)"
-    )
-    selector_error = (
-        "body > div.MuiDialog-root.MuiModal-root.css-126xj0f > "
-        "div.MuiDialog-container.MuiDialog-scrollPaper.css-ekeie0 > div "
-        "> div.MuiDialogContent-root.css-1ty026z"
-    )
+    selector_exito = "button[data-testid='NextActionButton']"
+    selector_error = "div.MuiDialog-root div.MuiDialogContent-root"
 
     return {
         "pasos": pasos_carga,
