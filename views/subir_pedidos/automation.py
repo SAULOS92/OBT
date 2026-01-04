@@ -193,6 +193,118 @@ def ejecutar_flujo_en_pagina(
     return bool(resultado)
 
 
+def cargar_pedido_masivo_excel(
+    ruta_archivo: str,
+    *,
+    notificar_estado: Optional[Callable[[str], None]] = None,
+    headless: bool = True,
+    page=None,
+) -> bool:
+    """Carga un archivo de pedido masivo en el portal Grupo Nutresa."""
+
+    pasos_carga = [
+        {
+            "nombre": "Ir a la pagina de carga masiva",
+            "tipo": "navegar",
+            "valor": "https://portal.gruponutresa.com/p/nuevo/pedido-masivo/excel",
+        },
+        {
+            "nombre": "Seleccionar tipo plantilla",
+            "tipo": "campo de seleccion",
+            "selector": (
+                "#root > div > section > article > section > section > form > "
+                "div > fieldset > article > div > div"
+            ),
+            "script": """
+(() => {
+  const trigger = document.querySelector("#root > div > section > article > section > section > form > div > fieldset > article > div > div");
+  if (!trigger) return console.log("❌ combo no encontrado");
+  trigger.click();
+
+  const t0 = Date.now();
+  const id = setInterval(() => {
+    const opts = document.querySelectorAll("ul[role='listbox'] li[role='option']");
+    if (opts.length >= 2) {
+      opts[1].click();
+      clearInterval(id);
+      console.log("✅ segunda opción:", opts[1].innerText.trim());
+    } else if (Date.now() - t0 > 3000) {
+      clearInterval(id);
+      console.log("⚠️ no apareció la segunda opción");
+    }
+  }, 100);
+})();
+            """,
+        },
+        {
+            "nombre": "Seleccionar archivo",
+            "tipo": "archivo",
+            "selector": (
+                "#root > div > section > article > section > section > form > "
+                "section > label > section.file-input__upload"
+            ),
+            "valor": ruta_archivo,
+            "script": """
+(() => {
+  // busca el input de tipo file dentro del form
+  const input = document.querySelector("#root form input[type='file']");
+  if (!input) return console.log("❌ no encontré el input file");
+
+  // habilitarlo por si está oculto/deshabilitado
+  input.removeAttribute("disabled");
+  input.style.display = "block";
+  input.style.visibility = "visible";
+  input.style.opacity = 1;
+
+  // forzar click → abre el diálogo de archivos
+  input.click();
+  console.log("✅ click en input[file], debería abrir el diálogo");
+})();
+            """,
+        },
+        {
+            "nombre": "enviar archivo",
+            "tipo": "click",
+            "selector": (
+                "#root > div > section > article > section > section > form > footer "
+                "> button.MuiButtonBase-root.MuiButton-root.MuiButton-text.MuiButton-textPrimary."
+                "MuiButton-sizeMedium.MuiButton-textSizeMedium.MuiButton-root."
+                "MuiButton-text.MuiButton-textPrimary.MuiButton-sizeMedium."
+                "MuiButton-textSizeMedium.mb2.admin__create-footer-save.w5-ns.css-kp69xf"
+            ),
+        },
+    ]
+
+    selector_exito = (
+        "#root > div > section > article > section > article > footer > button:nth-child(3)"
+    )
+    selector_error = (
+        "body > div.MuiDialog-root.MuiModal-root.css-126xj0f > "
+        "div.MuiDialog-container.MuiDialog-scrollPaper.css-ekeie0 > div "
+        "> div.MuiDialogContent-root.css-1ty026z"
+    )
+
+    if page:
+        return ejecutar_flujo_en_pagina(
+            page,
+            pasos_carga,
+            nombre_flujo="Cargar pedido",
+            selector_exito=selector_exito,
+            selector_error=selector_error,
+            notificar_estado=notificar_estado,
+            espera_resultado_ms=20_000,
+        )
+
+    return ejecutar_flujo_playwright(
+        pasos_carga,
+        nombre_flujo="Cargar pedido",
+        selector_exito=selector_exito,
+        selector_error=selector_error,
+        notificar_estado=notificar_estado,
+        headless=headless,
+    )
+
+
 def login_portal_grupo_nutresa(
     username: str = "",
     password: str = "",
