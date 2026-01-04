@@ -2,8 +2,10 @@
 
 import time
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
+import pandas as pd
 from playwright.sync_api import TimeoutError as PWTimeout
 from playwright.sync_api import sync_playwright
 
@@ -193,14 +195,12 @@ def ejecutar_flujo_en_pagina(
     return bool(resultado)
 
 
-def cargar_pedido_masivo_excel(
-    ruta_archivo: str,
-    *,
-    notificar_estado: Optional[Callable[[str], None]] = None,
-    headless: bool = True,
-    page=None,
-) -> bool:
-    """Carga un archivo de pedido masivo en el portal Grupo Nutresa."""
+def construir_flujo_cargar_pedido(ruta_archivo: str) -> Dict[str, Any]:
+    """Arma el flujo y selectores para cargar un pedido masivo.
+
+    La estructura se separa en un helper reutilizable para mantener el flujo
+    de pasos agrupado y facilitar futuras modificaciones.
+    """
 
     pasos_carga = [
         {
@@ -284,6 +284,27 @@ def cargar_pedido_masivo_excel(
         "> div.MuiDialogContent-root.css-1ty026z"
     )
 
+    return {
+        "pasos": pasos_carga,
+        "selector_exito": selector_exito,
+        "selector_error": selector_error,
+    }
+
+
+def cargar_pedido_masivo_excel(
+    ruta_archivo: str,
+    *,
+    notificar_estado: Optional[Callable[[str], None]] = None,
+    headless: bool = True,
+    page=None,
+) -> bool:
+    """Carga un archivo de pedido masivo en el portal Grupo Nutresa."""
+
+    flujo = construir_flujo_cargar_pedido(ruta_archivo)
+    pasos_carga = flujo["pasos"]
+    selector_exito = flujo["selector_exito"]
+    selector_error = flujo["selector_error"]
+
     if page:
         return ejecutar_flujo_en_pagina(
             page,
@@ -303,6 +324,58 @@ def cargar_pedido_masivo_excel(
         notificar_estado=notificar_estado,
         headless=headless,
     )
+
+
+def crear_archivo_pedido_masivo(
+    destino: str,
+    filas: Optional[List[Dict[str, Any]]] = None,
+    filas_en_blanco: int = 3,
+) -> str:
+    """Genera un Excel con el formato esperado para cargar pedidos masivos.
+
+    Se generan las columnas visibles en el portal (``codigo_pro``,
+    ``producto``, ``UN`` y ``pedir``) con datos de ejemplo similares a la
+    plantilla de la imagen proporcionada, facilitando la carga automatizada.
+
+    El archivo respeta que las primeras filas estén vacías (por defecto tres
+    filas), dejando el encabezado en la cuarta fila tal como se observa en la
+    plantilla de referencia.
+
+    Args:
+        destino: Ruta completa donde se guardará el archivo .xlsx.
+        filas: Datos opcionales a incluir. Cada fila debe tener las claves
+            ``codigo_pro``, ``producto``, ``UN`` y ``pedir``. Si no se
+            proporcionan, se usan dos registros de ejemplo.
+
+    Returns:
+        Ruta final (string) del archivo generado.
+    """
+
+    if filas is None:
+        filas = [
+            {
+                "codigo_pro": 1015235,
+                "producto": "2 SALCH. SP. RANCHERA X 120G",
+                "UN": "UN",
+                "pedir": 5,
+            },
+            {
+                "codigo_pro": 1075657,
+                "producto": "CHORIZO RICA X 175 G",
+                "UN": "UN",
+                "pedir": 5,
+            },
+        ]
+
+    df = pd.DataFrame(filas, columns=["codigo_pro", "producto", "UN", "pedir"])
+    ruta_destino = Path(destino)
+    ruta_destino.parent.mkdir(parents=True, exist_ok=True)
+
+    start_row = max(0, int(filas_en_blanco))
+    with pd.ExcelWriter(ruta_destino, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, startrow=start_row)
+
+    return str(ruta_destino)
 
 
 def login_portal_grupo_nutresa(
