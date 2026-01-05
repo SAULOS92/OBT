@@ -1,10 +1,12 @@
 """Rutas HTTP para gestionar la vista de subir pedidos."""
 
+import json
 import traceback
 from typing import List
 
 from flask import jsonify, render_template, request, session
 
+from db import conectar
 from views.auth import login_required
 
 from . import subir_pedidos_bp
@@ -15,6 +17,24 @@ from .automation import (
     login_portal_grupo_nutresa,
 )
 from .vehiculos import add_ruta, delete_ruta, ensure_table, get_vehiculos, upsert_vehiculo
+
+
+def log_pedidos_rutas(empresa: str) -> None:
+    with conectar() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT fn_obtener_pedidos_con_pedir_json(%s);", (empresa,))
+            raw_ped = cur.fetchone()[0]
+    data_ped = json.loads(raw_ped) if isinstance(raw_ped, str) else (raw_ped or [])
+    rutas_unicas = sorted(
+        {p.get("ruta") for p in data_ped if p.get("ruta") not in (None, "", "null")},
+        key=lambda x: str(x),
+    )
+    total_rutas = len(rutas_unicas)
+    print(
+        f"[PEDIDOS] empresa={empresa} total_items={len(data_ped)} "
+        f"rutas_unicas={total_rutas} lista_rutas={rutas_unicas}",
+        flush=True,
+    )
 
 
 def _get_bd() -> str:
@@ -95,6 +115,11 @@ def probar_login_portal():
 
     try:
         avances: List[str] = []
+        bd = _get_bd()
+        try:
+            log_pedidos_rutas(bd)
+        except Exception as e:
+            print(f"WARN [PEDIDOS] {e}", flush=True)
 
         with iniciar_navegador() as page:
             login_ok = login_portal_grupo_nutresa(
