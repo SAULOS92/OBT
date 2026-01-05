@@ -10,6 +10,9 @@ from playwright.sync_api import TimeoutError as PWTimeout
 from playwright.sync_api import sync_playwright
 
 
+_ULTIMOS_DATOS_PEDIDO: Dict[str, Any] = {}
+
+
 def _set_react_value(page, selector: str, value: str) -> None:
     """Escribe en un campo HTML disparando eventos de React."""
 
@@ -22,10 +25,15 @@ def _set_react_value(page, selector: str, value: str) -> None:
 
             element.focus();
 
-            // Se obtiene el setter nativo para escribir en el input.
+            const isTextarea = element instanceof HTMLTextAreaElement;
+            const prototype = isTextarea
+                ? HTMLTextAreaElement.prototype
+                : HTMLInputElement.prototype;
+
+            // Se obtiene el setter nativo para escribir en el input o textarea.
             const setter =
               Object.getOwnPropertyDescriptor(element, 'value')?.set ||
-              Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+              Object.getOwnPropertyDescriptor(prototype, 'value').set;
 
             const previous = element.value;
             setter.call(element, val);
@@ -279,7 +287,7 @@ def construir_flujo_cargar_pedido(ruta_archivo: str) -> Dict[str, Any]:
         },
     ]
 
-    selector_exito = "input#purchaseOrderNN12CANALT"
+    selector_exito = "button[data-testid='LoadingButton']:has-text('Enviar notificación pedido')"
     selector_error = "div.MuiDialog-root div.MuiDialogContent-root"
 
     return {
@@ -298,10 +306,42 @@ def cargar_pedido_masivo_excel(
 ) -> bool:
     """Carga un archivo de pedido masivo en el portal Grupo Nutresa."""
 
+    purchase_order_value = _ULTIMOS_DATOS_PEDIDO.get("purchase_order", "QQQ")
+    observaciones_value = _ULTIMOS_DATOS_PEDIDO.get("observaciones", "RRR")
+
     flujo = construir_flujo_cargar_pedido(ruta_archivo)
     pasos_carga = flujo["pasos"]
     selector_exito = flujo["selector_exito"]
     selector_error = flujo["selector_error"]
+
+    pasos_carga.extend(
+        [
+            {
+                "nombre": "Ingresar Orden de Compra",
+                "tipo": "campo",
+                "selector": "input#purchaseOrderNN13CANALT",
+                "valor": purchase_order_value,
+            },
+            {
+                "nombre": "Ingresar Observaciones",
+                "tipo": "campo",
+                "selector": "textarea[data-testid='formValue']",
+                "valor": observaciones_value,
+            },
+            {
+                "nombre": "Confirmar pedido",
+                "tipo": "click",
+                "selector": "button[data-testid='LoadingButton']:has-text('Confirmar pedido')",
+            },
+            {
+                "nombre": "Finalizar pedido",
+                "tipo": "click",
+                "selector": (
+                    "button[data-testid='OrderConfirmationPageFinishOrderButton']:has-text('Finalizar Pedido')"
+                ),
+            },
+        ]
+    )
 
     if page:
         return ejecutar_flujo_en_pagina(
@@ -349,6 +389,9 @@ def crear_archivo_pedido_masivo(
         Ruta final (string) del archivo generado.
     """
 
+    PURCHASE_ORDER_VALUE = "QQQ"
+    OBSERVACIONES_VALUE = "RRR"
+
     if filas is None:
         filas = [
             {
@@ -372,6 +415,13 @@ def crear_archivo_pedido_masivo(
     start_row = max(0, int(filas_en_blanco))
     with pd.ExcelWriter(ruta_destino, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, startrow=start_row)
+
+    global _ULTIMOS_DATOS_PEDIDO
+    _ULTIMOS_DATOS_PEDIDO = {
+        "purchase_order": PURCHASE_ORDER_VALUE,
+        "observaciones": OBSERVACIONES_VALUE,
+        "ruta_archivo": str(ruta_destino),
+    }
 
     return str(ruta_destino)
 
