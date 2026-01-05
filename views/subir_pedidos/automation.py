@@ -204,7 +204,7 @@ def ejecutar_flujo_en_pagina(
                 raise ValueError(f"El paso '{nombre_paso}' no tiene ruta de archivo")
 
             input_selector = selector or "input[type='file']"
-            page.wait_for_selector(input_selector, timeout=30_000)
+            page.wait_for_selector(input_selector, state="attached", timeout=30_000)
 
             page.set_input_files(input_selector, ruta_archivo)
         else:
