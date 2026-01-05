@@ -192,6 +192,12 @@ def ejecutar_flujo_en_pagina(
             else:
                 page.wait_for_selector(selector, timeout=30_000)
                 page.click(selector, timeout=30_000)
+        elif tipo == "mousedown":
+            if not selector:
+                raise ValueError(f"El paso '{nombre_paso}' no tiene selector")
+
+            page.wait_for_selector(selector, timeout=30_000)
+            page.dispatch_event(selector, "mousedown")
         elif tipo == "archivo":
             ruta_archivo = paso.get("archivo") or valor
             if not ruta_archivo:
@@ -235,7 +241,7 @@ def construir_flujo_cargar_pedido(ruta_archivo: str) -> Dict[str, Any]:
         },
         {
             "nombre": "Seleccionar tipo plantilla - abrir combo",
-            "tipo": "click",
+            "tipo": "mousedown",
             "selector": (
                 "div[role='button'][aria-haspopup='listbox']:has-text('Seleccione el tipo de plantilla')"
             ),
