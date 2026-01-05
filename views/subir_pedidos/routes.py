@@ -24,15 +24,48 @@ def log_pedidos_rutas(empresa: str) -> None:
         with conn.cursor() as cur:
             cur.execute("SELECT fn_obtener_pedidos_con_pedir_json(%s);", (empresa,))
             raw_ped = cur.fetchone()[0]
+
     data_ped = json.loads(raw_ped) if isinstance(raw_ped, str) else (raw_ped or [])
     rutas_unicas = sorted(
         {p.get("ruta") for p in data_ped if p.get("ruta") not in (None, "", "null")},
         key=lambda x: str(x),
     )
-    total_rutas = len(rutas_unicas)
+
+    # Traer placas desde tabla vehiculos
+    ensure_table()
+    vehiculos = get_vehiculos(empresa)
+
+    placas_por_ruta = {}
+    for v in vehiculos or []:
+        ruta_v = None
+        placa_v = ""
+
+        if isinstance(v, dict):
+            ruta_v = v.get("ruta")
+            placa_v = (v.get("placa") or "").strip()
+        elif hasattr(v, "ruta"):
+            ruta_v = getattr(v, "ruta", None)
+            placa_v = (getattr(v, "placa", "") or "").strip()
+        elif isinstance(v, (list, tuple)) and len(v) >= 2:
+            ruta_v = v[0]
+            placa_v = (v[1] or "").strip()
+
+        if ruta_v is None:
+            continue
+
+        ruta_key = str(ruta_v).strip()
+        if placa_v:
+            placas_por_ruta[ruta_key] = placa_v
+
+    rutas_con_placa = []
+    for r in rutas_unicas:
+        r_key = str(r).strip()
+        placa = (placas_por_ruta.get(r_key) or r_key)
+        rutas_con_placa.append({"ruta": r, "placa": placa})
+
     print(
-        f"[PEDIDOS] empresa={empresa} total_items={len(data_ped)} "
-        f"rutas_unicas={total_rutas} lista_rutas={rutas_unicas}",
+        f"[PEDIDOS] empresa={empresa} total_rutas={len(rutas_unicas)} "
+        f"rutas={json.dumps(rutas_con_placa, ensure_ascii=False)}",
         flush=True,
     )
 
