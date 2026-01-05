@@ -141,6 +141,7 @@ def ejecutar_flujo_en_pagina(
     """Ejecuta un flujo reutilizando una página ya abierta."""
 
     def _emit(mensaje: str) -> None:
+        print(mensaje, flush=True)
         if notificar_estado:
             notificar_estado(mensaje)
 
@@ -178,15 +179,19 @@ def ejecutar_flujo_en_pagina(
                 page.select_option(selector, str(valor))
         elif tipo == "click":
             selector_fallback = paso.get("selector_fallback")
-            try:
-                page.wait_for_selector(selector, timeout=5_000)
-                page.click(selector, timeout=30_000)
-            except PWTimeout:
-                if selector_fallback:
+            if not selector:
+                raise ValueError(f"El paso '{nombre_paso}' no tiene selector")
+
+            if selector_fallback:
+                try:
+                    page.wait_for_selector(selector, timeout=10_000)
+                    page.click(selector, timeout=30_000)
+                except PWTimeout:
                     page.wait_for_selector(selector_fallback, timeout=30_000)
                     page.click(selector_fallback, timeout=30_000)
-                else:
-                    raise
+            else:
+                page.wait_for_selector(selector, timeout=30_000)
+                page.click(selector, timeout=30_000)
         elif tipo == "archivo":
             ruta_archivo = paso.get("archivo") or valor
             if not ruta_archivo:
