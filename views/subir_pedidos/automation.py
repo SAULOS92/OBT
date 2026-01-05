@@ -78,12 +78,21 @@ def iniciar_navegador(*, headless: bool = True):
                 "--no-zygote",
             ],
         )
-        context = browser.new_context()
+        context = browser.new_context(
+            viewport={"width": 1280, "height": 720}, accept_downloads=False
+        )
+        context.route(
+            "**/*",
+            lambda route: route.abort()
+            if route.request.resource_type in {"image", "media", "font"}
+            else route.continue_(),
+        )
         page = context.new_page()
 
         try:
             yield page
         finally:
+            page.close()
             context.close()
             browser.close()
 
