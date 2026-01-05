@@ -234,12 +234,19 @@ def ejecutar_flujo_en_pagina(
     return bool(resultado)
 
 
-def construir_flujo_cargar_pedido(ruta_archivo: str) -> Dict[str, Any]:
+def construir_flujo_cargar_pedido() -> Dict[str, Any]:
     """Arma el flujo y selectores para cargar un pedido masivo.
 
     La estructura se separa en un helper reutilizable para mantener el flujo
     de pasos agrupado y facilitar futuras modificaciones.
     """
+
+    ruta_archivo = str(_ULTIMOS_DATOS_PEDIDO.get("ruta_archivo") or "").strip()
+    if not ruta_archivo:
+        raise ValueError("No hay ruta_archivo en _ULTIMOS_DATOS_PEDIDO. Primero genera el Excel.")
+
+    purchase_order_value = str(_ULTIMOS_DATOS_PEDIDO.get("purchase_order", "QQQ"))
+    observaciones_value = str(_ULTIMOS_DATOS_PEDIDO.get("observaciones", "RRR"))
 
     pasos_carga = [
         {
@@ -285,6 +292,28 @@ def construir_flujo_cargar_pedido(ruta_archivo: str) -> Dict[str, Any]:
             "tipo": "click",
             "selector": "button[data-testid='SuccessDialogButton']",
         },
+        {
+            "nombre": "Ingresar Orden de Compra",
+            "tipo": "campo",
+            "selector": "input#purchaseOrderNN13CANALT",
+            "valor": purchase_order_value,
+        },
+        {
+            "nombre": "Ingresar Observaciones",
+            "tipo": "campo",
+            "selector": "textarea[data-testid='formValue']",
+            "valor": observaciones_value,
+        },
+        {
+            "nombre": "Confirmar pedido",
+            "tipo": "click",
+            "selector": "button[data-testid='LoadingButton']:has-text('Confirmar pedido')",
+        },
+        {
+            "nombre": "Finalizar pedido",
+            "tipo": "click",
+            "selector": "button[data-testid='OrderConfirmationPageFinishOrderButton']:has-text('Finalizar Pedido')",
+        },
     ]
 
     selector_exito = "button[data-testid='LoadingButton']:has-text('Enviar notificación pedido')"
@@ -306,42 +335,12 @@ def cargar_pedido_masivo_excel(
 ) -> bool:
     """Carga un archivo de pedido masivo en el portal Grupo Nutresa."""
 
-    purchase_order_value = _ULTIMOS_DATOS_PEDIDO.get("purchase_order", "QQQ")
-    observaciones_value = _ULTIMOS_DATOS_PEDIDO.get("observaciones", "RRR")
+    _ULTIMOS_DATOS_PEDIDO.setdefault("ruta_archivo", ruta_archivo)
 
-    flujo = construir_flujo_cargar_pedido(ruta_archivo)
+    flujo = construir_flujo_cargar_pedido()
     pasos_carga = flujo["pasos"]
     selector_exito = flujo["selector_exito"]
     selector_error = flujo["selector_error"]
-
-    pasos_carga.extend(
-        [
-            {
-                "nombre": "Ingresar Orden de Compra",
-                "tipo": "campo",
-                "selector": "input#purchaseOrderNN13CANALT",
-                "valor": purchase_order_value,
-            },
-            {
-                "nombre": "Ingresar Observaciones",
-                "tipo": "campo",
-                "selector": "textarea[data-testid='formValue']",
-                "valor": observaciones_value,
-            },
-            {
-                "nombre": "Confirmar pedido",
-                "tipo": "click",
-                "selector": "button[data-testid='LoadingButton']:has-text('Confirmar pedido')",
-            },
-            {
-                "nombre": "Finalizar pedido",
-                "tipo": "click",
-                "selector": (
-                    "button[data-testid='OrderConfirmationPageFinishOrderButton']:has-text('Finalizar Pedido')"
-                ),
-            },
-        ]
-    )
 
     if page:
         return ejecutar_flujo_en_pagina(
