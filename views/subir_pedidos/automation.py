@@ -234,15 +234,21 @@ def ejecutar_flujo_en_pagina(
     return bool(resultado)
 
 
-def construir_flujo_cargar_pedido() -> Dict[str, Any]:
-    """Arma el flujo y selectores para cargar un pedido masivo.
+def cargar_pedido_masivo_excel(
+    ruta_archivo: str,
+    *,
+    notificar_estado: Optional[Callable[[str], None]] = None,
+    headless: bool = True,
+    page=None,
+) -> bool:
+    """Carga un archivo de pedido masivo en el portal Grupo Nutresa."""
 
-    La estructura se separa en un helper reutilizable para mantener el flujo
-    de pasos agrupado y facilitar futuras modificaciones.
-    """
+    _ULTIMOS_DATOS_PEDIDO.setdefault("ruta_archivo", ruta_archivo)
 
-    ruta_archivo = str(_ULTIMOS_DATOS_PEDIDO.get("ruta_archivo") or "").strip()
-    if not ruta_archivo:
+    ruta_archivo_final = str(
+        _ULTIMOS_DATOS_PEDIDO.get("ruta_archivo") or ruta_archivo
+    ).strip()
+    if not ruta_archivo_final:
         raise ValueError("No hay ruta_archivo en _ULTIMOS_DATOS_PEDIDO. Primero genera el Excel.")
 
     purchase_order_value = str(_ULTIMOS_DATOS_PEDIDO.get("purchase_order", "QQQ"))
@@ -273,7 +279,7 @@ def construir_flujo_cargar_pedido() -> Dict[str, Any]:
             "nombre": "Seleccionar archivo",
             "tipo": "archivo",
             "selector": "#file",
-            "valor": ruta_archivo,
+            "valor": ruta_archivo_final,
         },
         {
             "nombre": "enviar archivo",
@@ -318,29 +324,6 @@ def construir_flujo_cargar_pedido() -> Dict[str, Any]:
 
     selector_exito = "button[data-testid='LoadingButton']:has-text('Enviar notificación pedido')"
     selector_error = "div.MuiDialog-root div.MuiDialogContent-root"
-
-    return {
-        "pasos": pasos_carga,
-        "selector_exito": selector_exito,
-        "selector_error": selector_error,
-    }
-
-
-def cargar_pedido_masivo_excel(
-    ruta_archivo: str,
-    *,
-    notificar_estado: Optional[Callable[[str], None]] = None,
-    headless: bool = True,
-    page=None,
-) -> bool:
-    """Carga un archivo de pedido masivo en el portal Grupo Nutresa."""
-
-    _ULTIMOS_DATOS_PEDIDO.setdefault("ruta_archivo", ruta_archivo)
-
-    flujo = construir_flujo_cargar_pedido()
-    pasos_carga = flujo["pasos"]
-    selector_exito = flujo["selector_exito"]
-    selector_error = flujo["selector_error"]
 
     if page:
         return ejecutar_flujo_en_pagina(
