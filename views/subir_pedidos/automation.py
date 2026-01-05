@@ -267,9 +267,19 @@ def construir_flujo_cargar_pedido(ruta_archivo: str) -> Dict[str, Any]:
                 "button[type='submit'][data-testid='LoadingButton']:has-text('Guardar')"
             ),
         },
+        {
+            "nombre": "Agregar al carrito",
+            "tipo": "click",
+            "selector": "button[data-testid='NextActionButton']",
+        },
+        {
+            "nombre": "Continuar (dialog éxito)",
+            "tipo": "click",
+            "selector": "button[data-testid='SuccessDialogButton']",
+        },
     ]
 
-    selector_exito = "button[data-testid='NextActionButton']"
+    selector_exito = "input#purchaseOrderNN12CANALT"
     selector_error = "div.MuiDialog-root div.MuiDialogContent-root"
 
     return {
