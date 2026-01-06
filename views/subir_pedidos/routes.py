@@ -1,11 +1,11 @@
 """Rutas HTTP para gestionar la vista de subir pedidos."""
 
 import json
-import os
 import traceback
 from typing import Any, Dict, List
 
 from flask import jsonify, render_template, request, session
+from openpyxl import Workbook
 
 from db import conectar
 from views.auth import login_required
@@ -179,13 +179,61 @@ def probar_login_portal():
 
             if login_ok:
                 archivo = "/tmp/pedido_masivo.xlsx"
-                if not os.path.exists(archivo):
+
+                if not data_ped:
                     return (
                         jsonify(
                             success=False,
-                            message="No existe archivo Excel a cargar (/tmp/pedido_masivo.xlsx)",
+                            message=f"No hay pedidos para la ruta {ruta_placa.get('ruta')}",
                         ),
                         400,
+                    )
+
+                try:
+                    pedidos_ruta = [
+                        p
+                        for p in data_ped
+                        if str(p.get("ruta")) == str(ruta_placa.get("ruta"))
+                    ]
+
+                    if not pedidos_ruta:
+                        return (
+                            jsonify(
+                                success=False,
+                                message=f"No hay pedidos para la ruta {ruta_placa.get('ruta')}",
+                            ),
+                            400,
+                        )
+
+                    wb = Workbook()
+                    ws = wb.active
+
+                    ws.append([])
+                    ws.append([])
+                    ws.append([])
+                    ws.append(["codigo_pro", "producto", "UN", "pedir"])
+
+                    for pedido in pedidos_ruta:
+                        ws.append(
+                            [
+                                pedido.get("codigo_pro"),
+                                pedido.get("producto"),
+                                "UN",
+                                pedido.get("pedir"),
+                            ]
+                        )
+
+                    wb.save(archivo)
+                except Exception:
+                    tb = traceback.format_exc()
+                    print(f"ERROR al crear Excel de pedidos\n{tb}", flush=True)
+                    return (
+                        jsonify(
+                            success=False,
+                            message="Error al crear el archivo de pedidos",
+                            traceback=tb,
+                        ),
+                        500,
                     )
 
                 avances.append(
