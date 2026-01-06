@@ -24,7 +24,7 @@
       <label for="contrasena-login" class="text-gray-700 font-semibold">Contraseña</label>
       <input
         id="contrasena-login"
-        type="text"
+        type="password"
         class="w-32 border rounded px-2 py-1 text-xs"
         placeholder="Contraseña"
         autocomplete="off"
@@ -74,7 +74,31 @@
 </div>
 
 <script>
+const LS_USUARIO = 'subirPedidosUsuario';
+const LS_CONTRASENA = 'subirPedidosContrasena';
+const LS_CAMPO_PLACA = 'subirPedidosCampoPlaca';
+
+function cargarPersistencia(){
+  const usuarioInput = document.getElementById('usuario-login');
+  const contrasenaInput = document.getElementById('contrasena-login');
+  const campoPlacaSelect = document.getElementById('campo-placa');
+
+  const usuarioGuardado = localStorage.getItem(LS_USUARIO);
+  const contrasenaGuardada = localStorage.getItem(LS_CONTRASENA);
+  const campoPlacaGuardado = localStorage.getItem(LS_CAMPO_PLACA);
+
+  if(usuarioGuardado !== null){ usuarioInput.value = usuarioGuardado; }
+  if(contrasenaGuardada !== null){ contrasenaInput.value = contrasenaGuardada; }
+  if(campoPlacaGuardado !== null){ campoPlacaSelect.value = campoPlacaGuardado; }
+
+  usuarioInput.addEventListener('input', () => localStorage.setItem(LS_USUARIO, usuarioInput.value));
+  contrasenaInput.addEventListener('input', () => localStorage.setItem(LS_CONTRASENA, contrasenaInput.value));
+  campoPlacaSelect.addEventListener('change', () => localStorage.setItem(LS_CAMPO_PLACA, campoPlacaSelect.value));
+}
+
 const bd = "{{ bd }}";
+
+cargarPersistencia();
 
 function savePlaca(ruta, placa){
   fetch("/vehiculos/placa", {
