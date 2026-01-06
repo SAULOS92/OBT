@@ -63,7 +63,7 @@
     {% for v in vehiculos %}
       <tr data-ruta="{{ v.ruta }}" class="border-t">
         <td class="p-2">{{ v.ruta }}</td>
-        <td class="p-2"><input type="text" maxlength="10" value="{{ v.placa }}" class="placa-input w-full border rounded p-1"/></td>
+        <td class="p-2"><input type="text" maxlength="{{ placa_max_len }}" value="{{ v.placa }}" class="placa-input w-full border rounded p-1"/></td>
         <td class="p-2 text-sm">
           <button class="btn-delete text-red-600 hover:text-red-800">Eliminar</button>
         </td>
@@ -152,7 +152,7 @@ document.getElementById('btn-add').addEventListener('click', function(){
       tr.setAttribute('data-ruta', v.ruta);
       tr.classList.add('border-t');
       tr.innerHTML = `<td class="p-2">${v.ruta}</td>
-        <td class="p-2"><input type="text" maxlength="10" value="" class="placa-input w-full border rounded p-1"/></td>
+        <td class="p-2"><input type="text" maxlength="{{ placa_max_len }}" value="" class="placa-input w-full border rounded p-1"/></td>
         <td class="p-2 text-sm"><button class="btn-delete text-red-600 hover:text-red-800">Eliminar</button></td>`;
       document.getElementById('tabla-vehiculos').appendChild(tr);
       attachRowEvents(tr);
