@@ -171,7 +171,7 @@ def probar_login_portal():
             info = {"rutas_con_placa": [], "data_ped": [], "total_rutas": 0}
 
         rutas_con_placa = info.get("rutas_con_placa") or []
-        data_ped = info.get("data_ped")
+        data_ped = info.get("data_ped") or []
         total_rutas = info.get("total_rutas")
 
         if not rutas_con_placa:
@@ -180,7 +180,16 @@ def probar_login_portal():
                 400,
             )
 
-        ruta_placa = rutas_con_placa[0]
+        hay_pedidos_en_rutas = any(
+            str(p.get("ruta")) == str(r.get("ruta"))
+            for r in rutas_con_placa
+            for p in data_ped
+        )
+
+        if not hay_pedidos_en_rutas:
+            return jsonify(success=False, message="No hay pedidos para procesar"), 400
+
+        carga_ok = True
 
         with iniciar_navegador() as page:
             login_ok = login_portal_grupo_nutresa(
@@ -192,17 +201,13 @@ def probar_login_portal():
 
             if login_ok:
                 archivo = "/tmp/pedido_masivo.xlsx"
+                avances.append("Login exitoso, iniciando carga de pedidos")
 
-                if not data_ped:
-                    return (
-                        jsonify(
-                            success=False,
-                            message=f"No hay pedidos para la ruta {ruta_placa.get('ruta')}",
-                        ),
-                        400,
+                for ruta_placa in rutas_con_placa:
+                    avances.append(
+                        f"Procesando ruta: {ruta_placa.get('ruta')} placa={ruta_placa.get('placa')}"
                     )
 
-                try:
                     pedidos_ruta = [
                         p
                         for p in data_ped
@@ -210,56 +215,65 @@ def probar_login_portal():
                     ]
 
                     if not pedidos_ruta:
-                        return (
-                            jsonify(
-                                success=False,
-                                message=f"No hay pedidos para la ruta {ruta_placa.get('ruta')}",
-                            ),
-                            400,
+                        avances.append(
+                            f"Ruta {ruta_placa.get('ruta')}: sin pedidos, se omite"
                         )
+                        continue
 
-                    wb = Workbook()
-                    ws = wb.active
+                    try:
+                        wb = Workbook()
+                        ws = wb.active
 
-                    ws.append([])
-                    ws.append([])
-                    ws.append([])
-                    ws.append(["codigo_pro", "producto", "UN", "pedir"])
+                        ws.append([])
+                        ws.append([])
+                        ws.append([])
+                        ws.append(["codigo_pro", "producto", "UN", "pedir"])
 
-                    for pedido in pedidos_ruta:
-                        ws.append(
-                            [
-                                pedido.get("codigo_pro"),
-                                pedido.get("producto"),
-                                "UN",
-                                pedido.get("pedir"),
-                            ]
+                        for pedido in pedidos_ruta:
+                            ws.append(
+                                [
+                                    pedido.get("codigo_pro"),
+                                    pedido.get("producto"),
+                                    "UN",
+                                    pedido.get("pedir"),
+                                ]
+                            )
+
+                        wb.save(archivo)
+                    except Exception:
+                        tb = traceback.format_exc()
+                        print(f"ERROR al crear Excel de pedidos\n{tb}", flush=True)
+                        avances.append(
+                            f"Ruta {ruta_placa.get('ruta')}: falló la carga"
                         )
+                        carga_ok = False
+                        continue
 
-                    wb.save(archivo)
-                except Exception:
-                    tb = traceback.format_exc()
-                    print(f"ERROR al crear Excel de pedidos\n{tb}", flush=True)
-                    return (
-                        jsonify(
-                            success=False,
-                            message="Error al crear el archivo de pedidos",
-                            traceback=tb,
-                        ),
-                        500,
-                    )
+                    try:
+                        ruta_cargada = cargar_pedido_masivo_excel(
+                            ruta_placa,
+                            archivo,
+                            campo_placa,
+                            notificar_estado=avances.append,
+                            page=page,
+                        )
+                        if ruta_cargada:
+                            avances.append(
+                                f"Ruta {ruta_placa.get('ruta')}: carga OK"
+                            )
+                        else:
+                            avances.append(
+                                f"Ruta {ruta_placa.get('ruta')}: falló la carga"
+                            )
+                            carga_ok = False
+                    except Exception:
+                        tb = traceback.format_exc()
+                        print(f"ERROR al cargar pedidos\n{tb}", flush=True)
+                        avances.append(
+                            f"Ruta {ruta_placa.get('ruta')}: falló la carga"
+                        )
+                        carga_ok = False
 
-                avances.append(
-                    f"Procesando primera ruta: {ruta_placa.get('ruta')} placa={ruta_placa.get('placa')}"
-                )
-                avances.append("Login exitoso, iniciando carga de pedidos")
-                carga_ok = cargar_pedido_masivo_excel(
-                    ruta_placa,
-                    archivo,
-                    campo_placa,
-                    notificar_estado=avances.append,
-                    page=page,
-                )
             else:
                 carga_ok = False
 
