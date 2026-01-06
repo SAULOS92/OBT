@@ -12,7 +12,14 @@ from views.auth import login_required
 
 from . import subir_pedidos_bp
 from .automation import cargar_pedido_masivo_excel, iniciar_navegador, login_portal_grupo_nutresa
-from .vehiculos import add_ruta, delete_ruta, ensure_table, get_vehiculos, upsert_vehiculo
+from .vehiculos import (
+    PLACA_MAX_LEN,
+    add_ruta,
+    delete_ruta,
+    ensure_table,
+    get_vehiculos,
+    upsert_vehiculo,
+)
 
 
 def log_pedidos_rutas(empresa: str) -> Dict[str, Any]:
@@ -89,7 +96,9 @@ def subir_pedidos_index():
     ensure_table()
     bd = _get_bd()
     vehiculos = get_vehiculos(bd)
-    return render_template("subir_pedidos.html", vehiculos=vehiculos, bd=bd)
+    return render_template(
+        "subir_pedidos.html", vehiculos=vehiculos, bd=bd, placa_max_len=PLACA_MAX_LEN
+    )
 
 
 @subir_pedidos_bp.route("/vehiculos/placa", methods=["POST"])

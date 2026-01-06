@@ -2,6 +2,8 @@
 
 from db import conectar
 
+PLACA_MAX_LEN = 17
+
 
 def ensure_table() -> None:
     """Crea la tabla `vehiculos` si aún no existe."""
@@ -9,15 +11,29 @@ def ensure_table() -> None:
     with conectar() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                """
+                f"""
                 CREATE TABLE IF NOT EXISTS vehiculos (
                     bd   TEXT NOT NULL,
                     ruta INTEGER NOT NULL,
-                    placa VARCHAR(10) NOT NULL DEFAULT '',
+                    placa VARCHAR({PLACA_MAX_LEN}) NOT NULL DEFAULT '',
                     PRIMARY KEY (bd, ruta)
                 );
                 """
             )
+            cur.execute(
+                """
+                SELECT character_maximum_length
+                FROM information_schema.columns
+                WHERE table_name='vehiculos' AND column_name='placa' AND table_schema='public'
+                """
+            )
+            current_len = cur.fetchone()
+            current_len = current_len[0] if current_len else None
+
+            if current_len is None or current_len < PLACA_MAX_LEN:
+                cur.execute(
+                    f"ALTER TABLE vehiculos ALTER COLUMN placa TYPE VARCHAR({PLACA_MAX_LEN});"
+                )
             conn.commit()
 
 
@@ -49,7 +65,7 @@ def upsert_vehiculo(bd: str, ruta: int, placa: str) -> None:
                 VALUES (%s, %s, %s)
                 ON CONFLICT (bd, ruta) DO UPDATE SET placa = EXCLUDED.placa
                 """,
-                (bd, ruta, placa[:10]),
+                (bd, ruta, placa[:PLACA_MAX_LEN]),
             )
             conn.commit()
 
