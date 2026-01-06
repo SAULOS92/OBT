@@ -144,6 +144,10 @@ def probar_login_portal():
     data = request.get_json() or {}
     username = (data.get("usuario") or "").strip()
     password = data.get("contrasena") or ""
+    campo_placa = (data.get("campo_placa") or "observaciones").strip().lower()
+
+    if campo_placa not in {"observaciones", "purchase_order"}:
+        campo_placa = "observaciones"
 
     if not username or not password:
         return jsonify(success=False, message="Usuario y contraseña son obligatorios."), 400
@@ -243,7 +247,7 @@ def probar_login_portal():
                 carga_ok = cargar_pedido_masivo_excel(
                     ruta_placa,
                     archivo,
-                    "observaciones",
+                    campo_placa,
                     notificar_estado=avances.append,
                     page=page,
                 )
