@@ -2,16 +2,9 @@
 
 import time
 from contextlib import contextmanager
-from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
-
-import pandas as pd
 from playwright.sync_api import TimeoutError as PWTimeout
 from playwright.sync_api import sync_playwright
-
-
-_ULTIMOS_DATOS_PEDIDO: Dict[str, Any] = {}
-
 
 def _set_react_value(page, selector: str, value: str) -> None:
     """Escribe en un campo HTML disparando eventos de React."""
@@ -235,7 +228,9 @@ def ejecutar_flujo_en_pagina(
 
 
 def cargar_pedido_masivo_excel(
-    ruta_archivo: str,
+    ruta_placa: Dict[str, Any],
+    ruta_archivo_excel: str,
+    campo_placa: str,
     *,
     notificar_estado: Optional[Callable[[str], None]] = None,
     headless: bool = True,
@@ -243,16 +238,22 @@ def cargar_pedido_masivo_excel(
 ) -> bool:
     """Carga un archivo de pedido masivo en el portal Grupo Nutresa."""
 
-    _ULTIMOS_DATOS_PEDIDO.setdefault("ruta_archivo", ruta_archivo)
+    placa = str(ruta_placa.get("placa") or ruta_placa.get("ruta") or "").strip()
+    if not placa:
+        raise ValueError("No se pudo resolver placa/ruta")
 
-    ruta_archivo_final = str(
-        _ULTIMOS_DATOS_PEDIDO.get("ruta_archivo") or ruta_archivo
-    ).strip()
+    ruta_archivo_final = str(ruta_archivo_excel or "").strip()
     if not ruta_archivo_final:
-        raise ValueError("No hay ruta_archivo en _ULTIMOS_DATOS_PEDIDO. Primero genera el Excel.")
+        raise ValueError("Falta ruta_archivo_excel")
 
-    purchase_order_value = str(_ULTIMOS_DATOS_PEDIDO.get("purchase_order", "QQQ"))
-    observaciones_value = str(_ULTIMOS_DATOS_PEDIDO.get("observaciones", "RRR"))
+    if campo_placa == "purchase_order":
+        purchase_order_value = placa
+        observaciones_value = "RRR"
+    elif campo_placa == "observaciones":
+        observaciones_value = placa
+        purchase_order_value = "QQQ"
+    else:
+        raise ValueError("campo_placa inválido, usa 'purchase_order' u 'observaciones'")
 
     pasos_carga = [
         {
@@ -344,68 +345,6 @@ def cargar_pedido_masivo_excel(
         notificar_estado=notificar_estado,
         headless=headless,
     )
-
-
-def crear_archivo_pedido_masivo(
-    destino: str,
-    filas: Optional[List[Dict[str, Any]]] = None,
-    filas_en_blanco: int = 3,
-) -> str:
-    """Genera un Excel con el formato esperado para cargar pedidos masivos.
-
-    Se generan las columnas visibles en el portal (``codigo_pro``,
-    ``producto``, ``UN`` y ``pedir``) con datos de ejemplo similares a la
-    plantilla de la imagen proporcionada, facilitando la carga automatizada.
-
-    El archivo respeta que las primeras filas estén vacías (por defecto tres
-    filas), dejando el encabezado en la cuarta fila tal como se observa en la
-    plantilla de referencia.
-
-    Args:
-        destino: Ruta completa donde se guardará el archivo .xlsx.
-        filas: Datos opcionales a incluir. Cada fila debe tener las claves
-            ``codigo_pro``, ``producto``, ``UN`` y ``pedir``. Si no se
-            proporcionan, se usan dos registros de ejemplo.
-
-    Returns:
-        Ruta final (string) del archivo generado.
-    """
-
-    PURCHASE_ORDER_VALUE = "QQQ"
-    OBSERVACIONES_VALUE = "RRR"
-
-    if filas is None:
-        filas = [
-            {
-                "codigo_pro": 1015235,
-                "producto": "2 SALCH. SP. RANCHERA X 120G",
-                "UN": "UN",
-                "pedir": 5,
-            },
-            {
-                "codigo_pro": 1075657,
-                "producto": "CHORIZO RICA X 175 G",
-                "UN": "UN",
-                "pedir": 5,
-            },
-        ]
-
-    df = pd.DataFrame(filas, columns=["codigo_pro", "producto", "UN", "pedir"])
-    ruta_destino = Path(destino)
-    ruta_destino.parent.mkdir(parents=True, exist_ok=True)
-
-    start_row = max(0, int(filas_en_blanco))
-    with pd.ExcelWriter(ruta_destino, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, startrow=start_row)
-
-    global _ULTIMOS_DATOS_PEDIDO
-    _ULTIMOS_DATOS_PEDIDO = {
-        "purchase_order": PURCHASE_ORDER_VALUE,
-        "observaciones": OBSERVACIONES_VALUE,
-        "ruta_archivo": str(ruta_destino),
-    }
-
-    return str(ruta_destino)
 
 
 def login_portal_grupo_nutresa(
