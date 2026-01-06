@@ -31,6 +31,13 @@
         spellcheck="false"
       />
     </div>
+    <div class="flex items-center gap-1">
+      <label for="campo-placa" class="text-gray-700 font-semibold">Placa en</label>
+      <select id="campo-placa" class="border rounded px-2 py-1 text-xs">
+        <option value="observaciones" selected>Observaciones</option>
+        <option value="purchase_order">Orden</option>
+      </select>
+    </div>
     <button id="btn-play-login" class="flex items-center gap-1 bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700">
       ▶
       <span>Play</span>
@@ -135,6 +142,7 @@ const statusEl = document.getElementById('login-status');
 btnPlay.addEventListener('click', function(){
   const usuario = document.getElementById('usuario-login').value;
   const contrasena = document.getElementById('contrasena-login').value;
+  const campoPlaca = document.getElementById('campo-placa').value;
 
   statusEl.textContent = 'Levantando el navegador...';
   statusEl.className = 'text-gray-600';
@@ -164,7 +172,7 @@ btnPlay.addEventListener('click', function(){
   fetch('/subir-pedidos/login-portal', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({usuario, contrasena})
+    body: JSON.stringify({usuario, contrasena, campo_placa: campoPlaca})
   }).then(r => r.json()).then(res => {
     const avances = res.avances || [];
     mostrarProgreso(avances).then(() => {

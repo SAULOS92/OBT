@@ -1,6 +1,7 @@
 """Funciones de automatización basadas en Playwright."""
 
 import time
+from datetime import date
 from contextlib import contextmanager
 from typing import Any, Callable, Dict, List, Optional
 from playwright.sync_api import TimeoutError as PWTimeout
@@ -246,12 +247,14 @@ def cargar_pedido_masivo_excel(
     if not ruta_archivo_final:
         raise ValueError("Falta ruta_archivo_excel")
 
+    dia_actual = str(date.today().day)
+
     if campo_placa == "purchase_order":
         purchase_order_value = placa
-        observaciones_value = "RRR"
+        observaciones_value = dia_actual
     elif campo_placa == "observaciones":
         observaciones_value = placa
-        purchase_order_value = "QQQ"
+        purchase_order_value = dia_actual
     else:
         raise ValueError("campo_placa inválido, usa 'purchase_order' u 'observaciones'")
 
