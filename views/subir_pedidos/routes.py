@@ -1,8 +1,9 @@
 """Rutas HTTP para gestionar la vista de subir pedidos."""
 
 import json
+import os
 import traceback
-from typing import List
+from typing import Any, Dict, List
 
 from flask import jsonify, render_template, request, session
 
@@ -10,16 +11,11 @@ from db import conectar
 from views.auth import login_required
 
 from . import subir_pedidos_bp
-from .automation import (
-    cargar_pedido_masivo_excel,
-    crear_archivo_pedido_masivo,
-    iniciar_navegador,
-    login_portal_grupo_nutresa,
-)
+from .automation import cargar_pedido_masivo_excel, iniciar_navegador, login_portal_grupo_nutresa
 from .vehiculos import add_ruta, delete_ruta, ensure_table, get_vehiculos, upsert_vehiculo
 
 
-def log_pedidos_rutas(empresa: str) -> None:
+def log_pedidos_rutas(empresa: str) -> Dict[str, Any]:
     with conectar() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT fn_obtener_pedidos_con_pedir_json(%s);", (empresa,))
@@ -68,6 +64,12 @@ def log_pedidos_rutas(empresa: str) -> None:
         f"rutas={json.dumps(rutas_con_placa, ensure_ascii=False)}",
         flush=True,
     )
+
+    return {
+        "rutas_con_placa": rutas_con_placa,
+        "data_ped": data_ped,
+        "total_rutas": len(rutas_unicas),
+    }
 
 
 def _get_bd() -> str:
@@ -150,9 +152,22 @@ def probar_login_portal():
         avances: List[str] = []
         bd = _get_bd()
         try:
-            log_pedidos_rutas(bd)
+            info = log_pedidos_rutas(bd)
         except Exception as e:
             print(f"WARN [PEDIDOS] {e}", flush=True)
+            info = {"rutas_con_placa": [], "data_ped": [], "total_rutas": 0}
+
+        rutas_con_placa = info.get("rutas_con_placa") or []
+        data_ped = info.get("data_ped")
+        total_rutas = info.get("total_rutas")
+
+        if not rutas_con_placa:
+            return (
+                jsonify(success=False, message="No hay rutas/pedidos para procesar"),
+                400,
+            )
+
+        ruta_placa = rutas_con_placa[0]
 
         with iniciar_navegador() as page:
             login_ok = login_portal_grupo_nutresa(
@@ -163,10 +178,24 @@ def probar_login_portal():
             )
 
             if login_ok:
-                archivo = crear_archivo_pedido_masivo("/tmp/pedido_masivo.xlsx")
+                archivo = "/tmp/pedido_masivo.xlsx"
+                if not os.path.exists(archivo):
+                    return (
+                        jsonify(
+                            success=False,
+                            message="No existe archivo Excel a cargar (/tmp/pedido_masivo.xlsx)",
+                        ),
+                        400,
+                    )
+
+                avances.append(
+                    f"Procesando primera ruta: {ruta_placa.get('ruta')} placa={ruta_placa.get('placa')}"
+                )
                 avances.append("Login exitoso, iniciando carga de pedidos")
                 carga_ok = cargar_pedido_masivo_excel(
+                    ruta_placa,
                     archivo,
+                    "observaciones",
                     notificar_estado=avances.append,
                     page=page,
                 )
