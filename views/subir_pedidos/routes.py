@@ -190,6 +190,9 @@ def probar_login_portal():
             return jsonify(success=False, message="No hay pedidos para procesar"), 400
 
         carga_ok = True
+        error_en_proceso = False
+        ruta_fallo = None
+        placa_fallo = None
 
         with iniciar_navegador() as page:
             login_ok = login_portal_grupo_nutresa(
@@ -204,23 +207,23 @@ def probar_login_portal():
                 avances.append("Login exitoso, iniciando carga de pedidos")
 
                 for ruta_placa in rutas_con_placa:
-                    avances.append(
-                        f"Procesando ruta: {ruta_placa.get('ruta')} placa={ruta_placa.get('placa')}"
-                    )
-
-                    pedidos_ruta = [
-                        p
-                        for p in data_ped
-                        if str(p.get("ruta")) == str(ruta_placa.get("ruta"))
-                    ]
-
-                    if not pedidos_ruta:
-                        avances.append(
-                            f"Ruta {ruta_placa.get('ruta')}: sin pedidos, se omite"
-                        )
-                        continue
-
                     try:
+                        avances.append(
+                            f"Procesando ruta: {ruta_placa.get('ruta')} placa={ruta_placa.get('placa')}"
+                        )
+
+                        pedidos_ruta = [
+                            p
+                            for p in data_ped
+                            if str(p.get("ruta")) == str(ruta_placa.get("ruta"))
+                        ]
+
+                        if not pedidos_ruta:
+                            avances.append(
+                                f"Ruta {ruta_placa.get('ruta')}: sin pedidos, se omite"
+                            )
+                            continue
+
                         wb = Workbook()
                         ws = wb.active
 
@@ -244,10 +247,17 @@ def probar_login_portal():
                         tb = traceback.format_exc()
                         print(f"ERROR al crear Excel de pedidos\n{tb}", flush=True)
                         avances.append(
-                            f"Ruta {ruta_placa.get('ruta')}: falló la carga"
+                            f"Ruta {ruta_placa.get('ruta')} placa={ruta_placa.get('placa')}: falló la carga"
                         )
+                        error_en_proceso = True
+                        ruta_fallo = ruta_placa.get("ruta")
+                        placa_fallo = ruta_placa.get("placa")
+                        try:
+                            page.close()
+                        except Exception:
+                            pass
                         carga_ok = False
-                        continue
+                        break
 
                     try:
                         ruta_cargada = cargar_pedido_masivo_excel(
@@ -263,19 +273,43 @@ def probar_login_portal():
                             )
                         else:
                             avances.append(
-                                f"Ruta {ruta_placa.get('ruta')}: falló la carga"
+                                f"Ruta {ruta_placa.get('ruta')} placa={ruta_placa.get('placa')}: falló la carga"
                             )
+                            error_en_proceso = True
+                            ruta_fallo = ruta_placa.get("ruta")
+                            placa_fallo = ruta_placa.get("placa")
                             carga_ok = False
+                            break
                     except Exception:
                         tb = traceback.format_exc()
                         print(f"ERROR al cargar pedidos\n{tb}", flush=True)
                         avances.append(
-                            f"Ruta {ruta_placa.get('ruta')}: falló la carga"
+                            f"Ruta {ruta_placa.get('ruta')} placa={ruta_placa.get('placa')}: falló la carga ({tb.strip()})"
                         )
+                        error_en_proceso = True
+                        ruta_fallo = ruta_placa.get("ruta")
+                        placa_fallo = ruta_placa.get("placa")
+                        try:
+                            page.close()
+                        except Exception:
+                            pass
                         carga_ok = False
+                        break
 
             else:
                 carga_ok = False
+
+        if error_en_proceso:
+            return (
+                jsonify(
+                    success=False,
+                    message=(
+                        f"Falló la carga en la ruta {ruta_fallo}; proceso abortado"
+                    ),
+                    avances=avances,
+                ),
+                500,
+            )
 
         ok = login_ok and carga_ok
         if ok:
