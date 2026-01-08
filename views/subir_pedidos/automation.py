@@ -181,19 +181,20 @@ def ejecutar_flujo_en_pagina(
                 page.select_option(selector, str(valor))
         elif tipo == "click":
             selector_fallback = paso.get("selector_fallback")
+            timeout_ms = paso.get("timeout_ms", 30_000)
             if not selector:
                 raise ValueError(f"El paso '{nombre_paso}' no tiene selector")
 
             if selector_fallback:
                 try:
                     page.wait_for_selector(selector, timeout=10_000)
-                    page.click(selector, timeout=30_000)
+                    page.click(selector, timeout=timeout_ms)
                 except PWTimeout:
                     page.wait_for_selector(selector_fallback, timeout=30_000)
                     page.click(selector_fallback, timeout=30_000)
             else:
-                page.wait_for_selector(selector, timeout=30_000)
-                page.click(selector, timeout=30_000)
+                page.wait_for_selector(selector, timeout=timeout_ms)
+                page.click(selector, timeout=timeout_ms)
         elif tipo == "mousedown":
             if not selector:
                 raise ValueError(f"El paso '{nombre_paso}' no tiene selector")
@@ -301,6 +302,7 @@ def cargar_pedido_masivo_excel(
             "nombre": "Continuar (dialog éxito)",
             "tipo": "click",
             "selector": "button[data-testid='SuccessDialogButton']",
+            "timeout_ms": 120_000,
         },
         {
             "nombre": "Ingresar Orden de Compra",
