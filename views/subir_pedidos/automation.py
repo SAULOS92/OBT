@@ -193,7 +193,34 @@ def ejecutar_flujo_en_pagina(
                     page.wait_for_selector(selector_fallback, timeout=30_000)
                     page.click(selector_fallback, timeout=30_000)
             else:
-                page.wait_for_selector(selector, timeout=timeout_ms)
+                if selector == "button[data-testid='SuccessDialogButton']":
+                    _emit(f"{nombre_flujo} - Diagnóstico URL: {page.url}")
+                    _emit(f"{nombre_flujo} - Diagnóstico título: {page.title()}")
+                    _emit(
+                        f"{nombre_flujo} - Diagnóstico SuccessDialogButton: "
+                        f"{page.locator(selector).count()}"
+                    )
+                    _emit(
+                        f"{nombre_flujo} - Diagnóstico diálogos: "
+                        f"{page.locator(\"div[role='dialog']\").count()}"
+                    )
+                    try:
+                        page.wait_for_selector(selector, timeout=timeout_ms)
+                    except PWTimeout:
+                        page.screenshot(
+                            path="/tmp/fallo_continuar.png", full_page=True
+                        )
+                        with open(
+                            "/tmp/fallo_continuar.html", "w", encoding="utf-8"
+                        ) as archivo_html:
+                            archivo_html.write(page.content())
+                        _emit(
+                            f"{nombre_flujo} - Evidencias guardadas en "
+                            "/tmp/fallo_continuar.png y /tmp/fallo_continuar.html"
+                        )
+                        raise
+                else:
+                    page.wait_for_selector(selector, timeout=timeout_ms)
                 page.click(selector, timeout=timeout_ms)
         elif tipo == "mousedown":
             if not selector:
