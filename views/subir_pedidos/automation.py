@@ -187,107 +187,13 @@ def ejecutar_flujo_en_pagina(
 
             if selector_fallback:
                 try:
-                    if selector == "button[data-testid='SuccessDialogButton']":
-                        print(f"SuccessDialogButton url: {page.url}", flush=True)
-                        print(f"SuccessDialogButton title: {page.title()}", flush=True)
-                        print(
-                            "SuccessDialogButton matches: "
-                            f"{len(page.query_selector_all('button[data-testid=\"SuccessDialogButton\"]'))}",
-                            flush=True,
-                        )
-                        print(
-                            "SuccessDialogButton dialogs: "
-                            f"{len(page.query_selector_all('div[role=\"dialog\"]'))}",
-                            flush=True,
-                        )
-                        print(
-                            "SuccessDialogButton readyState: "
-                            f"{page.evaluate('document.readyState')}",
-                            flush=True,
-                        )
-                    try:
-                        page.wait_for_selector(selector, timeout=10_000)
-                    except PWTimeout:
-                        if selector == "button[data-testid='SuccessDialogButton']":
-                            print(f"SuccessDialogButton timeout url: {page.url}", flush=True)
-                            print(
-                                f"SuccessDialogButton timeout title: {page.title()}",
-                                flush=True,
-                            )
-                            print(
-                                "SuccessDialogButton timeout readyState: "
-                                f"{page.evaluate('document.readyState')}",
-                                flush=True,
-                            )
-                            print(
-                                "SuccessDialogButton timeout matches: "
-                                f"{len(page.query_selector_all('button[data-testid=\"SuccessDialogButton\"]'))}",
-                                flush=True,
-                            )
-                            print(
-                                "SuccessDialogButton timeout dialogs: "
-                                f"{len(page.query_selector_all('div[role=\"dialog\"]'))}",
-                                flush=True,
-                            )
-                            print(
-                                "SuccessDialogButton timeout body: "
-                                f"{page.evaluate('document.body.innerText.slice(0, 500)')}",
-                                flush=True,
-                            )
-                        raise
+                    page.wait_for_selector(selector, timeout=10_000)
                     page.click(selector, timeout=timeout_ms)
                 except PWTimeout:
                     page.wait_for_selector(selector_fallback, timeout=30_000)
                     page.click(selector_fallback, timeout=30_000)
             else:
-                if selector == "button[data-testid='SuccessDialogButton']":
-                    print(f"SuccessDialogButton url: {page.url}", flush=True)
-                    print(f"SuccessDialogButton title: {page.title()}", flush=True)
-                    print(
-                        "SuccessDialogButton matches: "
-                        f"{len(page.query_selector_all('button[data-testid=\"SuccessDialogButton\"]'))}",
-                        flush=True,
-                    )
-                    print(
-                        "SuccessDialogButton dialogs: "
-                        f"{len(page.query_selector_all('div[role=\"dialog\"]'))}",
-                        flush=True,
-                    )
-                    print(
-                        "SuccessDialogButton readyState: "
-                        f"{page.evaluate('document.readyState')}",
-                        flush=True,
-                    )
-                try:
-                    page.wait_for_selector(selector, timeout=timeout_ms)
-                except PWTimeout:
-                    if selector == "button[data-testid='SuccessDialogButton']":
-                        print(f"SuccessDialogButton timeout url: {page.url}", flush=True)
-                        print(
-                            f"SuccessDialogButton timeout title: {page.title()}",
-                            flush=True,
-                        )
-                        print(
-                            "SuccessDialogButton timeout readyState: "
-                            f"{page.evaluate('document.readyState')}",
-                            flush=True,
-                        )
-                        print(
-                            "SuccessDialogButton timeout matches: "
-                            f"{len(page.query_selector_all('button[data-testid=\"SuccessDialogButton\"]'))}",
-                            flush=True,
-                        )
-                        print(
-                            "SuccessDialogButton timeout dialogs: "
-                            f"{len(page.query_selector_all('div[role=\"dialog\"]'))}",
-                            flush=True,
-                        )
-                        print(
-                            "SuccessDialogButton timeout body: "
-                            f"{page.evaluate('document.body.innerText.slice(0, 500)')}",
-                            flush=True,
-                        )
-                    raise
+                page.wait_for_selector(selector, timeout=timeout_ms)
                 page.click(selector, timeout=timeout_ms)
         elif tipo == "mousedown":
             if not selector:
