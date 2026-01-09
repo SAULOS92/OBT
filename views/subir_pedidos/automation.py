@@ -222,7 +222,7 @@ def ejecutar_flujo_en_pagina(
                     const target = document.elementFromPoint(centerX, centerY);
                     return target === el || (target && el.contains(target));
                 }""",
-                selector,
+                arg=selector,
                 timeout=step_timeout_ms,
             )
             page.click(selector, timeout=step_timeout_ms)
