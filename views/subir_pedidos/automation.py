@@ -78,10 +78,13 @@ def iniciar_navegador(*, headless: bool = True):
                 "--disable-dev-shm-usage",
                 "--disable-gpu",
                 "--no-zygote",
+                "--disable-extensions",
+                "--disable-sync",
+                "--no-first-run",
             ],
         )
         context = browser.new_context(
-            viewport={"width": 1280, "height": 720}, accept_downloads=False
+            viewport={"width": 1024, "height": 640}, accept_downloads=False
         )
         context.route(
             "**/*",
