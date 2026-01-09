@@ -68,7 +68,7 @@ def _esperar_resultado(
 
 @contextmanager
 def iniciar_navegador(*, headless: bool = True):
-    """Inicializa y entrega una página de navegador lista para usar."""
+    """Inicializa y entrega un contexto de navegador listo para usar."""
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(
@@ -89,12 +89,9 @@ def iniciar_navegador(*, headless: bool = True):
             if route.request.resource_type in {"image", "media", "font"}
             else route.continue_(),
         )
-        page = context.new_page()
-
         try:
-            yield page
+            yield context
         finally:
-            page.close()
             context.close()
             browser.close()
 
@@ -112,16 +109,20 @@ def ejecutar_flujo_playwright(
     """Ejecuta un flujo de Playwright definido por pasos."""
 
     try:
-        with iniciar_navegador(headless=headless) as page:
-            return ejecutar_flujo_en_pagina(
-                page,
-                pasos,
-                nombre_flujo=nombre_flujo,
-                selector_exito=selector_exito,
-                selector_error=selector_error,
-                notificar_estado=notificar_estado,
-                espera_resultado_ms=espera_resultado_ms,
-            )
+        with iniciar_navegador(headless=headless) as context:
+            page = context.new_page()
+            try:
+                return ejecutar_flujo_en_pagina(
+                    page,
+                    pasos,
+                    nombre_flujo=nombre_flujo,
+                    selector_exito=selector_exito,
+                    selector_error=selector_error,
+                    notificar_estado=notificar_estado,
+                    espera_resultado_ms=espera_resultado_ms,
+                )
+            finally:
+                page.close()
 
     except PWTimeout:
         return False

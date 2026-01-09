@@ -194,13 +194,20 @@ def probar_login_portal():
         ruta_fallo = None
         placa_fallo = None
 
-        with iniciar_navegador() as page:
-            login_ok = login_portal_grupo_nutresa(
-                username=username,
-                password=password,
-                notificar_estado=avances.append,
-                page=page,
-            )
+        with iniciar_navegador() as context:
+            page_login = context.new_page()
+            try:
+                login_ok = login_portal_grupo_nutresa(
+                    username=username,
+                    password=password,
+                    notificar_estado=avances.append,
+                    page=page_login,
+                )
+            finally:
+                try:
+                    page_login.close()
+                except Exception:
+                    pass
 
             if login_ok:
                 archivo = "/tmp/pedido_masivo.xlsx"
@@ -252,34 +259,37 @@ def probar_login_portal():
                         error_en_proceso = True
                         ruta_fallo = ruta_placa.get("ruta")
                         placa_fallo = ruta_placa.get("placa")
-                        try:
-                            page.close()
-                        except Exception:
-                            pass
                         carga_ok = False
                         break
 
                     try:
-                        ruta_cargada = cargar_pedido_masivo_excel(
-                            ruta_placa,
-                            archivo,
-                            campo_placa,
-                            notificar_estado=avances.append,
-                            page=page,
-                        )
-                        if ruta_cargada:
-                            avances.append(
-                                f"Ruta {ruta_placa.get('ruta')}: carga OK"
+                        page_ruta = context.new_page()
+                        try:
+                            ruta_cargada = cargar_pedido_masivo_excel(
+                                ruta_placa,
+                                archivo,
+                                campo_placa,
+                                notificar_estado=avances.append,
+                                page=page_ruta,
                             )
-                        else:
-                            avances.append(
-                                f"Ruta {ruta_placa.get('ruta')} placa={ruta_placa.get('placa')}: falló la carga"
-                            )
-                            error_en_proceso = True
-                            ruta_fallo = ruta_placa.get("ruta")
-                            placa_fallo = ruta_placa.get("placa")
-                            carga_ok = False
-                            break
+                            if ruta_cargada:
+                                avances.append(
+                                    f"Ruta {ruta_placa.get('ruta')}: carga OK"
+                                )
+                            else:
+                                avances.append(
+                                    f"Ruta {ruta_placa.get('ruta')} placa={ruta_placa.get('placa')}: falló la carga"
+                                )
+                                error_en_proceso = True
+                                ruta_fallo = ruta_placa.get("ruta")
+                                placa_fallo = ruta_placa.get("placa")
+                                carga_ok = False
+                                break
+                        finally:
+                            try:
+                                page_ruta.close()
+                            except Exception:
+                                pass
                     except Exception:
                         tb = traceback.format_exc()
                         print(f"ERROR al cargar pedidos\n{tb}", flush=True)
@@ -289,10 +299,6 @@ def probar_login_portal():
                         error_en_proceso = True
                         ruta_fallo = ruta_placa.get("ruta")
                         placa_fallo = ruta_placa.get("placa")
-                        try:
-                            page.close()
-                        except Exception:
-                            pass
                         carga_ok = False
                         break
 
