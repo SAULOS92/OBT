@@ -146,7 +146,6 @@ def ejecutar_flujo_en_pagina(
     step_timeout_ms = 60_000
 
     def _emit(mensaje: str) -> None:
-        print(mensaje, flush=True)
         if notificar_estado:
             notificar_estado(mensaje)
 
