@@ -162,7 +162,15 @@ def probar_login_portal():
         return jsonify(success=False, message="Usuario y contraseña son obligatorios."), 400
 
     try:
-        avances: List[str] = []
+        avances_debug: List[str] = []
+        avances_ui: List[str] = []
+
+        def _log_debug(msg: str) -> None:
+            avances_debug.append(msg)
+            print(msg, flush=True)
+
+        def _ui(msg: str) -> None:
+            avances_ui.append(msg)
         bd = _get_bd()
         try:
             info = log_pedidos_rutas(bd)
@@ -200,7 +208,7 @@ def probar_login_portal():
                 login_ok = login_portal_grupo_nutresa(
                     username=username,
                     password=password,
-                    notificar_estado=avances.append,
+                    notificar_estado=_log_debug,
                     page=page_login,
                 )
             finally:
@@ -211,13 +219,15 @@ def probar_login_portal():
 
             if login_ok:
                 archivo = "/tmp/pedido_masivo.xlsx"
-                avances.append("Login exitoso, iniciando carga de pedidos")
+                _log_debug("Login exitoso, iniciando carga de pedidos")
+                _ui("Login correcto. Iniciando carga de pedidos...")
 
                 for ruta_placa in rutas_con_placa:
                     try:
-                        avances.append(
+                        _log_debug(
                             f"Procesando ruta: {ruta_placa.get('ruta')} placa={ruta_placa.get('placa')}"
                         )
+                        _ui(f"Iniciando ruta {ruta_placa.get('ruta')}...")
 
                         pedidos_ruta = [
                             p
@@ -226,7 +236,7 @@ def probar_login_portal():
                         ]
 
                         if not pedidos_ruta:
-                            avances.append(
+                            _log_debug(
                                 f"Ruta {ruta_placa.get('ruta')}: sin pedidos, se omite"
                             )
                             continue
@@ -253,13 +263,14 @@ def probar_login_portal():
                     except Exception:
                         tb = traceback.format_exc()
                         print(f"ERROR al crear Excel de pedidos\n{tb}", flush=True)
-                        avances.append(
+                        _log_debug(
                             f"Ruta {ruta_placa.get('ruta')} placa={ruta_placa.get('placa')}: falló la carga"
                         )
                         error_en_proceso = True
                         ruta_fallo = ruta_placa.get("ruta")
                         placa_fallo = ruta_placa.get("placa")
                         carga_ok = False
+                        _ui(f"Error en ruta {ruta_fallo}. Proceso abortado.")
                         break
 
                     try:
@@ -269,21 +280,23 @@ def probar_login_portal():
                                 ruta_placa,
                                 archivo,
                                 campo_placa,
-                                notificar_estado=avances.append,
+                                notificar_estado=_log_debug,
                                 page=page_ruta,
                             )
                             if ruta_cargada:
-                                avances.append(
+                                _log_debug(
                                     f"Ruta {ruta_placa.get('ruta')}: carga OK"
                                 )
+                                _ui(f"Ruta {ruta_placa.get('ruta')}: subida OK")
                             else:
-                                avances.append(
+                                _log_debug(
                                     f"Ruta {ruta_placa.get('ruta')} placa={ruta_placa.get('placa')}: falló la carga"
                                 )
                                 error_en_proceso = True
                                 ruta_fallo = ruta_placa.get("ruta")
                                 placa_fallo = ruta_placa.get("placa")
                                 carga_ok = False
+                                _ui(f"Error en ruta {ruta_fallo}. Proceso abortado.")
                                 break
                         finally:
                             try:
@@ -293,17 +306,19 @@ def probar_login_portal():
                     except Exception:
                         tb = traceback.format_exc()
                         print(f"ERROR al cargar pedidos\n{tb}", flush=True)
-                        avances.append(
+                        _log_debug(
                             f"Ruta {ruta_placa.get('ruta')} placa={ruta_placa.get('placa')}: falló la carga ({tb.strip()})"
                         )
                         error_en_proceso = True
                         ruta_fallo = ruta_placa.get("ruta")
                         placa_fallo = ruta_placa.get("placa")
                         carga_ok = False
+                        _ui(f"Error en ruta {ruta_fallo}. Proceso abortado.")
                         break
 
             else:
                 carga_ok = False
+                _ui("Fallo el login. Revisa credenciales o selectores.")
 
         if error_en_proceso:
             return (
@@ -312,7 +327,7 @@ def probar_login_portal():
                     message=(
                         f"Falló la carga en la ruta {ruta_fallo}; proceso abortado"
                     ),
-                    avances=avances,
+                    avances=avances_ui,
                 ),
                 500,
             )
@@ -320,12 +335,13 @@ def probar_login_portal():
         ok = login_ok and carga_ok
         if ok:
             message = "Login y carga de pedidos completados"
+            _ui("Proceso completado.")
         elif login_ok and not carga_ok:
             message = "Login exitoso pero falló la carga de pedidos"
         else:
             message = "Fallo el login: revisa credenciales o selectores"
 
-        return jsonify(success=ok, message=message, avances=avances)
+        return jsonify(success=ok, message=message, avances=avances_ui)
     except Exception as e:
         tb = traceback.format_exc()
         print("ERROR PLAYWRIGHT LOGIN+CARGA\n", tb)
