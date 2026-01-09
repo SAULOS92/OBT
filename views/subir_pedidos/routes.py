@@ -283,6 +283,12 @@ def probar_login_portal():
                                 notificar_estado=_log_debug,
                                 page=page_ruta,
                             )
+                            try:
+                                cdp = context.new_cdp_session(page_ruta)
+                                cdp.send("Network.clearBrowserCache")
+                                cdp.detach()
+                            except Exception:
+                                pass
                             if ruta_cargada:
                                 _log_debug(
                                     f"Ruta {ruta_placa.get('ruta')}: carga OK"
@@ -300,6 +306,14 @@ def probar_login_portal():
                                 break
                         finally:
                             try:
+                                try:
+                                    page_ruta.goto(
+                                        "about:blank",
+                                        wait_until="domcontentloaded",
+                                        timeout=60_000,
+                                    )
+                                except Exception:
+                                    pass
                                 page_ruta.close()
                             except Exception:
                                 pass
