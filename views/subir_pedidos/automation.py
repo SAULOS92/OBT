@@ -340,7 +340,7 @@ def cargar_pedido_masivo_excel(
         {
             "nombre": "Ingresar Orden de Compra",
             "tipo": "campo",
-            "selector": "input#purchaseOrderNN12CANALT",
+            "selector": "input#purchaseOrderNN12CANALT, input#purchaseOrderNN13CANALT",
             "valor": purchase_order_value,
         },
         {
