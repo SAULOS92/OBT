@@ -142,10 +142,20 @@ def ejecutar_flujo_en_pagina(
 ) -> bool:
     """Ejecuta un flujo reutilizando una página ya abierta."""
 
+    step_timeout_ms = 60_000
+
     def _emit(mensaje: str) -> None:
         print(mensaje, flush=True)
         if notificar_estado:
             notificar_estado(mensaje)
+
+    def _obtener_selector(nombre_paso: str, selector: Optional[str]) -> str:
+        if not selector:
+            raise ValueError(f"El paso '{nombre_paso}' no tiene selector")
+        return selector
+
+    def _esperar_selector(selector: str) -> None:
+        page.wait_for_selector(selector, timeout=step_timeout_ms)
 
     _emit(f"{nombre_flujo} - Navegador listo")
 
@@ -163,9 +173,10 @@ def ejecutar_flujo_en_pagina(
         _emit(f"{nombre_flujo} - {nombre_paso}")
 
         if tipo == "navegar":
-            page.goto(str(valor), wait_until="domcontentloaded", timeout=60_000)
+            page.goto(str(valor), wait_until="domcontentloaded", timeout=step_timeout_ms)
         elif tipo == "campo":
-            page.wait_for_selector(selector, timeout=30_000)
+            selector = _obtener_selector(nombre_paso, selector)
+            _esperar_selector(selector)
             _set_react_value(page, selector, str(valor))
         elif tipo == "campo de seleccion":
             if script:
@@ -173,33 +184,16 @@ def ejecutar_flujo_en_pagina(
                 # (por ejemplo, abrir combos y elegir opciones dinámicas).
                 page.evaluate(script)
             else:
-                if not selector:
-                    raise ValueError(
-                        f"El paso '{nombre_paso}' no tiene selector ni script para seleccionar"
-                    )
-                page.wait_for_selector(selector, timeout=30_000)
+                selector = _obtener_selector(nombre_paso, selector)
+                _esperar_selector(selector)
                 page.select_option(selector, str(valor))
         elif tipo == "click":
-            selector_fallback = paso.get("selector_fallback")
-            timeout_ms = paso.get("timeout_ms", 30_000)
-            if not selector:
-                raise ValueError(f"El paso '{nombre_paso}' no tiene selector")
-
-            if selector_fallback:
-                try:
-                    page.wait_for_selector(selector, timeout=10_000)
-                    page.click(selector, timeout=timeout_ms)
-                except PWTimeout:
-                    page.wait_for_selector(selector_fallback, timeout=30_000)
-                    page.click(selector_fallback, timeout=30_000)
-            else:
-                page.wait_for_selector(selector, timeout=timeout_ms)
-                page.click(selector, timeout=timeout_ms)
+            selector = _obtener_selector(nombre_paso, selector)
+            _esperar_selector(selector)
+            page.click(selector, timeout=step_timeout_ms)
         elif tipo == "mousedown":
-            if not selector:
-                raise ValueError(f"El paso '{nombre_paso}' no tiene selector")
-
-            page.wait_for_selector(selector, timeout=30_000)
+            selector = _obtener_selector(nombre_paso, selector)
+            _esperar_selector(selector)
             page.dispatch_event(selector, "mousedown")
         elif tipo == "archivo":
             ruta_archivo = paso.get("archivo") or valor
@@ -207,7 +201,9 @@ def ejecutar_flujo_en_pagina(
                 raise ValueError(f"El paso '{nombre_paso}' no tiene ruta de archivo")
 
             input_selector = selector or "input[type='file']"
-            page.wait_for_selector(input_selector, state="attached", timeout=30_000)
+            page.wait_for_selector(
+                input_selector, state="attached", timeout=step_timeout_ms
+            )
 
             page.set_input_files(input_selector, ruta_archivo)
         else:
@@ -278,7 +274,6 @@ def cargar_pedido_masivo_excel(
             "selector": (
                 "ul[role='listbox'] li[role='option']:has-text('Plantilla estándar')"
             ),
-            "selector_fallback": "ul[role='listbox'] li[role='option']:nth-child(2)",
         },
         {
             "nombre": "Seleccionar archivo",
@@ -302,7 +297,6 @@ def cargar_pedido_masivo_excel(
             "nombre": "Continuar (dialog éxito)",
             "tipo": "click",
             "selector": "button[data-testid='SuccessDialogButton']",
-            "timeout_ms": 120_000,
         },
         {
             "nombre": "Ingresar Orden de Compra",
