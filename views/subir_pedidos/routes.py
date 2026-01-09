@@ -216,14 +216,12 @@ def probar_login_portal():
                     pass
 
             if login_ok:
+                archivo = "/tmp/pedido_masivo.xlsx"
                 _log_debug("Login exitoso, iniciando carga de pedidos")
                 _ui("Login correcto. Iniciando carga de pedidos...")
 
                 for ruta_placa in rutas_con_placa:
                     try:
-                        archivo = (
-                            f"/tmp/pedido_masivo_{ruta_placa.get('ruta')}.xlsx"
-                        )
                         _log_debug(
                             f"Procesando ruta: {ruta_placa.get('ruta')} placa={ruta_placa.get('placa')}"
                         )
@@ -260,10 +258,6 @@ def probar_login_portal():
                             )
 
                         wb.save(archivo)
-                        if hasattr(wb, "close"):
-                            wb.close()
-                        del ws
-                        del wb
                     except Exception:
                         tb = traceback.format_exc()
                         print(f"ERROR al crear Excel de pedidos\n{tb}", flush=True)
