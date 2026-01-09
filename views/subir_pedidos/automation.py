@@ -295,9 +295,9 @@ def cargar_pedido_masivo_excel(
             "selector": "button[data-testid='NextActionButton']",
         },
         {
-            "nombre": "Continuar (dialog éxito)",
-            "tipo": "click",
-            "selector": "button[data-testid='SuccessDialogButton']",
+            "nombre": "Ir al carrito",
+            "tipo": "navegar",
+            "valor": "https://portal.gruponutresa.com/carrito/resumen",
         },
         {
             "nombre": "Ingresar Orden de Compra",
