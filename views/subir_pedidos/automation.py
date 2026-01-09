@@ -191,6 +191,40 @@ def ejecutar_flujo_en_pagina(
         elif tipo == "click":
             selector = _obtener_selector(nombre_paso, selector)
             _esperar_selector(selector)
+            page.wait_for_function(
+                """(sel) => {
+                    const el = document.querySelector(sel);
+                    if (!el) {
+                        return false;
+                    }
+
+                    const ariaDisabled = el.getAttribute('aria-disabled');
+                    if (el.disabled === true || ariaDisabled === 'true') {
+                        return false;
+                    }
+
+                    const style = window.getComputedStyle(el);
+                    if (
+                        style.visibility === 'hidden' ||
+                        style.display === 'none' ||
+                        style.pointerEvents === 'none'
+                    ) {
+                        return false;
+                    }
+
+                    const rect = el.getBoundingClientRect();
+                    if (rect.width <= 0 || rect.height <= 0) {
+                        return false;
+                    }
+
+                    const centerX = rect.left + rect.width / 2;
+                    const centerY = rect.top + rect.height / 2;
+                    const target = document.elementFromPoint(centerX, centerY);
+                    return target === el || (target && el.contains(target));
+                }""",
+                selector,
+                timeout=step_timeout_ms,
+            )
             page.click(selector, timeout=step_timeout_ms)
         elif tipo == "mousedown":
             selector = _obtener_selector(nombre_paso, selector)
