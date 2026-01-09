@@ -78,6 +78,9 @@ def iniciar_navegador(*, headless: bool = True):
                 "--disable-dev-shm-usage",
                 "--disable-gpu",
                 "--no-zygote",
+                "--disable-extensions",
+                "--disable-sync",
+                "--no-first-run",
             ],
         )
         context = browser.new_context(
