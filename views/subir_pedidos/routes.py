@@ -162,11 +162,9 @@ def probar_login_portal():
         return jsonify(success=False, message="Usuario y contraseña son obligatorios."), 400
 
     try:
-        avances_debug: List[str] = []
         avances_ui: List[str] = []
 
         def _log_debug(msg: str) -> None:
-            avances_debug.append(msg)
             print(msg, flush=True)
 
         def _ui(msg: str) -> None:
