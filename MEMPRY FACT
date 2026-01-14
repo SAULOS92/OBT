@@ -90,6 +90,11 @@ CREATE TABLE users (
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   negocio VARCHAR(80)
 );
+-- CAMBIO DE CLAVE DE USUARIO (usa pgcrypto para regenerar el hash)
+-- Ejemplo: cambia la clave del usuario por email
+-- UPDATE users
+-- SET password_hash = crypt('nueva_clave', gen_salt('bf'))
+-- WHERE email = 'usuario@dominio.com';
 
 
 -----------------------PROCEDIMIENTOS----------------------- 
@@ -467,5 +472,4 @@ INSERT INTO users (
   '2026-08-30',
   'carnicos'
 );
-
 
