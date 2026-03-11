@@ -86,12 +86,15 @@
 
       <div>
         <label class="block text-sm text-gray-600 mb-1">Usuario</label>
-        <select name="email" required class="w-full border border-gray-300 rounded px-3 py-2 bg-white">
-          <option value="" disabled selected>Selecciona un usuario existente</option>
-          {% for user_email in user_emails %}
-            <option value="{{ user_email }}">{{ user_email }}</option>
-          {% endfor %}
-        </select>
+        <input
+          name="email"
+          type="text"
+          list="admin-user-emails"
+          required
+          placeholder="Selecciona o busca un usuario existente"
+          class="w-full border border-gray-300 rounded px-3 py-2"
+          data-user-picker
+        />
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -137,14 +140,60 @@
     <h2 class="text-lg font-semibold mb-4">Cambiar contraseña</h2>
     <form method="POST" class="space-y-4" autocomplete="off">
       <input type="hidden" name="action" value="change_password" />
-      <input name="email" type="email" placeholder="Email del usuario" required autocomplete="off" class="w-full border border-gray-300 rounded px-3 py-2" />
+      <input
+        name="email"
+        type="text"
+        list="admin-user-emails"
+        placeholder="Selecciona o busca un usuario"
+        required
+        autocomplete="off"
+        class="w-full border border-gray-300 rounded px-3 py-2"
+        data-user-picker
+      />
       <input name="new_password" type="password" placeholder="Nueva contraseña" required autocomplete="new-password" class="w-full border border-gray-300 rounded px-3 py-2" />
       <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">Actualizar contraseña</button>
     </form>
   </section>
 </div>
 
+<datalist id="admin-user-emails">
+  {% for user_email in user_emails %}
+    <option value="{{ user_email }}"></option>
+  {% endfor %}
+</datalist>
+
 <script>
+  const validUserEmails = new Set([
+    {% for user_email in user_emails %}
+      "{{ user_email|e }}",
+    {% endfor %}
+  ]);
+
+  function validateUserPickerInput(input) {
+    const normalizedValue = input.value.trim().toLowerCase();
+    if (!normalizedValue || validUserEmails.has(normalizedValue)) {
+      input.setCustomValidity('');
+      return true;
+    }
+
+    input.setCustomValidity('Debes seleccionar un usuario válido de la lista.');
+    return false;
+  }
+
+  const userPickerInputs = document.querySelectorAll('[data-user-picker]');
+  userPickerInputs.forEach((input) => {
+    input.addEventListener('input', () => {
+      validateUserPickerInput(input);
+    });
+
+    input.form?.addEventListener('submit', (event) => {
+      if (!validateUserPickerInput(input)) {
+        event.preventDefault();
+        input.reportValidity();
+      }
+    });
+  });
+
   function showTab(tab) {
     const createTab = document.getElementById('tab-create');
     const editTab = document.getElementById('tab-edit');
