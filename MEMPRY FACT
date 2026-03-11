@@ -83,12 +83,16 @@ CREATE TABLE users (
   email VARCHAR(255) NOT NULL UNIQUE,
   nombre VARCHAR(100),
   documento VARCHAR(20),
-  contacto VARCHAR(100),
+  email_cxc VARCHAR(100),
   password_hash TEXT NOT NULL,
   membership_start DATE NOT NULL DEFAULT CURRENT_DATE,
   membership_end   DATE,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-  negocio VARCHAR(80)
+  negocio VARCHAR(30),
+  email_gerente VARCHAR(60),
+  nombre_gerente VARCHAR(60),
+  telefono_gerente VARCHAR(30)
+
 );
 -- CAMBIO DE CLAVE DE USUARIO (usa pgcrypto para regenerar el hash)
 -- Ejemplo: cambia la clave del usuario por email
