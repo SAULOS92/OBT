@@ -1,5 +1,5 @@
 import os
-from flask import Flask, redirect, request, session, url_for
+from flask import Flask
 from views.upload import upload_bp
 from views.generar_pedidos import generar_pedidos_bp
 from views.consolidar_compras import consolidar_bp
@@ -20,17 +20,6 @@ app.register_blueprint(auditoria_bp)
 app.register_blueprint(subir_pedidos_bp)
 app.register_blueprint(admin_bp)
 
-
-@app.before_request
-def force_admin_panel_for_admin_user():
-    if not session.get("is_admin"):
-        return None
-
-    allowed_endpoints = {"admin.admin_dashboard", "auth.logout", "static"}
-    if request.endpoint in allowed_endpoints:
-        return None
-
-    return redirect(url_for("admin.admin_dashboard"))
 
 
 if __name__ == "__main__":
