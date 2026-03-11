@@ -24,6 +24,7 @@
   <div class="bg-white rounded-xl shadow p-4">
     <div class="flex gap-2 text-sm font-medium" role="tablist" aria-label="Gestión de usuarios">
       <button type="button" id="tab-btn-create" class="px-4 py-2 rounded bg-blue-600 text-white" onclick="showTab('create')">Crear usuario</button>
+      <button type="button" id="tab-btn-edit" class="px-4 py-2 rounded text-gray-700 bg-gray-100" onclick="showTab('edit')">Modificar usuario</button>
       <button type="button" id="tab-btn-password" class="px-4 py-2 rounded text-gray-700 bg-gray-100" onclick="showTab('password')">Cambiar contraseña</button>
     </div>
   </div>
@@ -43,10 +44,7 @@
         <input name="documento" type="text" placeholder="Documento" class="w-full border border-gray-300 rounded px-3 py-2" />
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <input name="contacto" type="text" placeholder="Contacto" class="w-full border border-gray-300 rounded px-3 py-2" />
-        <input name="email_cxc" type="email" placeholder="Email CxC" class="w-full border border-gray-300 rounded px-3 py-2" />
-      </div>
+      <input name="email_cxc" type="email" placeholder="Email CxC" class="w-full border border-gray-300 rounded px-3 py-2" />
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <input name="email_gerente" type="email" placeholder="Email gerente" class="w-full border border-gray-300 rounded px-3 py-2" />
@@ -54,7 +52,7 @@
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <input name="telefono_gerente" type="text" placeholder="Teléfono gerente" class="w-full border border-gray-300 rounded px-3 py-2" />
+        <input name="telefono_gerente" type="text" placeholder="Teléfono gerente" class="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
         <div>
           <label class="block text-sm text-gray-600 mb-1">Negocio</label>
           <select name="negocio" required class="w-full border border-gray-300 rounded px-3 py-2 bg-white">
@@ -80,6 +78,53 @@
     </form>
   </section>
 
+  <section id="tab-edit" class="bg-white rounded-xl shadow p-6 hidden">
+    <h2 class="text-lg font-semibold mb-4">Modificar usuario</h2>
+    <p class="text-sm text-gray-600 mb-4">Puedes actualizar cualquier campo del usuario excepto el email y la contraseña.</p>
+    <form method="POST" class="space-y-4" autocomplete="off">
+      <input type="hidden" name="action" value="update_user" />
+
+      <input name="email" type="email" placeholder="Email del usuario a modificar" required autocomplete="off" class="w-full border border-gray-300 rounded px-3 py-2" />
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <input name="nombre" type="text" placeholder="Nombre completo" class="w-full border border-gray-300 rounded px-3 py-2" />
+        <input name="documento" type="text" placeholder="Documento" class="w-full border border-gray-300 rounded px-3 py-2" />
+      </div>
+
+      <input name="email_cxc" type="email" placeholder="Email CxC" class="w-full border border-gray-300 rounded px-3 py-2" />
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <input name="email_gerente" type="email" placeholder="Email gerente" class="w-full border border-gray-300 rounded px-3 py-2" />
+        <input name="nombre_gerente" type="text" placeholder="Nombre gerente" class="w-full border border-gray-300 rounded px-3 py-2" />
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <input name="telefono_gerente" type="text" placeholder="Teléfono gerente" class="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+        <div>
+          <label class="block text-sm text-gray-600 mb-1">Negocio</label>
+          <select name="negocio" class="w-full border border-gray-300 rounded px-3 py-2 bg-white">
+            <option value="">Sin cambio</option>
+            <option value="carnicos">carnicos</option>
+            <option value="nutresa">nutresa</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm text-gray-600 mb-1">Inicio de membresía</label>
+          <input name="membership_start" type="date" class="w-full border border-gray-300 rounded px-3 py-2" />
+        </div>
+        <div>
+          <label class="block text-sm text-gray-600 mb-1">Fin de membresía</label>
+          <input name="membership_end" type="date" class="w-full border border-gray-300 rounded px-3 py-2" />
+        </div>
+      </div>
+
+      <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Guardar cambios</button>
+    </form>
+  </section>
+
   <section id="tab-password" class="bg-white rounded-xl shadow p-6 hidden">
     <h2 class="text-lg font-semibold mb-4">Cambiar contraseña</h2>
     <form method="POST" class="space-y-4" autocomplete="off">
@@ -94,20 +139,29 @@
 <script>
   function showTab(tab) {
     const createTab = document.getElementById('tab-create');
+    const editTab = document.getElementById('tab-edit');
     const passwordTab = document.getElementById('tab-password');
     const createBtn = document.getElementById('tab-btn-create');
+    const editBtn = document.getElementById('tab-btn-edit');
     const passwordBtn = document.getElementById('tab-btn-password');
 
     const isCreate = tab === 'create';
+    const isEdit = tab === 'edit';
+    const isPassword = tab === 'password';
+
     createTab.classList.toggle('hidden', !isCreate);
-    passwordTab.classList.toggle('hidden', isCreate);
+    editTab.classList.toggle('hidden', !isEdit);
+    passwordTab.classList.toggle('hidden', !isPassword);
 
     createBtn.className = isCreate
       ? 'px-4 py-2 rounded bg-blue-600 text-white'
       : 'px-4 py-2 rounded text-gray-700 bg-gray-100';
-    passwordBtn.className = isCreate
-      ? 'px-4 py-2 rounded text-gray-700 bg-gray-100'
-      : 'px-4 py-2 rounded bg-blue-600 text-white';
+    editBtn.className = isEdit
+      ? 'px-4 py-2 rounded bg-blue-600 text-white'
+      : 'px-4 py-2 rounded text-gray-700 bg-gray-100';
+    passwordBtn.className = isPassword
+      ? 'px-4 py-2 rounded bg-blue-600 text-white'
+      : 'px-4 py-2 rounded text-gray-700 bg-gray-100';
   }
 </script>
 {% endblock %}
