@@ -4,6 +4,8 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 
 from db import conectar
 
+ADMIN_EMAIL = "saulosorioh@gmail.com"
+
 auth_bp = Blueprint('auth', __name__)
 
 def login_required(f):
@@ -46,9 +48,13 @@ def login():
             empresa = email.split('@')[1].split('.')[0]
             session.clear()
             session['user_id'] = fila[0]
+            session['email'] = fila[1]
             session['empresa'] = empresa
             session['negocio'] = fila[2]
             session['membership_end'] = membership_end.isoformat() if membership_end else None
+            session['is_admin'] = fila[1].lower() == ADMIN_EMAIL
+            if session['is_admin']:
+                return redirect(url_for('admin.admin_dashboard'))
             return redirect(url_for('upload.upload_index'))
         else:
             flash('Email o contraseña inválidos.', 'error')

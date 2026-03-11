@@ -13,7 +13,22 @@
     <div class="max-w-7xl mx-auto px-4">
       <ul class="flex items-center space-x-6">
 
-        {% if session.user_id %}
+        {% if session.user_id and session.get('is_admin') %}
+          <li>
+            <a href="{{ url_for('admin.admin_dashboard') }}"
+               class="py-4 px-2 border-b-2 {{ 'border-blue-600 text-blue-600 font-semibold' if request.endpoint=='admin.admin_dashboard' else 'border-transparent text-gray-700 hover:text-blue-600 hover:border-blue-600' }}">
+              Panel Admin
+            </a>
+          </li>
+
+          <li class="ml-auto">
+            <a href="{{ url_for('auth.logout') }}"
+               class="flex items-center py-4 px-2 text-red-600 hover:text-red-800">
+              Cerrar sesión
+            </a>
+          </li>
+
+        {% elif session.user_id %}
           <!-- Secciones protegidas -->
           <li class="flex items-center space-x-2">
   <span class="w-6 h-6 flex items-center justify-center rounded-full 
@@ -45,6 +60,7 @@
     Consolidar Compras
   </a>
 </li>
+
 
 <li>
   <a href="{{ url_for('auditoria.auditoria_view') }}"
