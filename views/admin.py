@@ -226,4 +226,13 @@ def admin_dashboard():
 
             return redirect(url_for("admin.admin_dashboard"))
 
-    return render_template("admin.html", admin_email=ADMIN_EMAIL)
+    user_emails = []
+    try:
+        with conectar() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT email FROM users ORDER BY email")
+                user_emails = [row[0] for row in cur.fetchall() if row and row[0]]
+    except Exception as exc:
+        flash(f"No fue posible cargar la lista de usuarios: {exc}", "error")
+
+    return render_template("admin.html", admin_email=ADMIN_EMAIL, user_emails=user_emails)
