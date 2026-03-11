@@ -52,7 +52,7 @@
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <input name="telefono_gerente" type="text" placeholder="Teléfono gerente" class="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+        <input name="telefono_gerente" type="text" placeholder="Teléfono gerente" class="w-full border border-gray-300 rounded px-3 py-2" />
         <div>
           <label class="block text-sm text-gray-600 mb-1">Negocio</label>
           <select name="negocio" required class="w-full border border-gray-300 rounded px-3 py-2 bg-white">
@@ -84,7 +84,15 @@
     <form method="POST" class="space-y-4" autocomplete="off">
       <input type="hidden" name="action" value="update_user" />
 
-      <input name="email" type="email" placeholder="Email del usuario a modificar" required autocomplete="off" class="w-full border border-gray-300 rounded px-3 py-2" />
+      <div>
+        <label class="block text-sm text-gray-600 mb-1">Usuario</label>
+        <input name="email" type="email" list="user-email-options" placeholder="Buscar o seleccionar usuario" required autocomplete="off" class="w-full border border-gray-300 rounded px-3 py-2" />
+        <datalist id="user-email-options">
+          {% for user_email in user_emails %}
+            <option value="{{ user_email }}"></option>
+          {% endfor %}
+        </datalist>
+      </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <input name="nombre" type="text" placeholder="Nombre completo" class="w-full border border-gray-300 rounded px-3 py-2" />
@@ -99,7 +107,7 @@
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <input name="telefono_gerente" type="text" placeholder="Teléfono gerente" class="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+        <input name="telefono_gerente" type="text" placeholder="Teléfono gerente" class="w-full border border-gray-300 rounded px-3 py-2" />
         <div>
           <label class="block text-sm text-gray-600 mb-1">Negocio</label>
           <select name="negocio" class="w-full border border-gray-300 rounded px-3 py-2 bg-white">
