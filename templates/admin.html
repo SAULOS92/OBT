@@ -52,7 +52,7 @@
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <input name="telefono_gerente" type="text" placeholder="Teléfono gerente" class="w-full border border-gray-300 rounded px-3 py-2" />
+        <input name="telefono_gerente" type="tel" inputmode="tel" maxlength="20" placeholder="Teléfono gerente" class="w-full md:max-w-sm border border-gray-300 rounded px-3 py-2" />
         <div>
           <label class="block text-sm text-gray-600 mb-1">Negocio</label>
           <select name="negocio" required class="w-full border border-gray-300 rounded px-3 py-2 bg-white">
@@ -86,12 +86,12 @@
 
       <div>
         <label class="block text-sm text-gray-600 mb-1">Usuario</label>
-        <input name="email" type="email" list="user-email-options" placeholder="Buscar o seleccionar usuario" required autocomplete="off" class="w-full border border-gray-300 rounded px-3 py-2" />
-        <datalist id="user-email-options">
+        <select name="email" required class="w-full border border-gray-300 rounded px-3 py-2 bg-white">
+          <option value="" disabled selected>Selecciona un usuario existente</option>
           {% for user_email in user_emails %}
-            <option value="{{ user_email }}"></option>
+            <option value="{{ user_email }}">{{ user_email }}</option>
           {% endfor %}
-        </datalist>
+        </select>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -107,7 +107,7 @@
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <input name="telefono_gerente" type="text" placeholder="Teléfono gerente" class="w-full border border-gray-300 rounded px-3 py-2" />
+        <input name="telefono_gerente" type="tel" inputmode="tel" maxlength="20" placeholder="Teléfono gerente" class="w-full md:max-w-sm border border-gray-300 rounded px-3 py-2" />
         <div>
           <label class="block text-sm text-gray-600 mb-1">Negocio</label>
           <select name="negocio" class="w-full border border-gray-300 rounded px-3 py-2 bg-white">
