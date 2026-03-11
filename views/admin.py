@@ -35,7 +35,6 @@ def admin_dashboard():
             password = request.form.get("password", "")
             nombre = request.form.get("nombre", "").strip()
             documento = request.form.get("documento", "").strip()
-            contacto = request.form.get("contacto", "").strip()
             email_cxc = request.form.get("email_cxc", "").strip().lower()
             email_gerente = request.form.get("email_gerente", "").strip().lower()
             nombre_gerente = request.form.get("nombre_gerente", "").strip()
@@ -83,7 +82,6 @@ def admin_dashboard():
                                 email,
                                 nombre,
                                 documento,
-                                contacto,
                                 email_cxc,
                                 password_hash,
                                 membership_start,
@@ -93,13 +91,12 @@ def admin_dashboard():
                                 nombre_gerente,
                                 telefono_gerente
                             )
-                            VALUES (%s, %s, %s, %s, %s, crypt(%s, gen_salt('bf')), %s, %s, %s, %s, %s, %s)
+                            VALUES (%s, %s, %s, %s, crypt(%s, gen_salt('bf')), %s, %s, %s, %s, %s, %s)
                             """,
                             (
                                 email,
                                 nombre or None,
                                 documento or None,
-                                contacto or None,
                                 email_cxc or None,
                                 password,
                                 membership_start_date,
@@ -114,6 +111,89 @@ def admin_dashboard():
                 flash("Usuario creado correctamente.", "success")
             except Exception as exc:
                 flash(f"No fue posible crear el usuario: {exc}", "error")
+
+            return redirect(url_for("admin.admin_dashboard"))
+
+        if action == "update_user":
+            email = request.form.get("email", "").strip().lower()
+            nombre = request.form.get("nombre", "").strip()
+            documento = request.form.get("documento", "").strip()
+            email_cxc = request.form.get("email_cxc", "").strip().lower()
+            email_gerente = request.form.get("email_gerente", "").strip().lower()
+            nombre_gerente = request.form.get("nombre_gerente", "").strip()
+            telefono_gerente = request.form.get("telefono_gerente", "").strip()
+            negocio = request.form.get("negocio", "").strip().lower()
+            membership_start = request.form.get("membership_start", "").strip()
+            membership_end = request.form.get("membership_end", "").strip()
+
+            if not email:
+                flash("Debes indicar el email del usuario a modificar.", "error")
+                return redirect(url_for("admin.admin_dashboard"))
+
+            if negocio and negocio not in ALLOWED_NEGOCIOS:
+                flash("El negocio debe ser 'carnicos' o 'nutresa'.", "error")
+                return redirect(url_for("admin.admin_dashboard"))
+
+            updates = []
+            params = []
+
+            if nombre:
+                updates.append("nombre = %s")
+                params.append(nombre)
+            if documento:
+                updates.append("documento = %s")
+                params.append(documento)
+            if email_cxc:
+                updates.append("email_cxc = %s")
+                params.append(email_cxc)
+            if email_gerente:
+                updates.append("email_gerente = %s")
+                params.append(email_gerente)
+            if nombre_gerente:
+                updates.append("nombre_gerente = %s")
+                params.append(nombre_gerente)
+            if telefono_gerente:
+                updates.append("telefono_gerente = %s")
+                params.append(telefono_gerente)
+            if negocio:
+                updates.append("negocio = %s")
+                params.append(negocio)
+
+            if membership_start:
+                try:
+                    membership_start_date = datetime.strptime(membership_start, "%Y-%m-%d").date()
+                    updates.append("membership_start = %s")
+                    params.append(membership_start_date)
+                except ValueError:
+                    flash("La fecha inicial no tiene formato válido (YYYY-MM-DD).", "error")
+                    return redirect(url_for("admin.admin_dashboard"))
+
+            if membership_end:
+                try:
+                    membership_end_date = datetime.strptime(membership_end, "%Y-%m-%d").date()
+                    updates.append("membership_end = %s")
+                    params.append(membership_end_date)
+                except ValueError:
+                    flash("La fecha final no tiene formato válido (YYYY-MM-DD).", "error")
+                    return redirect(url_for("admin.admin_dashboard"))
+
+            if not updates:
+                flash("No enviaste campos para actualizar.", "error")
+                return redirect(url_for("admin.admin_dashboard"))
+
+            try:
+                with conectar() as conn:
+                    with conn.cursor() as cur:
+                        query = f"UPDATE users SET {', '.join(updates)} WHERE email = %s"
+                        params.append(email)
+                        cur.execute(query, params)
+                        if cur.rowcount == 0:
+                            flash("No existe un usuario con ese email.", "error")
+                            return redirect(url_for("admin.admin_dashboard"))
+                        conn.commit()
+                flash("Usuario actualizado correctamente.", "success")
+            except Exception as exc:
+                flash(f"No fue posible actualizar el usuario: {exc}", "error")
 
             return redirect(url_for("admin.admin_dashboard"))
 
