@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}Panel de administración{% endblock %}
+{% block title %}Gestión de usuarios{% endblock %}
 
 {% block content %}
 <div class="max-w-6xl mx-auto py-8 px-4 space-y-6">
   <div class="bg-white rounded-xl shadow p-6">
-    <h1 class="text-2xl font-bold text-gray-800">Panel de administración</h1>
+    <h1 class="text-2xl font-bold text-gray-800">Menú Usuario</h1>
     <p class="text-sm text-gray-600 mt-1">Acceso exclusivo para {{ admin_email }}.</p>
   </div>
 
@@ -22,23 +22,50 @@
   {% endwith %}
 
   <div class="bg-white rounded-xl shadow p-4">
-    <ul class="flex gap-4 text-sm font-medium">
-      <li><a href="#crear-usuario" class="text-blue-600 hover:underline">Crear usuario</a></li>
-      <li><a href="#cambiar-password" class="text-blue-600 hover:underline">Cambiar contraseña</a></li>
-    </ul>
+    <div class="flex gap-2 text-sm font-medium" role="tablist" aria-label="Gestión de usuarios">
+      <button type="button" id="tab-btn-create" class="px-4 py-2 rounded bg-blue-600 text-white" onclick="showTab('create')">Crear usuario</button>
+      <button type="button" id="tab-btn-password" class="px-4 py-2 rounded text-gray-700 bg-gray-100" onclick="showTab('password')">Cambiar contraseña</button>
+    </div>
   </div>
 
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-    <section id="crear-usuario" class="bg-white rounded-xl shadow p-6">
-      <h2 class="text-lg font-semibold mb-4">Crear usuario</h2>
-      <form method="POST" class="space-y-4">
-        <input type="hidden" name="action" value="create_user" />
-        <input name="email" type="email" placeholder="Email" required class="w-full border border-gray-300 rounded px-3 py-2" />
-        <input name="password" type="password" placeholder="Contraseña temporal" required class="w-full border border-gray-300 rounded px-3 py-2" />
+  <section id="tab-create" class="bg-white rounded-xl shadow p-6">
+    <h2 class="text-lg font-semibold mb-4">Crear usuario</h2>
+    <form method="POST" class="space-y-4" autocomplete="off">
+      <input type="hidden" name="action" value="create_user" />
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <input name="email" type="email" placeholder="Email" required autocomplete="off" class="w-full border border-gray-300 rounded px-3 py-2" />
+        <input name="password" type="password" placeholder="Contraseña temporal" required autocomplete="new-password" class="w-full border border-gray-300 rounded px-3 py-2" />
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <input name="nombre" type="text" placeholder="Nombre completo" class="w-full border border-gray-300 rounded px-3 py-2" />
         <input name="documento" type="text" placeholder="Documento" class="w-full border border-gray-300 rounded px-3 py-2" />
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <input name="contacto" type="text" placeholder="Contacto" class="w-full border border-gray-300 rounded px-3 py-2" />
-        <input name="negocio" type="text" placeholder="Negocio (ej. nutresa)" required class="w-full border border-gray-300 rounded px-3 py-2" />
+        <input name="email_cxc" type="email" placeholder="Email CxC" class="w-full border border-gray-300 rounded px-3 py-2" />
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <input name="email_gerente" type="email" placeholder="Email gerente" class="w-full border border-gray-300 rounded px-3 py-2" />
+        <input name="nombre_gerente" type="text" placeholder="Nombre gerente" class="w-full border border-gray-300 rounded px-3 py-2" />
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <input name="telefono_gerente" type="text" placeholder="Teléfono gerente" class="w-full border border-gray-300 rounded px-3 py-2" />
+        <div>
+          <label class="block text-sm text-gray-600 mb-1">Negocio</label>
+          <select name="negocio" required class="w-full border border-gray-300 rounded px-3 py-2 bg-white">
+            <option value="" disabled selected>Selecciona un negocio</option>
+            <option value="carnicos">carnicos</option>
+            <option value="nutresa">nutresa</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label class="block text-sm text-gray-600 mb-1">Inicio de membresía</label>
           <input name="membership_start" type="date" class="w-full border border-gray-300 rounded px-3 py-2" />
@@ -47,19 +74,40 @@
           <label class="block text-sm text-gray-600 mb-1">Fin de membresía (opcional)</label>
           <input name="membership_end" type="date" class="w-full border border-gray-300 rounded px-3 py-2" />
         </div>
-        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Crear usuario</button>
-      </form>
-    </section>
+      </div>
 
-    <section id="cambiar-password" class="bg-white rounded-xl shadow p-6">
-      <h2 class="text-lg font-semibold mb-4">Cambiar contraseña</h2>
-      <form method="POST" class="space-y-4">
-        <input type="hidden" name="action" value="change_password" />
-        <input name="email" type="email" placeholder="Email del usuario" required class="w-full border border-gray-300 rounded px-3 py-2" />
-        <input name="new_password" type="password" placeholder="Nueva contraseña" required class="w-full border border-gray-300 rounded px-3 py-2" />
-        <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">Actualizar contraseña</button>
-      </form>
-    </section>
-  </div>
+      <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Crear usuario</button>
+    </form>
+  </section>
+
+  <section id="tab-password" class="bg-white rounded-xl shadow p-6 hidden">
+    <h2 class="text-lg font-semibold mb-4">Cambiar contraseña</h2>
+    <form method="POST" class="space-y-4" autocomplete="off">
+      <input type="hidden" name="action" value="change_password" />
+      <input name="email" type="email" placeholder="Email del usuario" required autocomplete="off" class="w-full border border-gray-300 rounded px-3 py-2" />
+      <input name="new_password" type="password" placeholder="Nueva contraseña" required autocomplete="new-password" class="w-full border border-gray-300 rounded px-3 py-2" />
+      <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">Actualizar contraseña</button>
+    </form>
+  </section>
 </div>
+
+<script>
+  function showTab(tab) {
+    const createTab = document.getElementById('tab-create');
+    const passwordTab = document.getElementById('tab-password');
+    const createBtn = document.getElementById('tab-btn-create');
+    const passwordBtn = document.getElementById('tab-btn-password');
+
+    const isCreate = tab === 'create';
+    createTab.classList.toggle('hidden', !isCreate);
+    passwordTab.classList.toggle('hidden', isCreate);
+
+    createBtn.className = isCreate
+      ? 'px-4 py-2 rounded bg-blue-600 text-white'
+      : 'px-4 py-2 rounded text-gray-700 bg-gray-100';
+    passwordBtn.className = isCreate
+      ? 'px-4 py-2 rounded text-gray-700 bg-gray-100'
+      : 'px-4 py-2 rounded bg-blue-600 text-white';
+  }
+</script>
 {% endblock %}

@@ -7,6 +7,7 @@ from db import conectar
 from views.auth import login_required
 
 ADMIN_EMAIL = "saulosorioh@gmail.com"
+ALLOWED_NEGOCIOS = {"carnicos", "nutresa"}
 
 admin_bp = Blueprint("admin", __name__, template_folder="../templates")
 
@@ -35,12 +36,20 @@ def admin_dashboard():
             nombre = request.form.get("nombre", "").strip()
             documento = request.form.get("documento", "").strip()
             contacto = request.form.get("contacto", "").strip()
+            email_cxc = request.form.get("email_cxc", "").strip().lower()
+            email_gerente = request.form.get("email_gerente", "").strip().lower()
+            nombre_gerente = request.form.get("nombre_gerente", "").strip()
+            telefono_gerente = request.form.get("telefono_gerente", "").strip()
             negocio = request.form.get("negocio", "").strip().lower()
             membership_start = request.form.get("membership_start", "").strip()
             membership_end = request.form.get("membership_end", "").strip()
 
             if not email or not password or not negocio:
                 flash("Email, contraseña y negocio son obligatorios para crear usuarios.", "error")
+                return redirect(url_for("admin.admin_dashboard"))
+
+            if negocio not in ALLOWED_NEGOCIOS:
+                flash("El negocio debe ser 'carnicos' o 'nutresa'.", "error")
                 return redirect(url_for("admin.admin_dashboard"))
 
             try:
@@ -75,22 +84,30 @@ def admin_dashboard():
                                 nombre,
                                 documento,
                                 contacto,
+                                email_cxc,
                                 password_hash,
                                 membership_start,
                                 membership_end,
-                                negocio
+                                negocio,
+                                email_gerente,
+                                nombre_gerente,
+                                telefono_gerente
                             )
-                            VALUES (%s, %s, %s, %s, crypt(%s, gen_salt('bf')), %s, %s, %s)
+                            VALUES (%s, %s, %s, %s, %s, crypt(%s, gen_salt('bf')), %s, %s, %s, %s, %s, %s)
                             """,
                             (
                                 email,
                                 nombre or None,
                                 documento or None,
                                 contacto or None,
+                                email_cxc or None,
                                 password,
                                 membership_start_date,
                                 membership_end_date,
                                 negocio,
+                                email_gerente or None,
+                                nombre_gerente or None,
+                                telefono_gerente or None,
                             ),
                         )
                         conn.commit()
