@@ -457,11 +457,14 @@ INSERT INTO users (
   email,
   nombre,
   documento,
-  contacto,
+  email_cxc,
   password_hash,
   membership_start,
   membership_end,
-  negocio
+  negocio,
+  email_gerente,
+  nombre_gerente,
+  telefono_gerente
 ) VALUES (
   'facturacion@tiendasymarcas.com',
   'TIENDAS Y MARCAS',
@@ -470,6 +473,9 @@ INSERT INTO users (
   crypt('esteban123', gen_salt('bf')),
   '2025-08-01',
   '2026-08-30',
-  'carnicos'
+  'carnicos',
+  'gerencia@tiendasymarcas.com',
+  'Nombre del gerente',
+  '3001234567'
 );
 
