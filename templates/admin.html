@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Panel de administración{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto py-8 px-4 space-y-6">
+  <div class="bg-white rounded-xl shadow p-6">
+    <h1 class="text-2xl font-bold text-gray-800">Panel de administración</h1>
+    <p class="text-sm text-gray-600 mt-1">Acceso exclusivo para {{ admin_email }}.</p>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="space-y-3">
+        {% for category, message in messages %}
+          <div class="border-l-4 p-4 rounded {{ 'border-red-500 bg-red-50 text-red-700' if category=='error' else 'border-green-500 bg-green-50 text-green-700' }}">
+            {{ message }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <div class="bg-white rounded-xl shadow p-4">
+    <ul class="flex gap-4 text-sm font-medium">
+      <li><a href="#crear-usuario" class="text-blue-600 hover:underline">Crear usuario</a></li>
+      <li><a href="#cambiar-password" class="text-blue-600 hover:underline">Cambiar contraseña</a></li>
+    </ul>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <section id="crear-usuario" class="bg-white rounded-xl shadow p-6">
+      <h2 class="text-lg font-semibold mb-4">Crear usuario</h2>
+      <form method="POST" class="space-y-4">
+        <input type="hidden" name="action" value="create_user" />
+        <input name="email" type="email" placeholder="Email" required class="w-full border border-gray-300 rounded px-3 py-2" />
+        <input name="password" type="password" placeholder="Contraseña temporal" required class="w-full border border-gray-300 rounded px-3 py-2" />
+        <input name="nombre" type="text" placeholder="Nombre completo" class="w-full border border-gray-300 rounded px-3 py-2" />
+        <input name="documento" type="text" placeholder="Documento" class="w-full border border-gray-300 rounded px-3 py-2" />
+        <input name="contacto" type="text" placeholder="Contacto" class="w-full border border-gray-300 rounded px-3 py-2" />
+        <input name="negocio" type="text" placeholder="Negocio (ej. nutresa)" required class="w-full border border-gray-300 rounded px-3 py-2" />
+        <div>
+          <label class="block text-sm text-gray-600 mb-1">Inicio de membresía</label>
+          <input name="membership_start" type="date" class="w-full border border-gray-300 rounded px-3 py-2" />
+        </div>
+        <div>
+          <label class="block text-sm text-gray-600 mb-1">Fin de membresía (opcional)</label>
+          <input name="membership_end" type="date" class="w-full border border-gray-300 rounded px-3 py-2" />
+        </div>
+        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Crear usuario</button>
+      </form>
+    </section>
+
+    <section id="cambiar-password" class="bg-white rounded-xl shadow p-6">
+      <h2 class="text-lg font-semibold mb-4">Cambiar contraseña</h2>
+      <form method="POST" class="space-y-4">
+        <input type="hidden" name="action" value="change_password" />
+        <input name="email" type="email" placeholder="Email del usuario" required class="w-full border border-gray-300 rounded px-3 py-2" />
+        <input name="new_password" type="password" placeholder="Nueva contraseña" required class="w-full border border-gray-300 rounded px-3 py-2" />
+        <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">Actualizar contraseña</button>
+      </form>
+    </section>
+  </div>
+</div>
+{% endblock %}
