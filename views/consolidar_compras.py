@@ -73,6 +73,25 @@ ECOM_COLUMN_SPEC = {
 }
 ECOM_COLUMNS = list(ECOM_COLUMN_SPEC.keys())
 
+# Columnas del archivo adicional solicitado para compras. Se conservan los
+# nombres y el orden requeridos, independientemente del formato ECOM existente.
+COMPRAS_COLUMNS = {
+    "Pedido": "Pedido",
+    "Orden_de_compra": "Orden de compra",
+    "Cantidad del pedido": "Cantidad del pedido",
+    "Unidad de medida": "Unidad de medida",
+    "Codigo Sap Cliente": "Codigo Sap Cliente",
+    "Factura Sap": "Factura Sap",
+    "Fecha Factura": "Fecha Factura",
+    "Material": "Material",
+    "Descripcion del Material": "Descripcion del Material",
+    "Cantidad Entrega": "Cantidad Entrega",
+    "Iva_valor": "Iva_valor",
+    "Impuesto Ultraprocesado": "Impuesto Ultraprocesado",
+    "Valor_unitario": "Valor_unitario",
+    "Tipo Pos": "Tipo Pos",
+}
+
 
 @consolidar_bp.route("/consolidar-compras", methods=["GET", "POST"])
 @login_required
@@ -136,6 +155,14 @@ def consolidar_compras_index():
             df_out["Orden_de_compra"] = orden_compra
             filename = f"consolidado_ecom_{hoy}.xlsx"
 
+            # Archivo adicional con los valores consolidados y el formato de
+            # columnas solicitado. El Excel ECOM anterior no se modifica.
+            compras_df = agg[list(COMPRAS_COLUMNS.values())].rename(
+                columns={source: output for output, source in COMPRAS_COLUMNS.items()}
+            )
+            compras_df = compras_df[list(COMPRAS_COLUMNS)]
+            compras_filename = f"consolidado_compras_{hoy}.xlsx"
+
             # --- Guardar Excel en buffer ---
             # --- CSV consolidado estilo "cargue sugerido" ---
             if agg.empty:
@@ -158,6 +185,11 @@ def consolidar_compras_index():
                 df_out.to_excel(writer, index=False)
             excel_bytes = excel_buffer.getvalue()
 
+            compras_buffer = BytesIO()
+            with pd.ExcelWriter(compras_buffer, engine="openpyxl") as writer:
+                compras_df.to_excel(writer, index=False)
+            compras_bytes = compras_buffer.getvalue()
+
             csv_buffer = StringIO()
             csv_df.to_csv(csv_buffer, index=False)
             csv_bytes = csv_buffer.getvalue().encode("utf-8")
@@ -169,6 +201,11 @@ def consolidar_compras_index():
                     "excel": {
                         "filename": filename,
                         "content": base64.b64encode(excel_bytes).decode("ascii"),
+                        "mimetype": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    },
+                    "compras_excel": {
+                        "filename": compras_filename,
+                        "content": base64.b64encode(compras_bytes).decode("ascii"),
                         "mimetype": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     },
                     "csv": {
@@ -192,7 +229,6 @@ def consolidar_compras_index():
     return render_template(
         "consolidar_compras.html"
     )
-
 
 
 

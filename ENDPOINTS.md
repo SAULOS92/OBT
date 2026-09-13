@@ -35,8 +35,9 @@ Este documento describe los endpoints expuestos por la aplicación Flask, junto 
 - **`POST /consolidar-compras`** (`consolidar_compras_index`):
   1. Lee un Excel cargado por el usuario.
   2. Valida y agrupa columnas según `COLUMN_CONFIG`.
-  3. Genera un Excel consolidado para `ecom` y un CSV adicional.
-  4. Guarda los archivos en un directorio temporal para su descarga posterior.
+  3. Genera el Excel consolidado para `ecom`, un Excel adicional con el formato
+     de compras y el CSV de cargue sugerido.
+  4. Entrega los tres archivos al navegador para su descarga.
 - **`GET /consolidar-compras/download/<filename>`** (`descargar_archivo_file`): envía el archivo previamente generado.
 
 ## `views/auth.py`
@@ -77,4 +78,3 @@ Este documento describe los endpoints expuestos por la aplicación Flask, junto 
 ## `db.py`
 
 - **`conectar()`**: abre una conexión PostgreSQL usando la variable `DATABASE_URL` y `sslmode=require`.
-
