@@ -129,6 +129,9 @@
           if (payload?.excel) {
             triggerDownload(payload.excel);
           }
+          if (payload?.compras_excel) {
+            triggerDownload(payload.compras_excel);
+          }
           if (payload?.csv) {
             triggerDownload(payload.csv);
           }
@@ -159,7 +162,6 @@
   });
 </script>
 {% endblock %}
-
 
 
 
