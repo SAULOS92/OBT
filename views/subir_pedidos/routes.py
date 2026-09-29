@@ -2,6 +2,8 @@
 
 import json
 import traceback
+from os.path import join
+from tempfile import TemporaryDirectory
 from typing import Any, Dict, List
 
 from flask import jsonify, render_template, request, session
@@ -200,7 +202,10 @@ def probar_login_portal():
         ruta_fallo = None
         placa_fallo = None
 
-        with iniciar_navegador() as context:
+        with (
+            TemporaryDirectory(prefix="obt-pedidos-") as temp_dir,
+            iniciar_navegador() as context,
+        ):
             page_login = context.new_page()
             try:
                 login_ok = login_portal_grupo_nutresa(
@@ -221,8 +226,8 @@ def probar_login_portal():
 
                 for ruta_placa in rutas_con_placa:
                     try:
-                        archivo = (
-                            f"/tmp/pedido_masivo_{ruta_placa.get('ruta')}.xlsx"
+                        archivo = join(
+                            temp_dir, f"pedido_masivo_{ruta_placa.get('ruta')}.xlsx"
                         )
                         _log_debug(
                             f"Procesando ruta: {ruta_placa.get('ruta')} placa={ruta_placa.get('placa')}"

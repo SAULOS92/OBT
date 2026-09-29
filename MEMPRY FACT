@@ -192,7 +192,9 @@ BEGIN
   UPDATE pedxclixprod p
   SET ruta = r.codigo_ruta
   FROM rutas r
-  WHERE p.codigo_cli   = r.codigo_cliente
+  WHERE p.bd           = p_bd
+    AND r.bd           = p.bd
+    AND p.codigo_cli   = r.codigo_cliente
     AND r.dia           = p_dia;
 END;
 $$;
