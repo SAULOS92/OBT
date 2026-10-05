@@ -33,6 +33,11 @@ def upload_index():
                     # ---- 1) Datos MessagePack del frontend ------------------
                     payload = _get_msgpack_payload()
                     pedidos = payload.get("pedidos", [])
+                    # Razón social llega como "nombre" desde el Excel.
+                    for pedido in pedidos:
+                        for campo in ("nombre", "cliente", "barrio"):
+                            if isinstance(pedido.get(campo), str):
+                                pedido[campo] = pedido[campo][:40]
                     rutas = payload.get("rutas")
                     p_dia = request.args.get("dia", "").strip()
 
