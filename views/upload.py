@@ -10,7 +10,6 @@ from flask import (
 )
 from db import conectar
 from views.auth import login_required
-from views.resumen_pedidos import RESUMEN_PEDIDOS_SQL, preparar_pedidos
 
 upload_bp = Blueprint("upload", __name__, template_folder="../templates")
 
@@ -34,7 +33,12 @@ def upload_index():
                     # ---- 1) Datos MessagePack del frontend ------------------
                     payload = _get_msgpack_payload()
                     pedidos = payload.get("pedidos", [])
-                    preparar_pedidos(pedidos)
+                    # Recortar solo descripciones; cliente contiene el código
+                    # usado para consolidar los pedidos y asignar las rutas.
+                    for pedido in pedidos:
+                        for campo in ("nombre", "barrio"):
+                            if isinstance(pedido.get(campo), str):
+                                pedido[campo] = pedido[campo][:40]
                     rutas = payload.get("rutas")
                     p_dia = request.args.get("dia", "").strip()
 
@@ -45,7 +49,26 @@ def upload_index():
                     )
                     # Agrupar las líneas originales evita contar dos veces un
                     # pedido repartido entre nombres o barrios diferentes.
-                    cur.execute(RESUMEN_PEDIDOS_SQL, (empresa,))
+                    cur.execute(
+                        """
+                        SELECT
+                            bd,
+                            codigo_cli,
+                            MAX(NULLIF(nombre, '')) AS nombre,
+                            MAX(NULLIF(barrio, '')) AS barrio,
+                            MAX(NULLIF(ciudad, '')) AS ciudad,
+                            MAX(NULLIF(asesor, '')) AS asesor,
+                            MAX(codigo_pideky) AS codigo_pideky,
+                            COUNT(DISTINCT numero_pedido) AS total_pedidos,
+                            SUM(valor) AS valor,
+                            MAX(ruta) AS ruta
+                        FROM pedxclixprod
+                        WHERE bd = %s
+                        GROUP BY bd, codigo_cli
+                        ORDER BY codigo_cli
+                        """,
+                        (empresa,)
+                    )
                     data_res = cur.fetchall()
                     conn.commit()
 
