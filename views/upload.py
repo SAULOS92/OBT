@@ -90,6 +90,8 @@ def upload_index():
                 "ruta",
             ]
             df_res = pd.DataFrame(data_res, columns=cols)
+            # PostgreSQL devuelve Decimal; exportar como número, no como texto.
+            df_res["valor"] = pd.to_numeric(df_res["valor"])
             df_res["codigo_pideky"] = df_res["codigo_pideky"].astype(str)
 
             # ---- 4) Exportar a Excel
