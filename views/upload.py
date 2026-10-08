@@ -10,6 +10,7 @@ from flask import (
 )
 from db import conectar
 from views.auth import login_required
+from views.resumen_pedidos import RESUMEN_PEDIDOS_SQL, preparar_pedidos
 
 upload_bp = Blueprint("upload", __name__, template_folder="../templates")
 
@@ -33,11 +34,7 @@ def upload_index():
                     # ---- 1) Datos MessagePack del frontend ------------------
                     payload = _get_msgpack_payload()
                     pedidos = payload.get("pedidos", [])
-                    # Razón social llega como "nombre" desde el Excel.
-                    for pedido in pedidos:
-                        for campo in ("nombre", "cliente", "barrio"):
-                            if isinstance(pedido.get(campo), str):
-                                pedido[campo] = pedido[campo][:40]
+                    preparar_pedidos(pedidos)
                     rutas = payload.get("rutas")
                     p_dia = request.args.get("dia", "").strip()
 
@@ -46,16 +43,17 @@ def upload_index():
                         "CALL etl_cargar_pedidos_y_rutas_masivo(%s, %s, %s, %s);",
                         (json.dumps(pedidos), json.dumps(rutas), p_dia, empresa)
                     )
-                    cur.execute("SELECT fn_obtener_resumen_pedidos(%s);", (empresa,))
-                    raw = cur.fetchone()[0]
+                    # Agrupar las líneas originales evita contar dos veces un
+                    # pedido repartido entre nombres o barrios diferentes.
+                    cur.execute(RESUMEN_PEDIDOS_SQL, (empresa,))
+                    data_res = cur.fetchall()
                     conn.commit()
 
                     elapsed = time.perf_counter() - t0
                     print(f"[INFO] SP etl_cargar_pedidos_y_rutas_masivo demoró {elapsed:.2f}s "
                           f"(pedidos={len(pedidos)}, rutas={len(rutas)}, día={p_dia}, emp={empresa})")
 
-            # ---- 3) Obtener resumen en JSON --------------------------
-            data_res = json.loads(raw) if isinstance(raw, str) else (raw or [])
+            # ---- 3) Preparar resumen por cliente ---------------------
             cols = [
                 "bd",
                 "codigo_cli",
