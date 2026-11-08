@@ -182,6 +182,14 @@
       .map(h => h.toString().trim());
     const normHead = rawHead.map(h => PED_COL_MAP[h] || h);
 
+    // Priorizar Total si el archivo también contiene ventaNeta.
+    const idxTotal = rawHead.indexOf('Total');
+    const idxValor = idxTotal >= 0 ? idxTotal : normHead.lastIndexOf('valor');
+    const rowsConTotal = rowsPedFiltered.slice(1).filter(vals => {
+      const total = String(vals[idxValor] ?? '').trim().replace(/,/g, '');
+      return total === '' || Number(total) !== 0;
+    });
+
     // Detecto si ya venía 'tipo_pro' en el archivo
     const idxTipo = normHead.indexOf('tipo_pro');
     const hasTipo = idxTipo >= 0;
@@ -192,7 +200,7 @@
     }
 
     // Construyo los objetos fila por fila
-    let data = rowsPedFiltered.slice(1).map(vals => {
+    let data = rowsConTotal.map(vals => {
       const o = {};
       // Copio todas las columnas excepto tipo_pro
       normHead.forEach((hdr, i) => {
