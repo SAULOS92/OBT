@@ -185,7 +185,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function normalizeInventarioFilas(rows){
   rows.forEach(r => {
-    let v = String(r.stock ?? '').trim();
+    // El archivo usa coma de miles y punto decimal: 2,000.00 = 2000.
+    let v = String(r.stock ?? '').trim().replace(/,/g, '');
     if (v === '') v = '0';
     r.stock = parseInt(parseFloat(v), 10);
   });
