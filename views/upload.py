@@ -47,8 +47,8 @@ def upload_index():
                         "CALL etl_cargar_pedidos_y_rutas_masivo(%s, %s, %s, %s);",
                         (json.dumps(pedidos), json.dumps(rutas), p_dia, empresa)
                     )
-                    # Agrupar las líneas originales evita contar dos veces un
-                    # pedido repartido entre nombres o barrios diferentes.
+                    # Agrupar por cliente y vendedor separa sus valores y evita
+                    # contar dos veces pedidos con nombres o barrios diferentes.
                     cur.execute(
                         """
                         SELECT
@@ -57,15 +57,15 @@ def upload_index():
                             MAX(NULLIF(nombre, '')) AS nombre,
                             MAX(NULLIF(barrio, '')) AS barrio,
                             MAX(NULLIF(ciudad, '')) AS ciudad,
-                            MAX(NULLIF(asesor, '')) AS asesor,
+                            NULLIF(asesor, '') AS asesor,
                             MAX(codigo_pideky) AS codigo_pideky,
                             COUNT(DISTINCT numero_pedido) AS total_pedidos,
                             SUM(valor) AS valor,
                             MAX(ruta) AS ruta
                         FROM pedxclixprod
                         WHERE bd = %s
-                        GROUP BY bd, codigo_cli
-                        ORDER BY codigo_cli
+                        GROUP BY bd, codigo_cli, NULLIF(asesor, '')
+                        ORDER BY codigo_cli, asesor
                         """,
                         (empresa,)
                     )
@@ -76,7 +76,7 @@ def upload_index():
                     print(f"[INFO] SP etl_cargar_pedidos_y_rutas_masivo demoró {elapsed:.2f}s "
                           f"(pedidos={len(pedidos)}, rutas={len(rutas)}, día={p_dia}, emp={empresa})")
 
-            # ---- 3) Preparar resumen por cliente ---------------------
+            # ---- 3) Preparar resumen por cliente y vendedor ----------
             cols = [
                 "bd",
                 "codigo_cli",
